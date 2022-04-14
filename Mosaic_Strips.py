@@ -802,8 +802,8 @@ def main():
     # tmp_dir = '/home/heijkoop/.tmp/'
     # gsw_dir = '/media/heijkoop/DATA/Global_Surface_Water/'
 
-    subprocess.run('cc -fPIC -shared -o /home/eheijkoop/Scripts/C_Code/pnpoly_function.so /home/eheijkoop/Scripts/C_Code/pnpoly_function.c',shell=True)
-    so_file = '/home/eheijkoop/Scripts/C_Code/pnpoly_function.so'
+    subprocess.run('cc -fPIC -shared -o C_Code/pnpoly_function.so C_Code/pnpoly_function.c',shell=True)
+    so_file = 'C_Code/pnpoly_function.so'
     pnpoly_function = c.cdll.LoadLibrary(so_file)
 
     df_input = pd.read_csv(input_file,header=0,names=['loc_dirs','output_dirs','input_types'],dtype={'loc_dirs':'str','output_dirs':'str','input_types':'object'})
