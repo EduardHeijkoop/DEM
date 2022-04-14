@@ -275,8 +275,8 @@ def main():
     Y_SPACING = 20.0 #in m
     MOSAIC_TILE_SIZE = 25000.0 #in m^2 
 
-    subprocess.run('cc -fPIC -shared -o /home/eheijkoop/Scripts/C_Code/pnpoly_function.so /home/eheijkoop/Scripts/C_Code/pnpoly_function.c',shell=True)
-    so_file = '/home/eheijkoop/Scripts/C_Code/pnpoly_function.so'
+    subprocess.run('cc -fPIC -shared -o C_Code/pnpoly_function.so C_Code/pnpoly_function.c',shell=True)
+    so_file = 'C_Code/pnpoly_function.so'
     pnpoly_function = c.cdll.LoadLibrary(so_file)
 
     mosaic_dir = os.path.dirname(mosaic_file)+'/'
