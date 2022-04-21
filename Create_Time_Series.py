@@ -34,6 +34,8 @@ def main():
         input_point = shapely.geometry.Point(x_input,y_input)
     if shp is not None:
         shp = gpd.read_file(shp)
+
+    LARGEST_AREA_THRESHOLD = 0.2
     
     time_series_dir = f'{"/".join(input_file.split("/")[0:-1])}/Time_Series_Strips/'
     mosaic_dir = f'{"/".join(input_file.split("/")[0:-1])}/Mosaic/'
@@ -93,6 +95,9 @@ def main():
         subprocess.run(polygonize_command,shell=True)
         subprocess.run(f'rm {time_series_dir}tmp.tif',shell=True)
         dem_diff_shp_data = gpd.read_file(dem_diff_shp_file)
+        idx_largest_area = dem_diff_shp_data.geometry.area / np.sum(dem_diff_shp_data.geometry.area) < LARGEST_AREA_THRESHOLD
+        dem_diff_shp_data = dem_diff_shp_data[idx_largest_area].reset_index(drop=True)
+        dem_diff_shp_data.to_file(dem_diff_shp_file)
         for area in area_threshold:
             dem_diff_shp_file_area = dem_diff_shp_file.replace('.shp',f'_gt_{area}_m2.shp')
             idx_area = dem_diff_shp_data.geometry.area > area
