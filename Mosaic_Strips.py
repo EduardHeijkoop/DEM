@@ -85,12 +85,15 @@ def utm2proj4(utm_code):
 
 def epsg2proj4(epsg_code):
     epsg_code = str(epsg_code) #forces string, if input is int for example
-    zone = epsg_code[3:5]
-    if epsg_code[2] == '6':
-        north_south = 'north'
-    elif epsg_code[2] == '7':
-        north_south = 'south'
-    proj4 = f'+proj=utm +zone={zone} +{north_south} +datum=WGS84 +units=m +no_defs'
+    if epsg_code == '3413':
+        proj4 = '+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'
+    else:
+        zone = epsg_code[3:5]
+        if epsg_code[2] == '6':
+            north_south = 'north'
+        elif epsg_code[2] == '7':
+            north_south = 'south'
+        proj4 = f'+proj=utm +zone={zone} +{north_south} +datum=WGS84 +units=m +no_defs'
     return proj4
 
 
