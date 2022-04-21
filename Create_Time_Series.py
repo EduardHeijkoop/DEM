@@ -24,7 +24,7 @@ def main():
     input_file = args.input_file
     xy = args.xy
     shp = args.shp
-    threshold = float(args.threshold)
+    threshold = int(args.threshold)
     area_threshold = args.area_threshold
     area_threshold = [int(a) for a in np.atleast_1d(area_threshold)]
     if xy is not None:
@@ -95,7 +95,7 @@ def main():
         dem_diff_shp_data = gpd.read_file(dem_diff_shp_file)
         for area in area_threshold:
             dem_diff_shp_file_area = dem_diff_shp_file.replace('.shp',f'_gt_{area}_m2.shp')
-            idx_area = dem_diff_shp_data.geometry.area > area_threshold
+            idx_area = dem_diff_shp_data.geometry.area > area
             dem_diff_shp_data_area = dem_diff_shp_data.loc[idx_area].reset_index(drop=True)
             dem_diff_shp_data_area.to_file(dem_diff_shp_file_area)
             del dem_diff_shp_file_area,dem_diff_shp_data_area
