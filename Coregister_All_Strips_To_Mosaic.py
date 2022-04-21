@@ -4,6 +4,7 @@ import geopandas as gpd
 import subprocess
 import glob
 import os
+import sys
 import argparse
 import ctypes as c
 from osgeo import gdal,osr,gdalconst
@@ -209,10 +210,11 @@ def populate_intersection(geom_intersection,gsw_main_sea_only_buffered,pnpoly_fu
     return x,y
 
 
-def coregister_to_mosaic(strip_data,mosaic_file,mosaic_shp_data,gsw_main_sea_only_buffered,pnpoly_function,time_series_dir,epsg_code,X_SPACING,Y_SPACING):
+def coregister_to_mosaic(strip_data,mosaic_file,mosaic_shp_data,gsw_main_sea_only_buffered,pnpoly_function,time_series_dir,epsg_code,X_SPACING,Y_SPACING,AREA_OVERLAP_THRESHOLD):
     '''
     Given a strip and mosaic, co-register the strip to the mosaic
     '''
+    mosaic_ID = mosaic_file.split('/')[-2]
     proj4_str = epsg2proj4(epsg_code)
     strip_data = strip_data.reset_index(drop=True)
     full_strip_path = strip_data.strip[0]
@@ -225,10 +227,12 @@ def coregister_to_mosaic(strip_data,mosaic_file,mosaic_shp_data,gsw_main_sea_onl
     multipolygon_list = list(compress(geom_intersection_list,idx_multipolygon))
     [polygon_list.extend(list(a.geoms)) for a in multipolygon_list]
     geom_intersection = shapely.geometry.MultiPolygon(polygon_list)
+    if geom_intersection.area < AREA_OVERLAP_THRESHOLD:
+        return 0
     x_masked_total,y_masked_total = populate_intersection(geom_intersection,gsw_main_sea_only_buffered,pnpoly_function,X_SPACING,Y_SPACING)
     output_xy_file = f'{time_series_dir}{strip_basename}_xy.txt'
-    output_h_file = f'{time_series_dir}{strip_basename}_h_sampled_mosaic.txt'
-    mosaic_sampled_file = f'{time_series_dir}{strip_basename}_sampled_mosaic_{epsg_code}.txt'
+    output_h_file = f'{time_series_dir}{strip_basename}_h_sampled_mosaic_{mosaic_ID}.txt'
+    mosaic_sampled_file = f'{time_series_dir}{strip_basename}_sampled_mosaic_{mosaic_ID}_{epsg_code}.txt'
     mosaic_sampled_file_base = mosaic_sampled_file.replace('.txt','')
     np.savetxt(output_xy_file,np.c_[x_masked_total,y_masked_total],fmt='%10.5f',delimiter=' ')
 
@@ -250,6 +254,7 @@ def coregister_to_mosaic(strip_data,mosaic_file,mosaic_shp_data,gsw_main_sea_onl
     align_results_file = mosaic_sampled_file.replace('.txt','_align_results.txt')
     align_command = f'dem_align.py -outdir {time_series_dir} -max_iter 15 -max_offset 2000 {mosaic_sampled_as_dem} {full_strip_path} > {align_results_file}'
     subprocess.run(align_command,shell=True)
+    return None
 
 def main():
     parser = argparse.ArgumentParser()
@@ -302,7 +307,12 @@ def main():
     gsw_main_sea_only_buffered = gsw_main_sea_only.buffer(0)
 
     for i in range(len(strip_shp_data)):
-        coregister_to_mosaic(strip_shp_data.iloc[[i]],mosaic_file,mosaic_shp_data,gsw_main_sea_only_buffered,pnpoly_function,time_series_dir,epsg_code,X_SPACING,Y_SPACING)
+        sys.stdout.write('\r')
+        n_progressbar = (i + 1) / len(strip_shp_data)
+        sys.stdout.write("[%-20s] %d%%" % ('='*int(20*n_progressbar), 100*n_progressbar))
+        sys.stdout.flush()
+        coregistration_code = coregister_to_mosaic(strip_shp_data.iloc[[i]],mosaic_file,mosaic_shp_data,gsw_main_sea_only_buffered,pnpoly_function,time_series_dir,epsg_code,X_SPACING,Y_SPACING,AREA_OVERLAP_THRESHOLD)
+    print('\n')
 
 if __name__ == '__main__':
     main()
