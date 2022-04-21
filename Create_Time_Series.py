@@ -26,7 +26,7 @@ def main():
     shp = args.shp
     threshold = float(args.threshold)
     area_threshold = args.area_threshold
-    area_threshold = [int(a) for a in area_threshold]
+    area_threshold = [int(a) for a in np.atleast_1d(area_threshold)]
     if xy is not None:
         x_input,y_input = xy
         x_input = float(x_input)
@@ -83,17 +83,15 @@ def main():
         dem_diff_file = f'{time_series_dir}Diff_{new_strip}_minus_{old_strip}_dt_{dt}_days.tif'
         dem_diff_threshold_file = dem_diff_file.replace('.tif',f'_gt_{threshold}m.tif')
         dem_diff_shp_file = dem_diff_threshold_file.replace('.tif','.shp')
-        dem_diff_shp_file_gt_1000 = dem_diff_shp_file.replace('.shp','_gt_1000_m2.shp')
-        dem_diff_shp_file_gt_5000 = dem_diff_shp_file.replace('.shp','_gt_5000_m2.shp')
         diff_calc_command = f'gdal_calc.py -A {time_series_dir}{loc_name}_Time_Series.vrt --A_band={idx_new_strips[i]+1} -B {time_series_dir}{loc_name}_Time_Series.vrt --B_band={idx_old_strips[i]+1} --outfile={dem_diff_file} --calc="A-B" --format=GTiff --co="COMPRESS=LZW" --quiet'
         threshold_calc_command = f'gdal_calc.py -A {dem_diff_file} --calc="numpy.abs(A)>{threshold}" --outfile={dem_diff_threshold_file} --format=GTiff --co="COMPRESS=LZW" --quiet'
-        nodata_translate_command = f'gdal_translate -q -a_nodata 0 {dem_diff_threshold_file} tmp.tif'
-        polygonize_command = f'gdal_polygonize.py -q tmp.tif -f "ESRI Shapefile" {dem_diff_shp_file}'
+        nodata_translate_command = f'gdal_translate -q -a_nodata 0 {dem_diff_threshold_file} {time_series_dir}tmp.tif'
+        polygonize_command = f'gdal_polygonize.py -q {time_series_dir}tmp.tif -f "ESRI Shapefile" {dem_diff_shp_file}'
         subprocess.run(diff_calc_command,shell=True)
         subprocess.run(threshold_calc_command,shell=True)
         subprocess.run(nodata_translate_command,shell=True)
         subprocess.run(polygonize_command,shell=True)
-        subprocess.run('rm tmp.tif',shell=True)
+        subprocess.run(f'rm {time_series_dir}tmp.tif',shell=True)
         dem_diff_shp_data = gpd.read_file(dem_diff_shp_file)
         for area in area_threshold:
             dem_diff_shp_file_area = dem_diff_shp_file.replace('.shp',f'_gt_{area}_m2.shp')
