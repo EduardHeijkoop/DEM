@@ -359,55 +359,54 @@ def filter_strip_gsw(wv_strip_shp,gsw_shp_data,STRIP_AREA_THRESHOLD,POLYGON_AREA
         return None
     idx_polygon_area = wv_strip_shp.area > POLYGON_AREA_THRESHOLD
     wv_strip_shp_filtered_gsw = wv_strip_shp[idx_polygon_area].reset_index(drop=True)
-    # wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw.reset_index(drop=True)
-    if len(gsw_shp_data) == 1:
-        gsw_wv_joined_contains = gpd.sjoin(gsw_shp_data,wv_strip_shp_filtered_gsw,how='right',predicate='contains')
-        idx_gsw_wv_contains = np.asarray(np.isnan(gsw_wv_joined_contains.DN_left).sort_index())
-    elif len(gsw_shp_data) > 1:
-        idx_gsw_wv_contains = np.zeros((len(gsw_shp_data),len(wv_strip_shp_filtered_gsw)),dtype=bool)
-        for i in range(len(gsw_shp_data)):
-            gsw_wv_joined_contains = gpd.sjoin(gsw_shp_data.iloc[[i]],wv_strip_shp_filtered_gsw,how='right',predicate='contains')
-            idx_gsw_wv_contains[i,:] = np.asarray(np.isnan(gsw_wv_joined_contains.DN_left).sort_index())
-        idx_gsw_wv_contains = np.any(idx_gsw_wv_contains,axis=0)
-    if np.sum(idx_gsw_wv_contains) == 0:
-        return None
-    #Note: this will return a True if a polygon is NOT fully contained by the GSW dataset
-    wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw.iloc[idx_gsw_wv_contains].reset_index(drop=True)
-    # wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw.reset_index(drop=True)
+    if gsw_shp_data is not None:
+        if len(gsw_shp_data) == 1:
+            gsw_wv_joined_contains = gpd.sjoin(gsw_shp_data,wv_strip_shp_filtered_gsw,how='right',predicate='contains')
+            idx_gsw_wv_contains = np.asarray(np.isnan(gsw_wv_joined_contains.DN_left).sort_index())
+        elif len(gsw_shp_data) > 1:
+            idx_gsw_wv_contains = np.zeros((len(gsw_shp_data),len(wv_strip_shp_filtered_gsw)),dtype=bool)
+            for i in range(len(gsw_shp_data)):
+                gsw_wv_joined_contains = gpd.sjoin(gsw_shp_data.iloc[[i]],wv_strip_shp_filtered_gsw,how='right',predicate='contains')
+                idx_gsw_wv_contains[i,:] = np.asarray(np.isnan(gsw_wv_joined_contains.DN_left).sort_index())
+            idx_gsw_wv_contains = np.any(idx_gsw_wv_contains,axis=0)
+        if np.sum(idx_gsw_wv_contains) == 0:
+            return None
+        #Note: this will return a True if a polygon is NOT fully contained by the GSW dataset
+        wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw.iloc[idx_gsw_wv_contains].reset_index(drop=True)
 
-    if len(gsw_shp_data) == 1:
-        gsw_wv_joined_intersects = gpd.sjoin(gsw_shp_data,wv_strip_shp_filtered_gsw,how='right',predicate='intersects')
-        idx_no_intersect = np.asarray(np.isnan(gsw_wv_joined_intersects.DN_left))
-        idx_some_intersect = np.asarray(gsw_wv_joined_intersects.DN_left==1)
-        IDs_some_intersect = [j for j, x in enumerate(idx_some_intersect) if x]
-        gsw_wv_overlay_intersection = gpd.overlay(wv_strip_shp_filtered_gsw[idx_some_intersect],gsw_shp_data,how='intersection')
-        idx_overlay_intersect_threshold = gsw_wv_overlay_intersection.area/wv_strip_shp_filtered_gsw[idx_some_intersect].area.reset_index(drop=True) < GSW_OVERLAP_THRESHOLD
-        idx_some_intersect[IDs_some_intersect] = idx_overlay_intersect_threshold
-    elif len(gsw_shp_data) > 1:
-        idx_some_intersect = np.zeros((len(gsw_shp_data),len(wv_strip_shp_filtered_gsw)),dtype=bool)
-        for i in range(len(gsw_shp_data)):
-            gsw_wv_joined_intersects = gpd.sjoin(gsw_shp_data.iloc[[i]],wv_strip_shp_filtered_gsw,how='right',predicate='intersects')
+        if len(gsw_shp_data) == 1:
+            gsw_wv_joined_intersects = gpd.sjoin(gsw_shp_data,wv_strip_shp_filtered_gsw,how='right',predicate='intersects')
             idx_no_intersect = np.asarray(np.isnan(gsw_wv_joined_intersects.DN_left))
-            idx_some_intersect[i,:] = np.asarray(gsw_wv_joined_intersects.DN_left==1)
-            IDs_some_intersect = [j for j, x in enumerate(idx_some_intersect[i,:]) if x]
-            if len(IDs_some_intersect) == 0:
-                continue
-            gsw_wv_overlay_intersection = gpd.overlay(wv_strip_shp_filtered_gsw[idx_some_intersect[i,:]],gsw_shp_data.iloc[[i]],how='intersection')
-            idx_overlay_intersect_threshold = gsw_wv_overlay_intersection.area/wv_strip_shp_filtered_gsw[idx_some_intersect[i,:]].area.reset_index(drop=True) < GSW_OVERLAP_THRESHOLD
-            idx_some_intersect[i,IDs_some_intersect] = idx_overlay_intersect_threshold
-        idx_some_intersect = np.any(idx_some_intersect,axis=0)
+            idx_some_intersect = np.asarray(gsw_wv_joined_intersects.DN_left==1)
+            IDs_some_intersect = [j for j, x in enumerate(idx_some_intersect) if x]
+            gsw_wv_overlay_intersection = gpd.overlay(wv_strip_shp_filtered_gsw[idx_some_intersect],gsw_shp_data,how='intersection')
+            idx_overlay_intersect_threshold = gsw_wv_overlay_intersection.area/wv_strip_shp_filtered_gsw[idx_some_intersect].area.reset_index(drop=True) < GSW_OVERLAP_THRESHOLD
+            idx_some_intersect[IDs_some_intersect] = idx_overlay_intersect_threshold
+        elif len(gsw_shp_data) > 1:
+            idx_some_intersect = np.zeros((len(gsw_shp_data),len(wv_strip_shp_filtered_gsw)),dtype=bool)
+            for i in range(len(gsw_shp_data)):
+                gsw_wv_joined_intersects = gpd.sjoin(gsw_shp_data.iloc[[i]],wv_strip_shp_filtered_gsw,how='right',predicate='intersects')
+                idx_no_intersect = np.asarray(np.isnan(gsw_wv_joined_intersects.DN_left))
+                idx_some_intersect[i,:] = np.asarray(gsw_wv_joined_intersects.DN_left==1)
+                IDs_some_intersect = [j for j, x in enumerate(idx_some_intersect[i,:]) if x]
+                if len(IDs_some_intersect) == 0:
+                    continue
+                gsw_wv_overlay_intersection = gpd.overlay(wv_strip_shp_filtered_gsw[idx_some_intersect[i,:]],gsw_shp_data.iloc[[i]],how='intersection')
+                idx_overlay_intersect_threshold = gsw_wv_overlay_intersection.area/wv_strip_shp_filtered_gsw[idx_some_intersect[i,:]].area.reset_index(drop=True) < GSW_OVERLAP_THRESHOLD
+                idx_some_intersect[i,IDs_some_intersect] = idx_overlay_intersect_threshold
+            idx_some_intersect = np.any(idx_some_intersect,axis=0)
 
-    idx_intersection = np.logical_or(idx_no_intersect,idx_some_intersect)
-    wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw[idx_intersection].reset_index(drop=True)
-    # wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw.reset_index(drop=True)
+        idx_intersection = np.logical_or(idx_no_intersect,idx_some_intersect)
+        wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw[idx_intersection].reset_index(drop=True)
+        # wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw.reset_index(drop=True)
 
-    idx_total_area_percentage = np.asarray(wv_strip_shp_filtered_gsw.area/np.sum(wv_strip_shp_filtered_gsw.area) > STRIP_TOTAL_AREA_PERCENTAGE_THRESHOLD)
-    wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw[idx_total_area_percentage].reset_index(drop=True)
-    # wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw.reset_index(drop=True)
+        idx_total_area_percentage = np.asarray(wv_strip_shp_filtered_gsw.area/np.sum(wv_strip_shp_filtered_gsw.area) > STRIP_TOTAL_AREA_PERCENTAGE_THRESHOLD)
+        wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw[idx_total_area_percentage].reset_index(drop=True)
+        # wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw.reset_index(drop=True)
 
-    wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw.buffer(0)
-    if np.sum(idx_intersection) == 0:
-        return None
+        wv_strip_shp_filtered_gsw = wv_strip_shp_filtered_gsw.buffer(0)
+        if np.sum(idx_intersection) == 0:
+            return None
     
     return wv_strip_shp_filtered_gsw
 
@@ -814,7 +813,7 @@ def main():
     df_input.input_types = df_input.input_types.astype(int)
 
     POLYGON_AREA_THRESHOLD = 250 #in m^2
-    STRIP_AREA_THRESHOLD = 1e6 #in m^2
+    STRIP_AREA_THRESHOLD = 4e6 #in m^2
     GSW_POCKET_THRESHOLD = 0.01 #in %
     GSW_CRS_TRANSFORM_THRESHOLD = 0.05 #in %
     GSW_OVERLAP_THRESHOLD = 0.95 #in %
@@ -848,6 +847,7 @@ def main():
         print('Working on ' + loc_name)
         if loc_name != output_name:
             print('Warning! Output name and location name not the same. Continuing...')
+            print(f'Calling everything {output_name} now.')
         full_ortho_list = get_ortho_list(loc_dir)
         full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(ortho,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for ortho in full_ortho_list])
         unique_epsg_list = np.unique(full_epsg_list)
@@ -883,10 +883,7 @@ def main():
                 sys.stdout.write("[%-20s] %d%%" % ('='*int(20*n_progressbar), 100*n_progressbar))
                 sys.stdout.flush()
                 wv_strip_shp = get_strip_shp(strip,tmp_dir)
-                if gsw_main_sea_only is not None:
-                    wv_strip_shp_filtered_gsw = filter_strip_gsw(wv_strip_shp,gsw_main_sea_only,STRIP_AREA_THRESHOLD,POLYGON_AREA_THRESHOLD,GSW_OVERLAP_THRESHOLD,STRIP_TOTAL_AREA_PERCENTAGE_THRESHOLD)
-                else:
-                    wv_strip_shp_filtered_gsw = wv_strip_shp
+                wv_strip_shp_filtered_gsw = filter_strip_gsw(wv_strip_shp,gsw_main_sea_only,STRIP_AREA_THRESHOLD,POLYGON_AREA_THRESHOLD,GSW_OVERLAP_THRESHOLD,STRIP_TOTAL_AREA_PERCENTAGE_THRESHOLD)
                 if wv_strip_shp_filtered_gsw is None:
                     strip_idx[j] = False
                     continue
