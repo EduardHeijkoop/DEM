@@ -693,7 +693,7 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,pnpoly_function,mosai
                 copy_check = True
             src_file = mosaic_dir + src_strip.split('/')[-1]
         else:
-            src_file = glob.glob(mosaic_dir + src_strip.split('/')[-1].replace('.tif','') + f'_{output_name}_Mosaic_{mosaic_number}_sampled_{src_list[ref_list==src_strip_ID][0]}_for_coregistering_{src_strip_ID}-DEM*align.tif')[0]
+            src_file = glob.glob(mosaic_dir + src_strip.split('/')[-1].replace('.tif','') + f'_{output_name}_Mosaic_{mosaic_number}_{epsg_code}_sampled_{src_list[ref_list==src_strip_ID][0]}_for_coregistering_{src_strip_ID}-DEM*align.tif')[0]
 
         subprocess.run(f'cat {strip_sampled_file} | gdallocationinfo {src_file} -geoloc -valonly > {output_h_file}',shell=True)
         subprocess.run('awk -i inplace \'!NF{$0="NaN"}1\' ' + output_h_file,shell=True)
