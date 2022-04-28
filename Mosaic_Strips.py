@@ -14,6 +14,7 @@ import argparse
 import subprocess
 import datetime
 import ctypes as c
+import warnings
 
 
 def get_extent(gt,cols,rows):
@@ -680,7 +681,7 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,pnpoly_function,mosai
         src_strip = strip_shp_data.strip[src_strip_ID]
         geom_intersection = strip_shp_data.geometry[src_strip_ID].intersection(strip_shp_data.geometry[ref_strip_ID])
         x_masked_total,y_masked_total = populate_intersection(geom_intersection,gsw_main_sea_only_buffered,pnpoly_function,X_SPACING,Y_SPACING)
-        strip_sampled_file = mosaic_dir + output_name + f'_Mosaic_{mosaic_number}_sampled_{src_strip_ID}_for_coregistering_{ref_strip_ID}.txt'
+        strip_sampled_file = mosaic_dir + output_name + f'_Mosaic_{mosaic_number}_{epsg_code}_sampled_{src_strip_ID}_for_coregistering_{ref_strip_ID}.txt'
         strip_sampled_file_base = strip_sampled_file.replace('.txt','')
         output_xy_file = strip_sampled_file.replace('.txt','_xy.txt')
         output_h_file = strip_sampled_file.replace('.txt','_h.txt')
@@ -794,6 +795,7 @@ In this EPSG:
 
 
 def main():
+    warnings.simplefilter(action='ignore')
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_file',default='/home/eheijkoop/INPUTS/MOSAIC_Input.txt',help='path to dir containing strips')
     args = parser.parse_args()
