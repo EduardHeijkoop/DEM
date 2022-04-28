@@ -828,10 +828,10 @@ def main():
     Y_SPACING = 20.0 #in m
     MOSAIC_TILE_SIZE = 25000.0 #in m^2   
     
-    for input_counter in range(len(df_input)):
-        loc_dir = df_input.loc_dirs[input_counter]
-        output_dir = df_input.output_dirs[input_counter]
-        input_type = df_input.input_types[input_counter]
+    for i in range(len(df_input)):
+        loc_dir = df_input.loc_dirs[i]
+        output_dir = df_input.output_dirs[i]
+        input_type = df_input.input_types[i]
         #force the directories to end on a slash
         if loc_dir[len(loc_dir)-1] != '/':
             loc_dir = loc_dir + '/'
@@ -877,9 +877,9 @@ def main():
                 gsw_main_sea_only_buffered = None
             strip_idx = np.ones(len(strip_list_coarse),dtype=bool)
             print('Loading strips...')
-            for i,strip in enumerate(strip_list_full_res):
+            for j,strip in enumerate(strip_list_full_res):
                 sys.stdout.write('\r')
-                n_progressbar = (i + 1) / len(strip_list_full_res)
+                n_progressbar = (j + 1) / len(strip_list_full_res)
                 sys.stdout.write("[%-20s] %d%%" % ('='*int(20*n_progressbar), 100*n_progressbar))
                 sys.stdout.flush()
                 wv_strip_shp = get_strip_shp(strip,tmp_dir)
@@ -888,7 +888,7 @@ def main():
                 else:
                     wv_strip_shp_filtered_gsw = wv_strip_shp
                 if wv_strip_shp_filtered_gsw is None:
-                    strip_idx[i] = False
+                    strip_idx[j] = False
                     continue
                 tmp_mp = shapely.ops.unary_union([Polygon(g) for g in wv_strip_shp_filtered_gsw.geometry.exterior])
                 df_strip = pd.DataFrame({'strip':[strip]})
@@ -897,10 +897,10 @@ def main():
 
             strip_list_coarse = strip_list_coarse[strip_idx]
             strip_list_full_res = strip_list_full_res[strip_idx]
-            output_strips_shp_file = output_dir + loc_name + '_Strips_' + epsg_code + '.shp'
-            output_strips_shp_file_dissolved = output_dir + loc_name + '_Strips_' + epsg_code + '_Dissolved.shp'
-            output_strips_shp_file_filtered = output_dir + loc_name + '_Strips_' + epsg_code + '_Filtered.shp'
-            output_strips_shp_file_filtered_dissolved = output_dir + loc_name + '_Strips_' + epsg_code + '_Filtered_Dissolved.shp'
+            output_strips_shp_file = output_dir + output_name + '_Strips_' + epsg_code + '.shp'
+            output_strips_shp_file_dissolved = output_dir + output_name + '_Strips_' + epsg_code + '_Dissolved.shp'
+            output_strips_shp_file_filtered = output_dir + output_name + '_Strips_' + epsg_code + '_Filtered.shp'
+            output_strips_shp_file_filtered_dissolved = output_dir + output_name + '_Strips_' + epsg_code + '_Filtered_Dissolved.shp'
             print('\n')
             print(output_strips_shp_file)
             
