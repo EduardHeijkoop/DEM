@@ -76,6 +76,86 @@ def epsg2proj4(epsg_code):
         proj4 = f'+proj=utm +zone={zone} +{north_south} +datum=WGS84 +units=m +no_defs'
     return proj4
 
+def get_raster_extents(raster,global_local_flag='global'):
+    '''
+    Get global or local extents of a raster
+    '''
+    src = gdal.Open(raster,gdalconst.GA_ReadOnly)
+    gt = src.GetGeoTransform()
+    cols = src.RasterXSize
+    rows = src.RasterYSize
+    local_ext = get_extent(gt,cols,rows)
+    src_srs = osr.SpatialReference()
+    src_srs.ImportFromWkt(src.GetProjection())
+    tgt_srs = osr.SpatialReference()
+    tgt_srs.ImportFromEPSG(4326)
+    global_ext = reproject_coords(local_ext,src_srs,tgt_srs)
+    x_local = [item[0] for item in local_ext]
+    y_local = [item[1] for item in local_ext]
+    x_min_local = np.nanmin(x_local)
+    x_max_local = np.nanmax(x_local)
+    y_min_local = np.nanmin(y_local)
+    y_max_local = np.nanmax(y_local)
+    x_global = [item[0] for item in global_ext]
+    y_global = [item[1] for item in global_ext]
+    x_min_global = np.nanmin(x_global)
+    x_max_global = np.nanmax(x_global)
+    y_min_global = np.nanmin(y_global)
+    y_max_global = np.nanmax(y_global)
+    if global_local_flag.lower() == 'global':
+        return x_min_global,x_max_global,y_min_global,y_max_global
+    elif global_local_flag.lower() == 'local':
+        return x_min_local,x_max_local,y_min_local,y_max_local
+    else:
+        return None
+
+def deg2rad(deg):
+    rad = deg*np.math.pi/180
+    return rad
+
+
+def great_circle_distance(lon1,lat1,lon2,lat2,R=6378137.0):
+    lon1 = deg2rad(lon1)
+    lat1 = deg2rad(lat1)
+    lon2 = deg2rad(lon2)
+    lat2 = deg2rad(lat2)
+    DL = np.abs(lon2 - lon1)
+    DP = np.abs(lat2 - lat1)
+    dsigma = 2*np.arcsin( np.sqrt( np.sin(0.5*DP)**2 + np.cos(lat1)*np.cos(lat2)*np.sin(0.5*DL)**2))
+    distance = R*dsigma
+    return distance
+
+def resample_raster(src_filename,match_filename,dst_filename,resample_method='bilinear'):
+    '''
+    src = what you want to resample
+    match = resample to this one's resolution
+    dst = output
+    method = nearest neighbor, bilinear (default), cubic, cubic spline
+    '''
+    src = gdal.Open(src_filename, gdalconst.GA_ReadOnly)
+    src_proj = src.GetProjection()
+    src_geotrans = src.GetGeoTransform()
+    src_espg = epsg_code = osr.SpatialReference(wkt=gdal.Open(src_filename,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1)
+
+    match_ds = gdal.Open(match_filename, gdalconst.GA_ReadOnly)
+    match_proj = match_ds.GetProjection()
+    match_geotrans = match_ds.GetGeoTransform()
+    wide = match_ds.RasterXSize
+    high = match_ds.RasterYSize
+
+    dst = gdal.GetDriverByName('GTiff').Create(dst_filename, wide, high, 1, gdalconst.GDT_Float32)
+    dst.SetGeoTransform( match_geotrans )
+    dst.SetProjection( match_proj)
+    if resample_method == 'nearest':
+        gdal.ReprojectImage(src, dst, src_proj, match_proj, gdalconst.GRA_NearestNeighbour)
+    elif resample_method == 'bilinear':
+        gdal.ReprojectImage(src, dst, src_proj, match_proj, gdalconst.GRA_Bilinear)
+    elif resample_method == 'cubic':
+        gdal.ReprojectImage(src, dst, src_proj, match_proj, gdalconst.GRA_Cubic)
+    elif resample_method == 'cubicspline':
+        gdal.ReprojectImage(src, dst, src_proj, match_proj, gdalconst.GRA_CubicSpline)
+    del dst # Flush
+    return None
 
 def get_lonlat_geometry(geom):
     '''
