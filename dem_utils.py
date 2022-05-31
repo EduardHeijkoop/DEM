@@ -113,6 +113,99 @@ def deg2rad(deg):
     rad = deg*np.math.pi/180
     return rad
 
+def deg2utm(lon,lat):
+    pi = np.math.pi
+    n1 = np.asarray(lon).size
+    n2 = np.asarray(lat).size
+    if n1 != n2:
+        print('Longitude and latitude vectors not equal in length.')
+        print('Exiting')
+        return
+    lon_deg = lon
+    lat_deg = lat
+    lon_rad = lon*pi/180
+    lat_rad = lat*pi/180
+    cos_lat = np.cos(lat_rad)
+    sin_lat = np.sin(lat_rad)
+    tan_lat = np.tan(lat_rad)
+    cos_lon = np.cos(lon_rad)
+    sin_lon = np.sin(lon_rad)
+    tan_lon = np.tan(lon_rad)
+    x = np.empty([n1,1],dtype=float)
+    y = np.empty([n2,1],dtype=float)
+    zone_letter = [None]*n1
+    semi_major_axis = 6378137.0
+    semi_minor_axis = 6356752.314245
+    second_eccentricity = np.sqrt(semi_major_axis**2 - semi_minor_axis**2)/semi_minor_axis
+    second_eccentricity_squared = second_eccentricity**2
+    c = semi_major_axis**2 / semi_minor_axis
+    utm_number = np.fix(lon_deg/6 + 31)
+    S = utm_number*6 - 183
+    delta_S = lon_rad - S*pi/180
+    epsilon = 0.5*np.log((1+cos_lat * np.sin(delta_S))/(1-cos_lat * np.sin(delta_S)))
+    nu = np.arctan(tan_lat / np.cos(delta_S)) - lat_rad
+    v = 0.9996 * c / np.sqrt(1+second_eccentricity_squared * cos_lat**2)
+    tau = 0.5*second_eccentricity_squared * epsilon**2 * cos_lat**2
+    a1 = np.sin(2*lat_rad)
+    a2 = a1 * cos_lat**2
+    j2 = lat_rad + 0.5*a1
+    j4 = 0.25*(3*j2 + a2)
+    j6 = (5*j4 + a2*cos_lat**2)/3
+    alpha = 0.75*second_eccentricity_squared
+    beta = (5/3) * alpha**2
+    gamma = (35/27) * alpha**3
+    Bm = 0.9996 * c * (lat_rad - alpha*j2 + beta*j4 - gamma*j6)
+    x = epsilon * v * (1+tau/3) + 500000
+    y = nu * v * (1+tau) + Bm
+    idx_y = y<0
+    y[idx_y] = y[idx_y] + 9999999
+    for i in range(n1):
+        if lat_deg[i]<-72:
+            zone_letter[i] = ' C'
+        elif lat_deg[i] < -64:
+            zone_letter[i] = ' D'
+        elif lat_deg[i] < -56:
+            zone_letter[i] = ' E'
+        elif lat_deg[i] < -48:
+            zone_letter[i] = ' F'
+        elif lat_deg[i] < -40:
+            zone_letter[i] = ' G'
+        elif lat_deg[i] < -32:
+            zone_letter[i] = ' H'
+        elif lat_deg[i] < -24:
+            zone_letter[i] = ' J'
+        elif lat_deg[i] < -16:
+            zone_letter[i] = ' K'
+        elif lat_deg[i] < -8:
+            zone_letter[i] = ' L'
+        elif lat_deg[i] < 0:
+            zone_letter[i] = ' M'
+        elif lat_deg[i] < 8:
+            zone_letter[i] = ' N'
+        elif lat_deg[i] < 16:
+            zone_letter[i] = ' P'
+        elif lat_deg[i] < 24:
+            zone_letter[i] = ' Q'
+        elif lat_deg[i] < 32:
+            zone_letter[i] = ' R'
+        elif lat_deg[i] < 40:
+            zone_letter[i] = ' S'
+        elif lat_deg[i] < 48:
+            zone_letter[i] = ' T'
+        elif lat_deg[i] < 56:
+            zone_letter[i] = ' U'
+        elif lat_deg[i] < 64:
+            zone_letter[i] = ' V'
+        elif lat_deg[i] < 72:
+            zone_letter[i] = ' W'
+        else:
+            zone_letter[i] = ' X'
+    utm_int = np.char.mod('%02d',utm_number.astype(int))
+    utm_int_list = utm_int.tolist()
+    utmzone = [s1 + s2 for s1, s2 in zip(utm_int_list, zone_letter)]
+    return x, y, utmzone
+
+
 
 def great_circle_distance(lon1,lat1,lon2,lat2,R=6378137.0):
     lon1 = deg2rad(lon1)
@@ -211,6 +304,15 @@ def get_lonlat_gdf(gdf):
         lon = np.append(lon,lon_geom)
         lat = np.append(lat,lat_geom)
     return lon,lat
+
+def buffer_gdf(gdf,buffer):
+    '''
+    Given an input gdf, will return a buffered gdf.
+    '''
+
+    buffered_gdf = gdf.to_crs(epsg=4326)
+    buffered_gdf['geometry'] = buffered_gdf.geometry.buffer(buffer)
+    return buffered_gdf
 
 def landmask_dem(lon,lat,lon_coast,lat_coast,landmask_c_file,inside_flag):
     #Given lon/lat of points, and lon/lat of coast (or any other boundary),
