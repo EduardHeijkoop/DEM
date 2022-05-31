@@ -63,6 +63,20 @@ def utm2proj4(utm_code):
     proj4 = '+proj=utm +zone='+zone+' +'+north_south+' +datum=WGS84 +units=m +no_defs'
     return proj4
 
+def utm2epsg(utm_code,north_south_flag=False):
+    utm_code = np.asarray([z.replace(' ','') for z in utm_code])
+    lat_band_number = np.asarray([ord(u[2].upper()) for u in utm_code])
+    if north_south_flag == True:
+        hemisphere_ID = np.zeros(len(lat_band_number),dtype=int)
+        hemisphere_ID[lat_band_number == 83] = 7 #south
+        hemisphere_ID[lat_band_number == 78] = 6 #north
+    else:
+        hemisphere_ID = np.zeros(len(lat_band_number),dtype=int)
+        hemisphere_ID[lat_band_number <= 77] = 7 #south
+        hemisphere_ID[lat_band_number >= 78] = 6 #north
+    epsg_code = np.asarray([f'32{a[1]}{a[0][0:2]}' for a in zip(utm_code,hemisphere_ID)])
+    return epsg_code
+
 def epsg2proj4(epsg_code):
     epsg_code = str(epsg_code) #forces string, if input is int for example
     if epsg_code == '3413':
@@ -121,8 +135,8 @@ def deg2utm(lon,lat):
         print('Longitude and latitude vectors not equal in length.')
         print('Exiting')
         return
-    lon_deg = lon
-    lat_deg = lat
+    lon_deg = np.atleast_1d(lon)
+    lat_deg = np.atleast_1d(lat)
     lon_rad = lon*pi/180
     lat_rad = lat*pi/180
     cos_lat = np.cos(lat_rad)
@@ -158,7 +172,8 @@ def deg2utm(lon,lat):
     x = epsilon * v * (1+tau/3) + 500000
     y = nu * v * (1+tau) + Bm
     idx_y = y<0
-    y[idx_y] = y[idx_y] + 9999999
+    if idx_y.any():
+        y[idx_y] = y[idx_y] + 9999999
     for i in range(n1):
         if lat_deg[i]<-72:
             zone_letter[i] = ' C'
@@ -204,8 +219,6 @@ def deg2utm(lon,lat):
     utm_int_list = utm_int.tolist()
     utmzone = [s1 + s2 for s1, s2 in zip(utm_int_list, zone_letter)]
     return x, y, utmzone
-
-
 
 def great_circle_distance(lon1,lat1,lon2,lat2,R=6378137.0):
     lon1 = deg2rad(lon1)
@@ -305,14 +318,22 @@ def get_lonlat_gdf(gdf):
         lat = np.append(lat,lat_geom)
     return lon,lat
 
-def buffer_gdf(gdf,buffer):
+
+def buffer_gdf(gdf,buffer,AREA_THRESHOLD=1e6):
     '''
     Given an input gdf, will return a buffered gdf.
     '''
-
-    buffered_gdf = gdf.to_crs(epsg=4326)
-    buffered_gdf['geometry'] = buffered_gdf.geometry.buffer(buffer)
-    return buffered_gdf
+    lon_min,lat_min,lon_max,lat_max = gdf.total_bounds
+    lon_center = np.mean([lon_min,lon_max])
+    lat_center = np.mean([lat_min,lat_max])
+    x_center,y_center,zone_center = deg2utm(lon_center,lat_center)
+    epsg_center = utm2epsg(zone_center)
+    gdf_utm = gdf.to_crs(f'EPSG:{epsg_center[0]}')
+    gdf_utm = gdf_utm[gdf_utm.area>AREA_THRESHOLD].reset_index(drop=True)
+    gdf_utm_buffered = gdf_utm.buffer(buffer)
+    gdf_buffered = gdf_utm_buffered.to_crs('EPSG:4326')
+    gdf_buffered = gpd.GeoDataFrame(geometry=[gdf_buffered.unary_union],crs='EPSG:4326')
+    return gdf_buffered
 
 def landmask_dem(lon,lat,lon_coast,lat_coast,landmask_c_file,inside_flag):
     #Given lon/lat of points, and lon/lat of coast (or any other boundary),
