@@ -8,11 +8,11 @@ given a directory, find orthos in subdirectories
 find unique EPSGs, may be more than one  
 for given EPSG, find strips (output of SETSM) based off of the orthos  
 find extents of strips to subset GSW tiles and then:  
-    merge GSW tiles  
-    clip merged GSW tile to match strips extent  
-    find sea only, i.e. GSW==1  
-    transform that from EPSG:4326 to the unique EPSG  
-    select main sea only, may be more than one  
+    merge GSW tiles  
+    clip merged GSW tile to match strips extent  
+    find sea only, i.e. GSW==1  
+    transform that from EPSG:4326 to the unique EPSG  
+    select main sea only, may be more than one  
 In this EPSG:  
     load a strip, find the "real" borders (i.e. >-9999)  
     turn that into a shapefile and load this multipolygon  
