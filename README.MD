@@ -1,9 +1,12 @@
 A repository to work with high resolution Digital Elevation Models  
   
 Mosaic_Strips:  
-given directory, find orthos in subdirectories  
+  
+To run: python Mosaic_Strips.py [--input_file </path/to/input_file.txt>]  
+  
+given a directory, find orthos in subdirectories  
 find unique EPSGs, may be more than one  
-for given EPSG, find strips based off of the orthos  
+for given EPSG, find strips (output of SETSM) based off of the orthos  
 find extents of strips to subset GSW tiles and then:  
     merge GSW tiles  
     clip merged GSW tile to match strips extent  
