@@ -617,6 +617,10 @@ def geometries_contained(geom_1,geom_2,epsg_code,containment_threshold=1.0):
             gdf_1_2_intersection = gpd.GeoDataFrame(geometry=[geom for geom in geom_1_2_intersection.geoms if geom.geom_type=='Polygon'],crs='EPSG:'+epsg_code)
         elif geom_1_2_intersection.geom_type == 'LineString':
             return containment
+        elif geom_1_2_intersection.geom_type == 'MultiLineString':
+            return containment
+        else:
+            return containment
         if np.sum(gdf_1_2_intersection.geometry.area) / geom_2.area > containment_threshold:
             containment = True
     return containment
