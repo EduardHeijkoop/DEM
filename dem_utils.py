@@ -75,6 +75,20 @@ def utm2epsg(utm_code,north_south_flag=False):
         hemisphere_ID[lat_band_number <= 77] = 7 #south
         hemisphere_ID[lat_band_number >= 78] = 6 #north
     epsg_code = np.asarray([f'32{a[1]}{a[0][0:2]}' for a in zip(utm_code,hemisphere_ID)])
+    if len(epsg_code) == 1:
+        epsg_code = epsg_code[0]
+    return epsg_code
+
+def lonlat2epsg(lon,lat):
+    '''
+    Finds the EPSG code for a given lon/lat coordinate.
+    '''
+    if lat >= 0:
+        NS_code = '6'
+    elif lat < 0:
+        NS_code = '7'
+    EW_code = f'{int(np.floor(lon/6.0))+31:02d}'
+    epsg_code = f'32{NS_code}{EW_code}'
     return epsg_code
 
 def epsg2proj4(epsg_code):
@@ -318,7 +332,6 @@ def get_lonlat_gdf(gdf):
         lat = np.append(lat,lat_geom)
     return lon,lat
 
-
 def buffer_gdf(gdf,buffer,AREA_THRESHOLD=1e6):
     '''
     Given an input gdf, will return a buffered gdf.
@@ -334,6 +347,24 @@ def buffer_gdf(gdf,buffer,AREA_THRESHOLD=1e6):
     gdf_buffered = gdf_utm_buffered.to_crs('EPSG:4326')
     gdf_buffered = gpd.GeoDataFrame(geometry=[gdf_buffered.unary_union],crs='EPSG:4326')
     return gdf_buffered
+
+def icesat2_df2array(df):
+    '''
+    Given an input df, will return a numpy array of the data.
+    '''
+    lon = np.asarray(df.lon)
+    lat = np.asarray(df.lat)
+    height = np.asarray(df.height)
+    time = np.asarray(df.time)
+    return lon,lat,height,time
+
+def filter_utm(zone,epsg_code):
+    '''
+    Finds the indices of the utm zones that correspond to the given epsg code.
+    '''
+    epsg_zone = utm2epsg(zone)
+    idx_epsg = epsg_code == epsg_zone
+    return idx_epsg
 
 def landmask_dem(lon,lat,lon_coast,lat_coast,landmask_c_file,inside_flag):
     #Given lon/lat of points, and lon/lat of coast (or any other boundary),
