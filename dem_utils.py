@@ -245,7 +245,7 @@ def great_circle_distance(lon1,lat1,lon2,lat2,R=6378137.0):
     distance = R*dsigma
     return distance
 
-def resample_raster(src_filename,match_filename,dst_filename,resample_method='bilinear'):
+def resample_raster(src_filename,match_filename,dst_filename,resample_method='bilinear',compress=True):
     '''
     src = what you want to resample
     match = resample to this one's resolution
@@ -275,6 +275,20 @@ def resample_raster(src_filename,match_filename,dst_filename,resample_method='bi
     elif resample_method == 'cubicspline':
         gdal.ReprojectImage(src, dst, src_proj, match_proj, gdalconst.GRA_CubicSpline)
     del dst # Flush
+    if compress == True:
+        compress_raster(dst_filename)
+    return None
+
+def compress_raster(filename):
+    '''
+    Compress a raster using gdal_translate
+    '''
+    file_ext = os.path.splitext(filename)[-1]
+    tmp_filename = filename.replace(file_ext,f'_LZW{file_ext}')
+    compress_command = 'gdal_translate -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" ' + filename + ' ' + tmp_filename
+    move_command = f'mv {tmp_filename} {filename}'
+    subprocess.run(compress_command,shell=True)
+    subprocess.run(move_command,shell=True)
     return None
 
 def get_lonlat_geometry(geom):

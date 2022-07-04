@@ -2,10 +2,12 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 import netCDF4 as nc
+from osgeo import gdal,gdalconst,osr
 from dem_utils import get_raster_extents,great_circle_distance,lonlat2epsg,deg2utm
 from dem_utils import utm2epsg
-import sys
+import os,sys
 import xml.etree.ElementTree as ET
+import subprocess
 
 from pykrige.ok import OrdinaryKriging
 from pykrige.uk import UniversalKriging
@@ -104,9 +106,34 @@ def create_icesat2_grid(df_icesat2,epsg_code,grid_res,N_pts):
     x_meshgrid_array = reshape_grid_array(x_meshgrid)
     y_meshgrid_array = reshape_grid_array(y_meshgrid)
     ocean_grid_array = reshape_grid_array(ocean_grid)
-    return x_meshgrid,y_meshgrid,ocean_grid,x_meshgrid_array,y_meshgrid_array,ocean_grid_array
+    return x_meshgrid_array,y_meshgrid_array,ocean_grid_array
 
-def kriging_icesat2(x_input,y_input,h_input,x_coast,y_coast,kriging_method='universal',variogram='linear'):
+def create_sl_grid(sl_grid_file,sl_grid_extents,epsg_code,tmp_dir):
+    if sl_grid_extents is not None:
+        lon_min_sl_grid,lon_max_sl_grid,lat_min_sl_grid,lat_max_sl_grid = [float(e) for e in sl_grid_extents]
+        sl_grid_subset_file = f'{tmp_dir}{os.path.basename(sl_grid_file).replace(".tif","_subset.tif")}'
+        clip_sl_grid_command = f'gdal_translate -q -projwin {lon_min_sl_grid} {lat_max_sl_grid} {lon_max_sl_grid} {lat_min_sl_grid} {sl_grid_file} {sl_grid_subset_file} -co "COMPRESS=LZW"'
+        subprocess.run(clip_sl_grid_command,shell=True)
+        src_sl_grid = gdal.Open(sl_grid_subset_file,gdalconst.GA_ReadOnly)
+    else:
+        src_sl_grid = gdal.Open(sl_grid_file,gdalconst.GA_ReadOnly)
+    sl_grid = np.array(src_sl_grid.GetRasterBand(1).ReadAsArray())
+    lon_sl_grid_array = np.linspace(src_sl_grid.GetGeoTransform()[0] + 0.5*src_sl_grid.GetGeoTransform()[1], src_sl_grid.GetGeoTransform()[0] + src_sl_grid.RasterXSize * src_sl_grid.GetGeoTransform()[1] - 0.5*src_sl_grid.GetGeoTransform()[1], src_sl_grid.RasterXSize)
+    lat_sl_grid_array = np.linspace(src_sl_grid.GetGeoTransform()[3] + 0.5*src_sl_grid.GetGeoTransform()[5], src_sl_grid.GetGeoTransform()[3] + src_sl_grid.RasterYSize * src_sl_grid.GetGeoTransform()[5] - 0.5*src_sl_grid.GetGeoTransform()[5], src_sl_grid.RasterYSize)
+    lon_sl_meshgrid,lat_sl_meshgrid = np.meshgrid(lon_sl_grid_array,lat_sl_grid_array)
+    lon_sl_meshgrid_array = reshape_grid_array(lon_sl_meshgrid)
+    lat_sl_meshgrid_array = reshape_grid_array(lat_sl_meshgrid)
+    sl_grid_array = reshape_grid_array(sl_grid)
+    x,y,zone = deg2utm(lon_sl_meshgrid_array,lat_sl_meshgrid_array)
+    epsg_zone = utm2epsg(zone)
+    idx_epsg = epsg_zone == epsg_code
+    x_sl_meshgrid_array = x[idx_epsg]
+    y_sl_meshgrid_array = y[idx_epsg]
+    sl_grid_array = sl_grid_array[idx_epsg]
+    return x_sl_meshgrid_array,y_sl_meshgrid_array,sl_grid_array
+
+
+def kriging_inundation(x_input,y_input,h_input,x_coast,y_coast,kriging_method='universal',variogram='linear'):
     x_coast_pts = x_coast[~np.isnan(x_coast)]
     y_coast_pts = y_coast[~np.isnan(y_coast)]
     idx_nan = np.argwhere(np.isnan(x_coast)).squeeze()
@@ -121,7 +148,7 @@ def kriging_icesat2(x_input,y_input,h_input,x_coast,y_coast,kriging_method='univ
             enable_plotting=False,
             drift_terms=['regional_linear'],
         )
-        z_krig, var_krig = UK.execute("points", x_coast_pts,y_coast_pts)
+        h_krig, var_krig = UK.execute("points", x_coast_pts,y_coast_pts)
     elif kriging_method == 'ordinary':
         OK = OrdinaryKriging(
             x_input,
@@ -131,19 +158,19 @@ def kriging_icesat2(x_input,y_input,h_input,x_coast,y_coast,kriging_method='univ
             verbose=False,
             enable_plotting=False,
         )
-        z_krig, var_krig = OK.execute("points", x_coast_pts,y_coast_pts)
+        h_krig, var_krig = OK.execute("points", x_coast_pts,y_coast_pts)
 
-    z_krig = z_krig.data
+    h_krig = h_krig.data
     var_krig = var_krig.data
     for idx in idx_nan:
-        z_krig = np.concatenate((z_krig[idx:],[np.nan],z_krig[:idx]))
+        h_krig = np.concatenate((h_krig[idx:],[np.nan],h_krig[:idx]))
         var_krig = np.concatenate((var_krig[idx:],[np.nan],var_krig[:idx]))
     
-    return z_krig,var_krig
+    return h_krig,var_krig
 
 def create_csv_vrt(vrt_name,file_name,layer_name):
     ogr_vrt_data_source = ET.Element('OGRVRTDataSource')
-    ogr_vrt_layer = ET.SubElement(ogr_vrt_data_source,'OGRVRTLayer',name='tmp')
+    ogr_vrt_layer = ET.SubElement(ogr_vrt_data_source,'OGRVRTLayer',name=layer_name)
     src_data_source = ET.SubElement(ogr_vrt_layer,'SrcDataSource').text=file_name
     geometry_type = ET.SubElement(ogr_vrt_layer,'GeometryType').text='wkbPoint'
     geometry_field = ET.SubElement(ogr_vrt_layer,'GeometryField encoding="PointFromColumns" x="field_1" y="field_2" z="field_3"').text=''
