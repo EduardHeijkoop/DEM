@@ -346,16 +346,19 @@ def get_lonlat_gdf(gdf):
         lat = np.append(lat,lat_geom)
     return lon,lat
 
+def get_lonlat_gdf_center(gdf):
+    lon_min,lat_min,lon_max,lat_max = gdf.total_bounds
+    lon_center = (lon_min + lon_max) / 2
+    lat_center = (lat_min + lat_max) / 2
+    return lon_center,lat_center
+
 def buffer_gdf(gdf,buffer,AREA_THRESHOLD=1e6):
     '''
     Given an input gdf, will return a buffered gdf.
     '''
-    lon_min,lat_min,lon_max,lat_max = gdf.total_bounds
-    lon_center = np.mean([lon_min,lon_max])
-    lat_center = np.mean([lat_min,lat_max])
-    x_center,y_center,zone_center = deg2utm(lon_center,lat_center)
-    epsg_center = utm2epsg(zone_center)
-    gdf_utm = gdf.to_crs(f'EPSG:{epsg_center[0]}')
+    lon_center,lat_center = get_lonlat_gdf_center(gdf)
+    epsg_center = lonlat2epsg(lon_center,lat_center)
+    gdf_utm = gdf.to_crs(f'EPSG:{epsg_center}')
     gdf_utm = gdf_utm[gdf_utm.area>AREA_THRESHOLD].reset_index(drop=True)
     gdf_utm_buffered = gdf_utm.buffer(buffer)
     gdf_buffered = gdf_utm_buffered.to_crs('EPSG:4326')

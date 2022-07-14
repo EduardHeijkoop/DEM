@@ -13,7 +13,7 @@ import warnings
 import configparser
 from dem_utils import get_lonlat_gdf,icesat2_df2array,deg2utm
 from dem_utils import filter_utm,get_raster_extents,resample_raster
-from inundation_utils import create_csv_vrt, create_icesat2_grid, create_sl_grid, get_SROCC_data, kriging_inundation
+from inundation_utils import create_csv_vrt, create_icesat2_grid, interpolate_grid, get_SROCC_data, kriging_inundation
 
 
 def main():
@@ -75,6 +75,13 @@ def main():
     coastline_file = '/media/heijkoop/DATA/DEM/Locations/Nigeria_Lagos/Nigeria_Lagos_S2_NDWI_20211221_simplified.shp'
     sl_grid_file = '/media/heijkoop/DATA/DTU21/1min/DTU21MSS_WGS84_lon180.tif'
     sl_grid_extents = [2.987,3.799,6.218,6.766]
+
+    dem_file = '/media/heijkoop/DATA/DEM/Locations/India_Mumbai/MOSAIC/July_2022/India_Mumbai_Full_Mosaic_0_32643.tif'
+    icesat2_file = '/home/heijkoop/Desktop/tmp/Mumbai/ICESat-2/India_Mumbai_20220529_ATL03_FES2014_high_med_conf_masked_DTU21_filtered_threshold_10_m_buffer_5000m.txt'
+    coastline_file = '/media/heijkoop/DATA/DEM/Locations/India_Mumbai/Mumbai_Large.shp'
+    sl_grid_file = '/media/heijkoop/DATA/DTU21/1min/DTU21MSS_WGS84_lon180.tif'
+    sl_grid_extents = [72.6,73.1,18.0,20.0]
+
     tmp_dir = '/home/heijkoop/Desktop/tmp/Inundation/'
     '''
     
@@ -92,6 +99,7 @@ def main():
     GRID_SMOOTHING = config.getfloat('INUNDATION_CONSTANTS','GRID_SMOOTHING')
     GRID_POWER = config.getfloat('INUNDATION_CONSTANTS','GRID_POWER')
     GRID_NODATA = config.getint('INUNDATION_CONSTANTS','GRID_NODATA')
+    GRID_MAX_PTS = config.getint('INUNDATION_CONSTANTS','GRID_MAX_PTS')
 
     loc_name = '_'.join(dem_file.split('/')[-1].split('_')[0:2])
     dem_resampled_file = dem_file.replace('.tif',f'_resampled_{DEM_INTERMEDIATE_RES}m.tif')
@@ -102,49 +110,82 @@ def main():
     src_resampled = gdal.Open(dem_resampled_file,gdalconst.GA_ReadOnly)
     epsg_code = osr.SpatialReference(wkt=src.GetProjection()).GetAttrValue('AUTHORITY',1)
 
+    dem_x_size = src.RasterXSize
+    dem_y_size = src.RasterYSize
     dem_resampled_x_size = src_resampled.RasterXSize
     dem_resampled_y_size = src_resampled.RasterYSize
     res_dem_resampled_x,res_dem_resampled_y = src_resampled.GetGeoTransform()[1],-src_resampled.GetGeoTransform()[5]
     x_dem_resampled_min,x_dem_resampled_max,y_dem_resampled_min,y_dem_resampled_max = get_raster_extents(dem_resampled_file,'local')
+    dx_dem_resampled = np.abs(x_dem_resampled_max - x_dem_resampled_min)
+    dy_dem_resampled = np.abs(y_dem_resampled_max - y_dem_resampled_min)
+    grid_max_dist = np.max((dx_dem_resampled,dy_dem_resampled))
 
     gdf_coast = gpd.read_file(coastline_file)
+    lon_coast,lat_coast = get_lonlat_gdf(gdf_coast)
     gdf_coast = gdf_coast.to_crs(f'EPSG:{epsg_code}')
     x_coast,y_coast = get_lonlat_gdf(gdf_coast)
     
-    # t_SROCC,slr_md_closest_minus_t0,slr_he_closest_minus_t0,slr_le_closest_minus_t0 = get_SROCC_data(SROCC_dir,dem_file,rcp,t0)
     if sl_grid_extents is not None:
-        x_sl_grid_array,y_sl_grid_array,sl_grid_array = create_sl_grid(sl_grid_file,sl_grid_extents,epsg_code,tmp_dir)
-        h_coast,var_coast = kriging_inundation(x_sl_grid_array,y_sl_grid_array,sl_grid_array,x_coast,y_coast)
+        # x_sl_grid_array,y_sl_grid_array,sl_grid_array = create_sl_grid(sl_grid_file,sl_grid_extents,loc_name,epsg_code,tmp_dir)
+        # h_coast,var_coast = kriging_inundation(x_sl_grid_array,y_sl_grid_array,sl_grid_array,x_coast,y_coast,KRIGING_METHOD,KRIGING_VARIOGRAM)
+        h_coast = interpolate_grid(lon_coast,lat_coast,sl_grid_file,sl_grid_extents,loc_name,tmp_dir,GRID_NODATA)
+        var_coast = None
         if loc_name in sl_grid_file:
-            output_file_kriging = f'{tmp_dir}{os.path.basename(sl_grid_file).replace(".tif","_subset_kriging_coastline.csv")}'
+            output_file_coastline = f'{tmp_dir}{os.path.basename(sl_grid_file).replace(".tif","_subset_interpolated_coastline.csv")}'
         else:
-            output_file_kriging = f'{tmp_dir}{loc_name}_{os.path.basename(sl_grid_file).replace(".tif","_subset_kriging_coastline.csv")}'
+            output_file_coastline = f'{tmp_dir}{loc_name}_{os.path.basename(sl_grid_file).replace(".tif","_subset_interpolated_coastline.csv")}'
     elif icesat2_file is not None:
         df_icesat2 = pd.read_csv(icesat2_file,header=None,names=['lon','lat','height','time'],dtype={'lon':'float','lat':'float','height':'float','time':'str'})
         x_icesat2_grid_array,y_icesat2_grid_array,h_icesat2_grid_array = create_icesat2_grid(df_icesat2,epsg_code,GRID_RESOLUTION,N_PTS)
         h_coast,var_coast = kriging_inundation(x_icesat2_grid_array,y_icesat2_grid_array,h_icesat2_grid_array,x_coast,y_coast,KRIGING_METHOD,KRIGING_VARIOGRAM)
         if loc_name in icesat2_file:
-            output_file_kriging = f'{tmp_dir}{os.path.basename(icesat2_file).replace(".txt","_kriging_coastline.csv")}'
+            output_file_coastline = f'{tmp_dir}{os.path.basename(icesat2_file).replace(".txt",f"_subset_{KRIGING_METHOD}_{KRIGING_VARIOGRAM}_kriging_coastline.csv")}'
         else:
-            output_file_kriging = f'{tmp_dir}{loc_name}_{os.path.basename(icesat2_file).replace(".txt","_kriging_coastline.csv")}'
-    output_file_vrt = output_file_kriging.replace('.csv','.vrt')
-    output_file_grid_resampled = output_file_vrt.replace('.vrt',f'_grid_{DEM_INTERMEDIATE_RES}m.tif')
-    output_file_grid = output_file_vrt.replace('.vrt','_grid.tif')
-    x_coast = x_coast[~np.isnan(x_coast)]
-    y_coast = y_coast[~np.isnan(y_coast)]
-    h_coast = h_coast[~np.isnan(h_coast)]
-    var_coast = var_coast[~np.isnan(var_coast)]
-    layer_name = output_file_kriging.split('/')[-1].replace('.csv','')
-    np.savetxt(output_file_kriging,np.c_[x_coast,y_coast,h_coast,var_coast],fmt='%f',delimiter=',',comments='')
-    vrt_flag = create_csv_vrt(output_file_vrt,output_file_kriging,layer_name)
-
+            output_file_coastline = f'{tmp_dir}{loc_name}_{os.path.basename(icesat2_file).replace(".txt",f"_{KRIGING_METHOD}_{KRIGING_VARIOGRAM}_kriging_coastline.csv")}'
+    output_file_vrt = output_file_coastline.replace('.csv','.vrt')
+    output_file_grid_resampled = output_file_vrt.replace('.vrt',f'_{GRID_ALGORITHM}_grid_{DEM_INTERMEDIATE_RES}m.tif')
+    output_file_grid = output_file_vrt.replace('.vrt','_{GRID_ALGORITHM}_grid.tif')
+    idx_fillvalue = h_coast==GRID_NODATA
+    idx_keep = ~np.logical_or(idx_fillvalue,np.isnan(h_coast))
+    x_coast = x_coast[idx_keep]
+    y_coast = y_coast[idx_keep]
+    h_coast = h_coast[idx_keep]
+    if var_coast is not None:
+        var_coast = var_coast[idx_keep]
+        np.savetxt(output_file_coastline,np.c_[x_coast,y_coast,h_coast,var_coast],fmt='%f',delimiter=',',comments='')
+    else:
+        np.savetxt(output_file_coastline,np.c_[x_coast,y_coast,h_coast],fmt='%f',delimiter=',',comments='')
+    layer_name = output_file_coastline.split('/')[-1].replace('.csv','')
+    vrt_flag = create_csv_vrt(output_file_vrt,output_file_coastline,layer_name)
+    
+    #X_MIN X_MAX Y_MAX Y_MIN is correct to get pixel size to N, -N
+    #This is because the origin is top-left (i.e. Northwest)
     if GRID_ALGORITHM == 'nearest':
-        build_grid_command = f'gdal_grid -a {GRID_ALGORITHM}:nodata={GRID_NODATA} -txe {x_dem_resampled_min} {x_dem_resampled_max} -tye {y_dem_resampled_min} {y_dem_resampled_max} -tr {res_dem_resampled_x} {res_dem_resampled_y} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {output_file_vrt} {output_file_grid_resampled} --config GDAL_NUM_THREADS {NUM_THREADS} -co "COMPRESS=LZW"'
+        build_grid_command = f'gdal_grid -a {GRID_ALGORITHM}:nodata={GRID_NODATA} -txe {x_dem_resampled_min} {x_dem_resampled_max} -tye {y_dem_resampled_max} {y_dem_resampled_min} -tr {res_dem_resampled_x} {res_dem_resampled_y} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {output_file_vrt} {output_file_grid_resampled} --config GDAL_NUM_THREADS {NUM_THREADS} -co "COMPRESS=LZW"'
     elif GRID_ALGORITHM == 'invdist':
-        build_grid_command = f'gdal_grid -a {GRID_ALGORITHM}:nodata={GRID_NODATA}:smoothing={GRID_SMOOTHING}:power={GRID_POWER} -txe {x_dem_resampled_min} {x_dem_resampled_max} -tye {y_dem_resampled_min} {y_dem_resampled_max} -tr {res_dem_resampled_x} {res_dem_resampled_y} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {output_file_vrt} {output_file_grid_resampled} --config GDAL_NUM_THREADS {NUM_THREADS} -co "COMPRESS=LZW"'
+        build_grid_command = f'gdal_grid -a {GRID_ALGORITHM}:nodata={GRID_NODATA}:smoothing={GRID_SMOOTHING}:power={GRID_POWER} -txe {x_dem_resampled_min} {x_dem_resampled_max} -tye {y_dem_resampled_max} {y_dem_resampled_min} -tr {res_dem_resampled_x} {res_dem_resampled_y} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {output_file_vrt} {output_file_grid_resampled} --config GDAL_NUM_THREADS {NUM_THREADS} -co "COMPRESS=LZW"'
+    elif GRID_ALGORITHM == 'invdistnn':
+        build_grid_command = f'gdal_grid -a {GRID_ALGORITHM}:nodata={GRID_NODATA}:smoothing={GRID_SMOOTHING}:power={GRID_POWER}:max_points={GRID_MAX_PTS}:radius={grid_max_dist} -txe {x_dem_resampled_min} {x_dem_resampled_max} -tye {y_dem_resampled_max} {y_dem_resampled_min} -tr {res_dem_resampled_x} {res_dem_resampled_y} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {output_file_vrt} {output_file_grid_resampled} --config GDAL_NUM_THREADS {NUM_THREADS} -co "COMPRESS=LZW"'
     subprocess.run(build_grid_command,shell=True)
+    #RADIUS NEEDS TO BE A FUNCTION OF THE DEM
 
-    resample_code = resample_raster(output_file_grid_resampled,dem_file,output_file_grid,'nearest',True)
+
+    # resample_sl_flag = resample_raster(output_file_grid_resampled,dem_file,output_file_grid,'nearest',True)
+
+    ####
+    # Read sea level extreme from CoDEC file, use return periods as input in argparse
+    # Find closest x_loc,y_loc to center of DEM, in EPSG:4326 
+    ####
+
+    # vlm_file_resampled = vlm_file.replace('.tif',f'_resampled_{dem_x_size}.tif')
+    # t_SROCC,slr_md_closest_minus_t0,slr_he_closest_minus_t0,slr_le_closest_minus_t0 = get_SROCC_data(SROCC_dir,dem_file,rcp,t0)
+    # resample_vlm_flag = resample_raster(vlm_file,dem_file,vlm_file_resampled,'nearest',True)
+    '''
+    find slr for each given year
+    update dem to those years, using t0
+    update sl grid with SROCC to those years, using t0
+    gdal_calc it all
+    '''
 
 if __name__ == '__main__':
     main()

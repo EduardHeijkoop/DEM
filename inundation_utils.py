@@ -12,6 +12,7 @@ import subprocess
 from pykrige.ok import OrdinaryKriging
 from pykrige.uk import UniversalKriging
 
+from scipy.interpolate import RegularGridInterpolator
 
 
 def get_SROCC_data(SROCC_dir,raster,rcp,t0):
@@ -108,10 +109,10 @@ def create_icesat2_grid(df_icesat2,epsg_code,grid_res,N_pts):
     ocean_grid_array = reshape_grid_array(ocean_grid)
     return x_meshgrid_array,y_meshgrid_array,ocean_grid_array
 
-def create_sl_grid(sl_grid_file,sl_grid_extents,epsg_code,tmp_dir):
+def create_sl_grid(sl_grid_file,sl_grid_extents,loc_name,epsg_code,tmp_dir):
     if sl_grid_extents is not None:
         lon_min_sl_grid,lon_max_sl_grid,lat_min_sl_grid,lat_max_sl_grid = [float(e) for e in sl_grid_extents]
-        sl_grid_subset_file = f'{tmp_dir}{os.path.basename(sl_grid_file).replace(".tif","_subset.tif")}'
+        sl_grid_subset_file = f'{tmp_dir}{loc_name}_{os.path.basename(sl_grid_file).replace(".tif","_subset.tif")}'
         clip_sl_grid_command = f'gdal_translate -q -projwin {lon_min_sl_grid} {lat_max_sl_grid} {lon_max_sl_grid} {lat_min_sl_grid} {sl_grid_file} {sl_grid_subset_file} -co "COMPRESS=LZW"'
         subprocess.run(clip_sl_grid_command,shell=True)
         src_sl_grid = gdal.Open(sl_grid_subset_file,gdalconst.GA_ReadOnly)
@@ -132,8 +133,29 @@ def create_sl_grid(sl_grid_file,sl_grid_extents,epsg_code,tmp_dir):
     sl_grid_array = sl_grid_array[idx_epsg]
     return x_sl_meshgrid_array,y_sl_meshgrid_array,sl_grid_array
 
+def interpolate_grid(lon_input,lat_input,sl_grid_file,sl_grid_extents,loc_name,tmp_dir,GRID_NODATA=-9999):
+    '''
+    Interpolates regular grid onto input lon/lat using scipy RegularGridInterpolator
+    This more accurate than sampling the points onto the grid with gdallocationinfo,
+    as that one uses nearest neighbor interpolation
+    '''
+    if sl_grid_extents is not None:
+        lon_min_sl_grid,lon_max_sl_grid,lat_min_sl_grid,lat_max_sl_grid = [float(e) for e in sl_grid_extents]
+        sl_grid_subset_file = f'{tmp_dir}{loc_name}_{os.path.basename(sl_grid_file).replace(".tif","_subset.tif")}'
+        clip_sl_grid_command = f'gdal_translate -q -projwin {lon_min_sl_grid} {lat_max_sl_grid} {lon_max_sl_grid} {lat_min_sl_grid} {sl_grid_file} {sl_grid_subset_file} -co "COMPRESS=LZW"'
+        subprocess.run(clip_sl_grid_command,shell=True)
+        src_sl_grid = gdal.Open(sl_grid_subset_file,gdalconst.GA_ReadOnly)
+    else:
+        src_sl_grid = gdal.Open(sl_grid_file,gdalconst.GA_ReadOnly)
+    sl_grid = np.array(src_sl_grid.GetRasterBand(1).ReadAsArray())
+    lon_sl_grid_array = np.linspace(src_sl_grid.GetGeoTransform()[0] + 0.5*src_sl_grid.GetGeoTransform()[1], src_sl_grid.GetGeoTransform()[0] + src_sl_grid.RasterXSize * src_sl_grid.GetGeoTransform()[1] - 0.5*src_sl_grid.GetGeoTransform()[1], src_sl_grid.RasterXSize)
+    lat_sl_grid_array = np.linspace(src_sl_grid.GetGeoTransform()[3] + 0.5*src_sl_grid.GetGeoTransform()[5], src_sl_grid.GetGeoTransform()[3] + src_sl_grid.RasterYSize * src_sl_grid.GetGeoTransform()[5] - 0.5*src_sl_grid.GetGeoTransform()[5], src_sl_grid.RasterYSize)
+    interp_func = RegularGridInterpolator((lon_sl_grid_array,lat_sl_grid_array[::-1]),np.flipud(sl_grid).T,bounds_error=False,fill_value=GRID_NODATA)
+    z_interp = interp_func((lon_input,lat_input))
+    return z_interp
 
-def kriging_inundation(x_input,y_input,h_input,x_coast,y_coast,kriging_method='universal',variogram='linear'):
+
+def kriging_inundation(x_input,y_input,h_input,x_coast,y_coast,kriging_method='ordinary',variogram='linear'):
     x_coast_pts = x_coast[~np.isnan(x_coast)]
     y_coast_pts = y_coast[~np.isnan(y_coast)]
     idx_nan = np.argwhere(np.isnan(x_coast)).squeeze()
