@@ -117,7 +117,10 @@ def get_raster_extents(raster,global_local_flag='global'):
     src_srs.ImportFromWkt(src.GetProjection())
     tgt_srs = osr.SpatialReference()
     tgt_srs.ImportFromEPSG(4326)
-    global_ext = reproject_coords(local_ext,src_srs,tgt_srs)
+    if src_srs.GetAttrValue('AUTHORITY',1) == '4326':
+        global_ext = local_ext
+    else:
+        global_ext = reproject_coords(local_ext,src_srs,tgt_srs)
     x_local = [item[0] for item in local_ext]
     y_local = [item[1] for item in local_ext]
     x_min_local = np.nanmin(x_local)
