@@ -14,6 +14,18 @@ import datetime
 import ctypes as c
 import warnings
 
+def reinsert_nan(array_clean,array_nan):
+    '''
+    Reinserts nan values into a clean array, based on where they are in the nan array.
+    '''
+    array_clean = np.asarray(array_clean)
+    array_nan = np.asarray(array_nan)
+    idx_nan = np.atleast_1d(np.argwhere(np.isnan(array_nan)).squeeze())
+    array_filled = array_clean
+    for idx in idx_nan:
+        array_filled = np.concatenate((array_filled[:idx],[np.nan],array_filled[idx:]))
+    return array_filled
+
 def get_extent(gt,cols,rows):
     '''
     Return list of corner coordinates from a geotransform
@@ -248,7 +260,7 @@ def great_circle_distance(lon1,lat1,lon2,lat2,R=6378137.0):
     distance = R*dsigma
     return distance
 
-def resample_raster(src_filename,match_filename,dst_filename,resample_method='bilinear',compress=True):
+def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resample_method='bilinear',compress=True):
     '''
     src = what you want to resample
     match = resample to this one's resolution
@@ -258,7 +270,7 @@ def resample_raster(src_filename,match_filename,dst_filename,resample_method='bi
     src = gdal.Open(src_filename, gdalconst.GA_ReadOnly)
     src_proj = src.GetProjection()
     src_geotrans = src.GetGeoTransform()
-    src_espg = epsg_code = osr.SpatialReference(wkt=gdal.Open(src_filename,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1)
+    src_espg = osr.SpatialReference(wkt=src_proj).GetAttrValue('AUTHORITY',1)
 
     match_ds = gdal.Open(match_filename, gdalconst.GA_ReadOnly)
     match_proj = match_ds.GetProjection()
@@ -266,29 +278,32 @@ def resample_raster(src_filename,match_filename,dst_filename,resample_method='bi
     wide = match_ds.RasterXSize
     high = match_ds.RasterYSize
 
-    dst = gdal.GetDriverByName('GTiff').Create(dst_filename, wide, high, 1, gdalconst.GDT_Float32)
-    dst.SetGeoTransform( match_geotrans )
-    dst.SetProjection( match_proj)
+    dst = gdal.GetDriverByName('GTiff').Create(dst_filename,wide,high,1,gdalconst.GDT_Float32)
+    dst.SetGeoTransform(match_geotrans)
+    dst.SetProjection(match_proj)
     if resample_method == 'nearest':
-        gdal.ReprojectImage(src, dst, src_proj, match_proj, gdalconst.GRA_NearestNeighbour)
+        gdal.ReprojectImage(src,dst,src_proj,match_proj,gdalconst.GRA_NearestNeighbour)
     elif resample_method == 'bilinear':
-        gdal.ReprojectImage(src, dst, src_proj, match_proj, gdalconst.GRA_Bilinear)
+        gdal.ReprojectImage(src,dst,src_proj,match_proj,gdalconst.GRA_Bilinear)
     elif resample_method == 'cubic':
-        gdal.ReprojectImage(src, dst, src_proj, match_proj, gdalconst.GRA_Cubic)
+        gdal.ReprojectImage(src,dst,src_proj,match_proj,gdalconst.GRA_Cubic)
     elif resample_method == 'cubicspline':
-        gdal.ReprojectImage(src, dst, src_proj, match_proj, gdalconst.GRA_CubicSpline)
+        gdal.ReprojectImage(src,dst,src_proj,match_proj,gdalconst.GRA_CubicSpline)
     del dst # Flush
     if compress == True:
-        compress_raster(dst_filename)
+        compress_raster(dst_filename,nodata)
     return None
 
-def compress_raster(filename):
+def compress_raster(filename,nodata=-9999):
     '''
     Compress a raster using gdal_translate
     '''
     file_ext = os.path.splitext(filename)[-1]
     tmp_filename = filename.replace(file_ext,f'_LZW{file_ext}')
-    compress_command = 'gdal_translate -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" ' + filename + ' ' + tmp_filename
+    if nodata is not None:
+        compress_command = f'gdal_translate -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" -a_nodata {nodata} {filename} {tmp_filename}'
+    else:
+        compress_command = f'gdal_translate -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" {filename} {tmp_filename}'
     move_command = f'mv {tmp_filename} {filename}'
     subprocess.run(compress_command,shell=True)
     subprocess.run(move_command,shell=True)
@@ -354,6 +369,15 @@ def get_lonlat_gdf_center(gdf):
     lon_center = (lon_min + lon_max) / 2
     lat_center = (lat_min + lat_max) / 2
     return lon_center,lat_center
+
+def find_corner_points_gdf(lon,lat,gdf):
+    lon_min,lat_min,lon_max,lat_max = gdf.total_bounds
+    idx_ne = np.atleast_1d(np.argwhere(np.logical_and(lon == lon_max,lat == lat_max)).squeeze())
+    idx_nw = np.atleast_1d(np.argwhere(np.logical_and(lon == lon_min,lat == lat_max)).squeeze())
+    idx_se = np.atleast_1d(np.argwhere(np.logical_and(lon == lon_max,lat == lat_min)).squeeze())
+    idx_sw = np.atleast_1d(np.argwhere(np.logical_and(lon == lon_min,lat == lat_min)).squeeze())
+    idx_corners_points = np.concatenate([idx_ne,idx_nw,idx_se,idx_sw])
+    return idx_corners_points
 
 def buffer_gdf(gdf,buffer,AREA_THRESHOLD=1e6):
     '''
