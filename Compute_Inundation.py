@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import warnings
 import configparser
 from dem_utils import get_lonlat_gdf,find_corner_points_gdf
-from dem_utils import get_raster_extents,resample_raster
+from dem_utils import get_raster_extents,resample_raster,get_gsw,geometries_contained
 from inundation_utils import create_icesat2_grid, interpolate_grid, interpolate_points,get_codec,csv_to_grid
 from inundation_utils import upscale_SROCC_grid
 
@@ -81,6 +81,7 @@ def main():
     SROCC_dir = '/media/heijkoop/DATA/Dropbox/TU/PhD/Sea_Level/SROCC/'
     CODEC_file = '/media/heijkoop/DATA/Dropbox/TU/PhD/Inundation/CODEC_amax_ERA5_1979_2017_coor_mask_GUM_RPS.nc'
     tmp_dir = '/home/heijkoop/Desktop/tmp/Inundation/'
+    gsw_dir = '/media/heijkoop/DATA/Global_Surface_Water/'
 
     geoid_file = '/media/heijkoop/DATA/GEOID/us_nga_egm2008_1.tif'
     dem_file = '/media/heijkoop/DATA/DEM/Locations/Nigeria_Lagos/May_2022/Mosaic/Nigeria_Lagos_Full_Mosaic_0_32631_Nigeria_Lagos_ATL03_high_conf_masked_SRTM_filtered_threshold_10_m_32631-DEM_nuth_x+0.91_y+0.76_z+1.21_align.tif'
@@ -101,6 +102,7 @@ def main():
     clip_coast_flag = True
     rcp = 4.5
     t0 = 2020
+    connectivity_flag = True
     '''
     
     SROCC_dir = config.get('INUNDATION_PATHS','SROCC_dir')
@@ -119,6 +121,8 @@ def main():
     GRID_NUM_THREADS = config.getint('INUNDATION_CONSTANTS','GRID_NUM_THREADS')
     GRID_INTERMEDIATE_RES = config.getint('INUNDATION_CONSTANTS','GRID_INTERMEDIATE_RES')
     RETURN_PERIOD = config.getint('INUNDATION_CONSTANTS','RETURN_PERIOD')
+    INUNDATION_NODATA = config.getfloat('INUNDATION_CONSTANTS','INUNDATION_NODATA')
+    GSW_BUFFER = config.getfloat('INUNDATION_CONSTANTS','GSW_BUFFER')
 
     algorithm_dict = {'grid_algorithm':GRID_ALGORITHM,
         'grid_nodata':GRID_NODATA,
@@ -133,9 +137,6 @@ def main():
     dem_nodata = src.GetRasterBand(1).GetNoDataValue()
     epsg_code = osr.SpatialReference(wkt=src.GetProjection()).GetAttrValue('AUTHORITY',1)
 
-    lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max = get_raster_extents(dem_file,'global')
-    lon_center_dem = (lon_dem_min + lon_dem_max)/2
-    lat_center_dem = (lat_dem_min + lat_dem_max)/2
     gdf_coast = gpd.read_file(coastline_file)
     epsg_coastline = gdf_coast.crs.to_epsg()
     lon_coast,lat_coast = get_lonlat_gdf(gdf_coast)
@@ -177,6 +178,10 @@ def main():
         dem_file = dem_file_clipped
         src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
     
+    lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max = get_raster_extents(dem_file,'global')
+    lon_center_dem = (lon_dem_min + lon_dem_max)/2
+    lat_center_dem = (lat_dem_min + lat_dem_max)/2
+
     dem_resampled_file = dem_file.replace('.tif',f'_resampled_{GRID_INTERMEDIATE_RES}m.tif')
     resample_dem_command = f'gdalwarp -overwrite -tr {GRID_INTERMEDIATE_RES} {GRID_INTERMEDIATE_RES} -r bilinear {dem_file} {dem_resampled_file}'
     subprocess.run(resample_dem_command,shell=True)
@@ -233,6 +238,16 @@ def main():
     resample_raster(codec_grid_intermediate_res,dem_file,codec_grid_full_res)
     # t_SROCC,slr_md_closest_minus_t0,slr_he_closest_minus_t0,slr_le_closest_minus_t0 = get_SROCC_data(SROCC_dir,dem_file,rcp,t0)
 
+    if connectivity_flag == True:
+        gdf_gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed = get_gsw(inundation_dir,tmp_dir,gsw_dir,epsg_code,lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max)
+        if loc_name not in os.path.basename(gsw_output_shp_file_main_sea_only_clipped_transformed):
+            gsw_output_shp_file_main_sea_only_clipped_transformed = f'{os.path.dirname(gsw_output_shp_file_main_sea_only_clipped_transformed)}/{loc_name}_{os.path.basename(gsw_output_shp_file_main_sea_only_clipped_transformed)}'
+        gsw_output_shp_file_main_sea_only_clipped_transformed_buffered = gsw_output_shp_file_main_sea_only_clipped_transformed.replace('.shp',f"_buffered_{int(GSW_BUFFER)}m.shp")
+        gdf_gsw_main_sea_only_buffered = gdf_gsw_main_sea_only.buffer(GSW_BUFFER)
+        gdf_gsw_main_sea_only_buffered.to_file(gsw_output_shp_file_main_sea_only_clipped_transformed_buffered)
+
+
+
     for yr in years:
         if geoid_file is not None:
             output_inundation_file = f'{inundation_dir}{loc_name}_Orthometric_Inundation_{yr}_RCP_{str(rcp).replace(".","p")}.tif'
@@ -247,8 +262,29 @@ def main():
         sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
         resample_raster(sl_grid_file_intermediate_res,dem_file,sl_grid_file_full_res)
         dt = int(yr - t0)
-        inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {codec_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={GRID_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+        inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {codec_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
         subprocess.run(inundation_command,shell=True)
+        if connectivity_flag == True:
+            output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
+            output_inundation_shp_file_connected = output_inundation_shp_file.replace('.shp','_connected_GSW.shp')
+            polygonize_command = f'gdal_polygonize.py -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
+            subprocess.run(polygonize_command,shell=True)
+            gdf_inundation = gpd.read_file(output_inundation_shp_file)
+            if len(gdf_gsw_main_sea_only_buffered) == 1:
+                idx_intersects = np.asarray([gdf_gsw_main_sea_only_buffered.geometry[0].intersects(geom) for geom in gdf_inundation.geometry])
+                idx_contains = np.asarray([gdf_gsw_main_sea_only_buffered.geometry[0].contains(geom) for geom in gdf_inundation.geometry])
+                idx_connected = np.any((idx_intersects,idx_contains),axis=0)
+            else:
+                idx_intersects = np.zeros((len(gdf_inundation),len(gdf_gsw_main_sea_only_buffered)),dtype=bool)
+                idx_contains = np.zeros((len(gdf_inundation),len(gdf_gsw_main_sea_only_buffered)),dtype=bool)
+                for i,gsw_geom in enumerate(gdf_gsw_main_sea_only_buffered.geometry):
+                    idx_intersects[i,:] = np.asarray([gsw_geom.intersects(geom) for geom in gdf_inundation.geometry])
+                    idx_contains[i,:] = np.asarray([gsw_geom.contains(geom) for geom in gdf_inundation.geometry])
+                idx_intersects = np.any(idx_intersects,axis=0)
+                idx_contains = np.any(idx_contains,axis=0)
+                idx_connected = np.any((idx_intersects,idx_contains),axis=0)
+            gdf_inundation_connected = gdf_inundation[idx_connected]
+            gdf_inundation_connected.to_file(output_inundation_shp_file_connected)
 
 
 if __name__ == '__main__':

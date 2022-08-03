@@ -491,7 +491,7 @@ def get_strip_extents(strip):
     return lon_min,lon_max,lat_min,lat_max
 
 
-def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max,GSW_POCKET_THRESHOLD,GSW_CRS_TRANSFORM_THRESHOLD):
+def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max,gsw_pocket_threshold=0.01,gsw_crs_transform_threshold=0.05):
     '''
     Given lon/lat extents, find the biggest chunk(s) of the Global Surface Water dataset in that area.
     Extents might break up GSW into multiple chunks, GSW_POCKET_THRESHOLD sets the minimum size of a chunk.
@@ -557,7 +557,7 @@ def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max
     label_IDs_sorted = label_IDs_sorted[label_IDs_sorted != 0]
     gsw_clump = np.zeros(gsw_array.shape,dtype=int)
     for label_id in label_IDs_sorted:
-        if size[label_id]/gsw_area < GSW_POCKET_THRESHOLD:
+        if size[label_id]/gsw_area < gsw_pocket_threshold:
             break
         gsw_clump = gsw_clump + np.asarray(label==label_id,dtype=int)
     dst = gdal.GetDriverByName('GTiff').Create(gsw_output_file_sea_only_clipped, wide, high, 1 , gdalconst.GDT_UInt16)
@@ -579,7 +579,7 @@ def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max
     if len(gsw_shp_data) == 0:
         print('No coast in this region!')
         return None,None
-    idx_area = np.asarray(gsw_shp_data.area)/np.sum(gsw_shp_data.area) > GSW_CRS_TRANSFORM_THRESHOLD
+    idx_area = np.asarray(gsw_shp_data.area)/np.sum(gsw_shp_data.area) > gsw_crs_transform_threshold
     gsw_main_sea_only = gsw_shp_data[idx_area].reset_index(drop=True)
     gsw_main_sea_only.to_file(gsw_output_shp_file_main_sea_only_clipped_transformed)
     subprocess.run(f'mv {gsw_output_shp_file_main_sea_only_clipped_transformed.replace(".shp",".*")} {output_dir}',shell=True)
