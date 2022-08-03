@@ -148,7 +148,11 @@ def main():
     x_coast_orig = x_coast
     y_coast_orig = y_coast
 
+    print(f'Working on {loc_name}.')
+
     if vlm_file is not None:
+        t_start = datetime.datetime.now()
+        print('Resampling VLM...')
         lon_vlm_min,lon_vlm_max,lat_vlm_min,lat_vlm_max = get_raster_extents(vlm_file,'global')
         src_vlm = gdal.Open(vlm_file,gdalconst.GA_ReadOnly)
         epsg_vlm_file = osr.SpatialReference(wkt=src_vlm.GetProjection()).GetAttrValue('AUTHORITY',1)
@@ -160,8 +164,15 @@ def main():
             src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
         vlm_resampled_file = vlm_file.replace('.tif',f'_resampled.tif')
         resample_raster(vlm_file,dem_file,vlm_resampled_file,VLM_NODATA)
+        t_end = datetime.datetime.now()
+        delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+        delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+        print(f'Resampling VLM took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+
 
     if geoid_file is not None:
+        t_start = datetime.datetime.now()
+        print('Resampling geoid...')
         geoid_name = geoid_file.split('/')[-1].split('.')[0]
         geoid_resampled_file = f'{os.path.dirname(os.path.abspath(dem_file))}/{loc_name}_{geoid_name}_resampled.tif'
         resample_raster(geoid_file,dem_file,geoid_resampled_file,None)
@@ -170,22 +181,38 @@ def main():
         subprocess.run(orthometric_command,shell=True)
         dem_file = dem_file_orthometric
         src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
-    
+        t_end = datetime.datetime.now()
+        delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+        delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+        print(f'Resampling geoid took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+
     if clip_coast_flag == True:
+        t_start = datetime.datetime.now()
+        print('Clipping DEM to coastline...')
         dem_file_clipped = dem_file.replace('.tif','_clipped.tif')
         clip_command = f'gdalwarp -s_srs EPSG:{epsg_code} -t_srs EPSG:{epsg_code} -of GTiff -cutline {coastline_file} -cl {os.path.splitext(os.path.basename(coastline_file))[0]} -dstnodata {GRID_NODATA} {dem_file} {dem_file_clipped} -overwrite -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" -co "TILED=YES"'
         subprocess.run(clip_command,shell=True)
         dem_file = dem_file_clipped
         src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
+        t_end = datetime.datetime.now()
+        delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+        delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+        print(f'Clipping took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
     
     lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max = get_raster_extents(dem_file,'global')
     lon_center_dem = (lon_dem_min + lon_dem_max)/2
     lat_center_dem = (lat_dem_min + lat_dem_max)/2
 
+    t_start = datetime.datetime.now()
+    print('Resampling DEM to {GRID_INTERMEDIATE_RES} meters.')
     dem_resampled_file = dem_file.replace('.tif',f'_resampled_{GRID_INTERMEDIATE_RES}m.tif')
     resample_dem_command = f'gdalwarp -overwrite -tr {GRID_INTERMEDIATE_RES} {GRID_INTERMEDIATE_RES} -r bilinear {dem_file} {dem_resampled_file}'
     subprocess.run(resample_dem_command,shell=True)
     src_resampled = gdal.Open(dem_resampled_file,gdalconst.GA_ReadOnly)
+    t_end = datetime.datetime.now()
+    delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+    delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+    print(f'Resampling DEM took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
 
     dem_x_size = src.RasterXSize
     dem_y_size = src.RasterYSize
@@ -197,7 +224,10 @@ def main():
     dy_dem_resampled = np.abs(y_dem_resampled_max - y_dem_resampled_min)
     grid_max_dist = np.max((dx_dem_resampled,dy_dem_resampled))
     algorithm_dict['grid_max_dist'] = grid_max_dist
-    
+
+
+    t_start = datetime.datetime.now()
+    print('Generating coastal sea level grid...')
     if sl_grid_extents is not None:
         h_coast = interpolate_grid(lon_coast,lat_coast,sl_grid_file,sl_grid_extents,loc_name,tmp_dir,GRID_NODATA)
         idx_fillvalue = h_coast==GRID_NODATA
@@ -227,9 +257,15 @@ def main():
             output_file_coastline = f'{tmp_dir}{loc_name}_{os.path.basename(icesat2_file).replace(".txt",f"_subset_{INTERPOLATE_METHOD}BivariateSpline_coastline.csv")}'
         if geoid_file is not None:
             output_file_coastline = output_file_coastline.replace('.csv','_orthometric.csv')
-    
+    t_end = datetime.datetime.now()
+    delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+    delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+    print(f'Generating coastal sea level took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+
 
     
+    t_start = datetime.datetime.now()
+    print('Finding CoDEC sea level extremes for return period of {RETURN_PERIOD} years...')
     rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,RETURN_PERIOD)
     output_file_codec = f'{tmp_dir}{loc_name}_CoDEC_{RETURN_PERIOD}_yrs_coastline.csv'
     np.savetxt(output_file_codec,np.c_[x_coast,y_coast,rps_coast],fmt='%f',delimiter=',',comments='')
@@ -237,6 +273,10 @@ def main():
     codec_grid_full_res = codec_grid_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
     resample_raster(codec_grid_intermediate_res,dem_file,codec_grid_full_res)
     # t_SROCC,slr_md_closest_minus_t0,slr_he_closest_minus_t0,slr_le_closest_minus_t0 = get_SROCC_data(SROCC_dir,dem_file,rcp,t0)
+    t_end = datetime.datetime.now()
+    delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+    delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+    print(f'Generating CoDEC sea level extremes took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
 
     if connectivity_flag == True:
         gdf_gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed = get_gsw(inundation_dir,tmp_dir,gsw_dir,epsg_code,lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max)
@@ -249,6 +289,8 @@ def main():
 
 
     for yr in years:
+        print(f'Creating inundation in {yr}...')
+        t_start = datetime.datetime.now()
         if geoid_file is not None:
             output_inundation_file = f'{inundation_dir}{loc_name}_Orthometric_Inundation_{yr}_RCP_{str(rcp).replace(".","p")}.tif'
         else:
@@ -264,7 +306,13 @@ def main():
         dt = int(yr - t0)
         inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {codec_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
         subprocess.run(inundation_command,shell=True)
+        t_end = datetime.datetime.now()
+        delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+        delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+        print(f'Inundation creation took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
         if connectivity_flag == True:
+            print('Computing connectivity to the ocean...')
+            t_start = datetime
             output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
             output_inundation_shp_file_connected = output_inundation_shp_file.replace('.shp','_connected_GSW.shp')
             polygonize_command = f'gdal_polygonize.py -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
@@ -285,7 +333,12 @@ def main():
                 idx_connected = np.any((idx_intersects,idx_contains),axis=0)
             gdf_inundation_connected = gdf_inundation[idx_connected]
             gdf_inundation_connected.to_file(output_inundation_shp_file_connected)
+            t_end = datetime.datetime.now()
+            delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+            delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+            print(f'Connectivity took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
 
+    print(f'Finished with {loc_name} at {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.')
 
 if __name__ == '__main__':
     main()
