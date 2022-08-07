@@ -312,7 +312,7 @@ def main():
         print(f'Inundation creation took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
         if connectivity_flag == True:
             print('Computing connectivity to the ocean...')
-            t_start = datetime
+            t_start = datetime.datetime.now()
             output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
             output_inundation_shp_file_connected = output_inundation_shp_file.replace('.shp','_connected_GSW.shp')
             polygonize_command = f'gdal_polygonize.py -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
