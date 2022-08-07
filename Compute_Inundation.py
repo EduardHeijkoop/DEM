@@ -265,7 +265,7 @@ def main():
 
     
     t_start = datetime.datetime.now()
-    print('Finding CoDEC sea level extremes for return period of {RETURN_PERIOD} years...')
+    print(f'Finding CoDEC sea level extremes for return period of {RETURN_PERIOD} years...')
     rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,RETURN_PERIOD)
     output_file_codec = f'{tmp_dir}{loc_name}_CoDEC_{RETURN_PERIOD}_yrs_coastline.csv'
     np.savetxt(output_file_codec,np.c_[x_coast,y_coast,rps_coast],fmt='%f',delimiter=',',comments='')
