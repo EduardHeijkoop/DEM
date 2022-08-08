@@ -292,9 +292,9 @@ def main():
         print(f'Creating inundation in {yr}...')
         t_start = datetime.datetime.now()
         if geoid_file is not None:
-            output_inundation_file = f'{inundation_dir}{loc_name}_Orthometric_Inundation_{yr}_RCP_{str(rcp).replace(".","p")}.tif'
+            output_inundation_file = f'{inundation_dir}{loc_name}_Orthometric_Inundation_{yr}_RCP_{str(rcp).replace(".","p")}_RP_{RETURN_PERIOD}_yrs.tif'
         else:
-            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_RCP_{str(rcp).replace(".","p")}.tif'
+            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_RCP_{str(rcp).replace(".","p")}_RP_{RETURN_PERIOD}_yrs.tif'
         lon_SROCC_t_select,lat_SROCC_t_select,slr_SROCC_t_select = upscale_SROCC_grid(SROCC_dir,dem_file,rcp,t0,yr)
         h_SROCC_coast = interpolate_points(lon_SROCC_t_select,lat_SROCC_t_select,slr_SROCC_t_select,x_coast,y_coast,INTERPOLATE_METHOD)
         h_coast_yr = h_coast + h_SROCC_coast
