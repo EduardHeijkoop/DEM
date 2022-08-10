@@ -317,7 +317,6 @@ def main():
         subprocess.run(f'rm {sl_grid_file_intermediate_res}',shell=True)
         subprocess.run(f'rm {sl_grid_file_full_res}',shell=True)
     
-    subprocess.run(f'rm {output_file_coastline}',shell=True)
     subprocess.run(f'rm {output_file_codec}',shell=True)
     subprocess.run(f'rm {output_file_codec.replace(".csv",".vrt")}',shell=True)
     subprocess.run(f'rm {codec_grid_intermediate_res}',shell=True)
