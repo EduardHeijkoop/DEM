@@ -491,14 +491,17 @@ def get_strip_extents(strip):
     return lon_min,lon_max,lat_min,lat_max
 
 
-def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max,gsw_pocket_threshold=0.01,gsw_crs_transform_threshold=0.05):
+def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max,loc_name=None,gsw_pocket_threshold=0.01,gsw_crs_transform_threshold=0.05):
     '''
     Given lon/lat extents, find the biggest chunk(s) of the Global Surface Water dataset in that area.
     Extents might break up GSW into multiple chunks, GSW_POCKET_THRESHOLD sets the minimum size of a chunk.
     Returns a GeoDataFrame of the GSW and the filename of the shapefile it wrote to.
     '''
     epsg_code = str(epsg_code)
-    output_name = output_dir.split('/')[-2]
+    if loc_name is None:
+        output_name = output_dir.split('/')[-2]
+    else:
+        output_name = loc_name
     lon_min_rounded_gsw = int(np.floor(lon_min/10)*10)
     lon_max_rounded_gsw = int(np.floor(lon_max/10)*10)
     lat_min_rounded_gsw = int(np.ceil(lat_min/10)*10)
@@ -510,7 +513,7 @@ def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max
     gsw_output_file_sea_only_clipped = f'{tmp_dir}GSW_merged_sea_only_clipped.tif'
     gsw_output_file_sea_only_clipped_transformed = f'{tmp_dir}GSW_merged_sea_only_clipped_transformed_{epsg_code}.tif'
     gsw_output_shp_file_sea_only_clipped_transformed = f'{tmp_dir}GSW_merged_sea_only_clipped_transformed_{epsg_code}.shp'
-    gsw_output_shp_file_main_sea_only_clipped_transformed = f'{tmp_dir}{output_name}_GSW_merged_main_sea_only_clipped_transformed_{epsg_code}.shp'
+    gsw_output_shp_file_main_sea_only_clipped_transformed = f'{output_dir}{output_name}_GSW_merged_main_sea_only_clipped_transformed_{epsg_code}.shp'
     if subprocess.os.path.exists(gsw_output_file):
         subprocess.os.remove(gsw_output_file)
     if subprocess.os.path.exists(gsw_output_file_clipped):
@@ -575,15 +578,13 @@ def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max
         subprocess.run(warp_command,shell=True)
     gsw_polygonize_command = f'gdal_polygonize.py -q {gsw_output_file_sea_only_clipped_transformed} -f \"ESRI Shapefile\" {gsw_output_shp_file_sea_only_clipped_transformed}'
     subprocess.run(gsw_polygonize_command,shell=True)
-    gsw_shp_data = gpd.read_file(gsw_output_shp_file_sea_only_clipped_transformed)
-    if len(gsw_shp_data) == 0:
+    gdf_gsw_shp_data = gpd.read_file(gsw_output_shp_file_sea_only_clipped_transformed)
+    if len(gdf_gsw_shp_data) == 0:
         print('No coast in this region!')
         return None,None
-    idx_area = np.asarray(gsw_shp_data.area)/np.sum(gsw_shp_data.area) > gsw_crs_transform_threshold
-    gsw_main_sea_only = gsw_shp_data[idx_area].reset_index(drop=True)
-    gsw_main_sea_only.to_file(gsw_output_shp_file_main_sea_only_clipped_transformed)
-    subprocess.run(f'mv {gsw_output_shp_file_main_sea_only_clipped_transformed.replace(".shp",".*")} {output_dir}',shell=True)
-    gsw_output_shp_file_main_sea_only_clipped_transformed = gsw_output_shp_file_main_sea_only_clipped_transformed.replace(tmp_dir,output_dir)
+    idx_area = np.asarray(gdf_gsw_shp_data.area)/np.sum(gdf_gsw_shp_data.area) > gsw_crs_transform_threshold
+    gdf_gsw_main_sea_only = gdf_gsw_shp_data[idx_area].reset_index(drop=True)
+    gdf_gsw_main_sea_only.to_file(gsw_output_shp_file_main_sea_only_clipped_transformed)
     if subprocess.os.path.exists(gsw_output_file):
         subprocess.os.remove(gsw_output_file)
     if subprocess.os.path.exists(gsw_output_file_clipped):
@@ -595,7 +596,7 @@ def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max
     if subprocess.os.path.exists(gsw_output_shp_file_sea_only_clipped_transformed):
         for f1 in glob.glob(gsw_output_shp_file_sea_only_clipped_transformed.replace('.shp','.*')):
             subprocess.os.remove(f1)
-    return gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed
+    return gdf_gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed
 
 def get_strip_shp(strip,tmp_dir):
     '''

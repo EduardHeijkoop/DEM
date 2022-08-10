@@ -183,34 +183,6 @@ def create_icesat2_grid(df_icesat2,epsg_code,geoid_file,tmp_dir,loc_name,grid_re
     ocean_grid_array = reshape_grid_array(ocean_grid)
     return x_meshgrid_array,y_meshgrid_array,ocean_grid_array
 
-# def create_sl_grid(sl_grid_file,sl_grid_extents,loc_name,epsg_code,tmp_dir):
-#     if sl_grid_extents is not None:
-#         lon_min_sl_grid,lon_max_sl_grid,lat_min_sl_grid,lat_max_sl_grid = [float(e) for e in sl_grid_extents]
-#         lon_min_sl_grid -= 0.1
-#         lon_max_sl_grid += 0.1
-#         lat_min_sl_grid -= 0.1
-#         lat_max_sl_grid += 0.1
-#         sl_grid_subset_file = f'{tmp_dir}{loc_name}_{os.path.basename(sl_grid_file).replace(".tif","_subset.tif")}'
-#         clip_sl_grid_command = f'gdal_translate -q -projwin {lon_min_sl_grid} {lat_max_sl_grid} {lon_max_sl_grid} {lat_min_sl_grid} {sl_grid_file} {sl_grid_subset_file} -co "COMPRESS=LZW"'
-#         subprocess.run(clip_sl_grid_command,shell=True)
-#         src_sl_grid = gdal.Open(sl_grid_subset_file,gdalconst.GA_ReadOnly)
-#     else:
-#         src_sl_grid = gdal.Open(sl_grid_file,gdalconst.GA_ReadOnly)
-#     sl_grid = np.array(src_sl_grid.GetRasterBand(1).ReadAsArray())
-#     lon_sl_grid_array = np.linspace(src_sl_grid.GetGeoTransform()[0] + 0.5*src_sl_grid.GetGeoTransform()[1], src_sl_grid.GetGeoTransform()[0] + src_sl_grid.RasterXSize * src_sl_grid.GetGeoTransform()[1] - 0.5*src_sl_grid.GetGeoTransform()[1], src_sl_grid.RasterXSize)
-#     lat_sl_grid_array = np.linspace(src_sl_grid.GetGeoTransform()[3] + 0.5*src_sl_grid.GetGeoTransform()[5], src_sl_grid.GetGeoTransform()[3] + src_sl_grid.RasterYSize * src_sl_grid.GetGeoTransform()[5] - 0.5*src_sl_grid.GetGeoTransform()[5], src_sl_grid.RasterYSize)
-#     lon_sl_meshgrid,lat_sl_meshgrid = np.meshgrid(lon_sl_grid_array,lat_sl_grid_array)
-#     lon_sl_meshgrid_array = reshape_grid_array(lon_sl_meshgrid)
-#     lat_sl_meshgrid_array = reshape_grid_array(lat_sl_meshgrid)
-#     sl_grid_array = reshape_grid_array(sl_grid)
-#     x,y,zone = deg2utm(lon_sl_meshgrid_array,lat_sl_meshgrid_array)
-#     epsg_zone = utm2epsg(zone)
-#     idx_epsg = epsg_zone == epsg_code
-#     x_sl_meshgrid_array = x[idx_epsg]
-#     y_sl_meshgrid_array = y[idx_epsg]
-#     sl_grid_array = sl_grid_array[idx_epsg]
-#     return x_sl_meshgrid_array,y_sl_meshgrid_array,sl_grid_array
-
 def interpolate_grid(lon_input,lat_input,grid_file,grid_extents,loc_name,tmp_dir,grid_nodata=-9999):
     '''
     Interpolates regular grid onto input lon/lat using scipy RegularGridInterpolator
@@ -234,6 +206,8 @@ def interpolate_grid(lon_input,lat_input,grid_file,grid_extents,loc_name,tmp_dir
     lat_grid_array = np.linspace(src_grid.GetGeoTransform()[3] + 0.5*src_grid.GetGeoTransform()[5], src_grid.GetGeoTransform()[3] + src_grid.RasterYSize * src_grid.GetGeoTransform()[5] - 0.5*src_grid.GetGeoTransform()[5], src_grid.RasterYSize)
     interp_func = RegularGridInterpolator((lon_grid_array,lat_grid_array[::-1]),np.flipud(grid).T,bounds_error=False,fill_value=grid_nodata)
     z_interp = interp_func((lon_input,lat_input))
+    if grid_extents is not None:
+        subprocess.run(f'rm {grid_subset_file}',shell=True)
     return z_interp
 
 def interpolate_points(x_input,y_input,h_input,x_output,y_output,interpolate_method='Smooth',k_select=3):
@@ -248,41 +222,6 @@ def interpolate_points(x_input,y_input,h_input,x_output,y_output,interpolate_met
         interp_func = LSQBivariateSpline(x_input,y_input,h_input,x_output,y_output,kx=k_select, ky=k_select)
     h_output = interp_func(x_output,y_output,grid=False)
     return h_output
-
-# def kriging_inundation(x_input,y_input,h_input,x_coast,y_coast,kriging_method='ordinary',variogram='linear'):
-#     x_coast_pts = x_coast[~np.isnan(x_coast)]
-#     y_coast_pts = y_coast[~np.isnan(y_coast)]
-#     idx_nan = np.argwhere(np.isnan(x_coast)).squeeze()
-
-#     if kriging_method == 'universal':
-#         UK = UniversalKriging(
-#             x_input,
-#             y_input,
-#             h_input,
-#             variogram_model=variogram,
-#             verbose=False,
-#             enable_plotting=False,
-#             drift_terms=['regional_linear'],
-#         )
-#         h_krig, var_krig = UK.execute("points", x_coast_pts,y_coast_pts)
-#     elif kriging_method == 'ordinary':
-#         OK = OrdinaryKriging(
-#             x_input,
-#             y_input,
-#             h_input,
-#             variogram_model=variogram,
-#             verbose=False,
-#             enable_plotting=False,
-#         )
-#         h_krig, var_krig = OK.execute("points", x_coast_pts,y_coast_pts)
-
-#     h_krig = h_krig.data
-#     var_krig = var_krig.data
-#     for idx in idx_nan:
-#         h_krig = np.concatenate((h_krig[idx:],[np.nan],h_krig[:idx]))
-#         var_krig = np.concatenate((var_krig[idx:],[np.nan],var_krig[:idx]))
-    
-#     return h_krig,var_krig
 
 def create_csv_vrt(vrt_name,file_name,layer_name):
     ogr_vrt_data_source = ET.Element('OGRVRTDataSource')

@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import warnings
 import configparser
 from dem_utils import get_lonlat_gdf,find_corner_points_gdf
-from dem_utils import get_raster_extents,resample_raster,get_gsw,geometries_contained
+from dem_utils import get_raster_extents,resample_raster,get_gsw
 from inundation_utils import create_icesat2_grid, interpolate_grid, interpolate_points,get_codec,csv_to_grid
 from inundation_utils import upscale_SROCC_grid
 
@@ -25,6 +25,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--dem',help='Path to input DEM to run inundation on.')
+    parser.add_argument('--loc_name',help='Name of location to run inundation on.')
     parser.add_argument('--geoid',help='Path to geoid file to calculate orthometric heights with.')
     parser.add_argument('--vlm',help='Path to VLM file to propagate input file in time.')
     parser.add_argument('--clip_vlm',help='Clip DEM to VLM extents?',default=False,action='store_true')
@@ -40,6 +41,7 @@ def main():
     args = parser.parse_args()
 
     dem_file = args.dem
+    loc_name = args.loc_name
     geoid_file = args.geoid
     vlm_file = args.vlm
     clip_vlm_flag = args.clip_vlm
@@ -76,34 +78,6 @@ def main():
     if not os.path.exists(inundation_dir):
         os.mkdir(inundation_dir)
 
-    '''    
-    temporary paths
-    SROCC_dir = '/media/heijkoop/DATA/Dropbox/TU/PhD/Sea_Level/SROCC/'
-    CODEC_file = '/media/heijkoop/DATA/Dropbox/TU/PhD/Inundation/CODEC_amax_ERA5_1979_2017_coor_mask_GUM_RPS.nc'
-    tmp_dir = '/home/heijkoop/Desktop/tmp/Inundation/'
-    gsw_dir = '/media/heijkoop/DATA/Global_Surface_Water/'
-
-    geoid_file = '/media/heijkoop/DATA/GEOID/us_nga_egm2008_1.tif'
-    dem_file = '/media/heijkoop/DATA/DEM/Locations/Nigeria_Lagos/May_2022/Mosaic/Nigeria_Lagos_Full_Mosaic_0_32631_Nigeria_Lagos_ATL03_high_conf_masked_SRTM_filtered_threshold_10_m_32631-DEM_nuth_x+0.91_y+0.76_z+1.21_align.tif'
-    icesat2_file = '/media/heijkoop/DATA/DEM/Locations/Nigeria_Lagos/May_2022/Nigeria_Lagos_ATL03_FES2014_high_med_conf_masked_DTU21_filtered_threshold_10p0_m.txt'
-    coastline_file = '/media/heijkoop/DATA/DEM/Locations/Nigeria_Lagos/Nigeria_Lagos_S2_NDWI_20211221_simplified.shp'
-    sl_grid_file = '/media/heijkoop/DATA/DTU21/1min/DTU21MSS_WGS84_lon180.tif'
-    sl_grid_extents = [2.987,3.799,6.218,6.766]
-
-    geoid_file = '/media/heijkoop/DATA/GEOID/us_nga_egm2008_1.tif'
-    dem_file = '/media/heijkoop/DATA/DEM/Locations/India_Mumbai/MOSAIC/July_2022/India_Mumbai_Full_Mosaic_0_32643_India_Mumbai_20220303_ATL03_high_conf_masked_SRTM_filtered_threshold_10_m_32643-DEM_nuth_x-2.70_y+0.20_z-2.69_align.tif'
-    vlm_file = '/home/heijkoop/Desktop/tmp/Mumbai/VLM/MSBAS_LINEAR_RATE_LOS_20220704_interpolated_100pix.tif'
-    icesat2_file = '/home/heijkoop/Desktop/tmp/Mumbai/ICESat-2/India_Mumbai_20220529_ATL03_FES2014_high_med_conf_masked_DTU21_filtered_threshold_10_m_buffer_5000m.txt'
-    coastline_file = '/media/heijkoop/DATA/DEM/Locations/India_Mumbai/Mumbai_Large.shp'
-    sl_grid_file = '/media/heijkoop/DATA/DTU21/1min/DTU21MSS_WGS84_lon180.tif'
-    sl_grid_extents = [72.6,73.1,18.0,20.0]
-    years = 2050
-    clip_vlm_flag = True
-    clip_coast_flag = True
-    rcp = 4.5
-    t0 = 2020
-    connectivity_flag = True
-    '''
     
     SROCC_dir = config.get('INUNDATION_PATHS','SROCC_dir')
     CODEC_file = config.get('INUNDATION_PATHS','CODEC_file')
@@ -132,7 +106,8 @@ def main():
         'grid_num_threads':GRID_NUM_THREADS,
         'grid_res':GRID_INTERMEDIATE_RES}
 
-    loc_name = '_'.join(dem_file.split('/')[-1].split('_')[0:2])
+    if loc_name is None:
+        loc_name = '_'.join(dem_file.split('/')[-1].split('_')[0:2])
     src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
     dem_nodata = src.GetRasterBand(1).GetNoDataValue()
     epsg_code = osr.SpatialReference(wkt=src.GetProjection()).GetAttrValue('AUTHORITY',1)
@@ -279,7 +254,7 @@ def main():
     print(f'Generating CoDEC sea level extremes took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
 
     if connectivity_flag == True:
-        gdf_gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed = get_gsw(inundation_dir,tmp_dir,gsw_dir,epsg_code,lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max)
+        gdf_gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed = get_gsw(inundation_dir,tmp_dir,gsw_dir,epsg_code,lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max,loc_name)
         if loc_name not in os.path.basename(gsw_output_shp_file_main_sea_only_clipped_transformed):
             gsw_output_shp_file_main_sea_only_clipped_transformed = f'{os.path.dirname(gsw_output_shp_file_main_sea_only_clipped_transformed)}/{loc_name}_{os.path.basename(gsw_output_shp_file_main_sea_only_clipped_transformed)}'
         gsw_output_shp_file_main_sea_only_clipped_transformed_buffered = gsw_output_shp_file_main_sea_only_clipped_transformed.replace('.shp',f"_buffered_{int(GSW_BUFFER)}m.shp")
@@ -337,7 +312,18 @@ def main():
             delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
             delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
             print(f'Connectivity took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
-
+        subprocess.run(f'rm {output_file_coastline_yr}',shell=True)
+        subprocess.run(f'rm {output_file_coastline_yr.replace(".csv",".vrt")}',shell=True)
+        subprocess.run(f'rm {sl_grid_file_intermediate_res}',shell=True)
+        subprocess.run(f'rm {sl_grid_file_full_res}',shell=True)
+    
+    subprocess.run(f'rm {output_file_coastline}',shell=True)
+    subprocess.run(f'rm {output_file_codec}',shell=True)
+    subprocess.run(f'rm {output_file_codec.replace(".csv",".vrt")}',shell=True)
+    subprocess.run(f'rm {codec_grid_intermediate_res}',shell=True)
+    subprocess.run(f'rm {codec_grid_full_res}',shell=True)
+    if connectivity_flag == True:
+        subprocess.run(f'rm {gdf_gsw_main_sea_only_buffered.replace(".shp",".*")}',shell=True)
     print(f'Finished with {loc_name} at {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.')
 
 if __name__ == '__main__':
