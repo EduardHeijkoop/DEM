@@ -321,8 +321,6 @@ def main():
     subprocess.run(f'rm {output_file_codec.replace(".csv",".vrt")}',shell=True)
     subprocess.run(f'rm {codec_grid_intermediate_res}',shell=True)
     subprocess.run(f'rm {codec_grid_full_res}',shell=True)
-    if connectivity_flag == True:
-        subprocess.run(f'rm {gdf_gsw_main_sea_only_buffered.replace(".shp",".*")}',shell=True)
     print(f'Finished with {loc_name} at {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.')
 
 if __name__ == '__main__':
