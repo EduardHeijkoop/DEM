@@ -285,13 +285,13 @@ def main():
         print(f'Creating inundation in {yr}...')
         t_start = datetime.datetime.now()
         if projection_select == 'SROCC':
-            output_inundation_file = f'{inundation_dir}{loc_name}_Orthometric_Inundation_{yr}_SROCC_RCP_{str(rcp).replace(".","p")}_RP_{RETURN_PERIOD}_yrs.tif'
+            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_SROCC_RCP_{str(rcp).replace(".","p")}_RP_{RETURN_PERIOD}_yrs.tif'
             lon_projection,lat_projection,slr_projection = upscale_SROCC_grid(SROCC_dir,dem_file,rcp,t0,yr)
         elif projection_select == 'AR6':
-            output_inundation_file = f'{inundation_dir}{loc_name}_Orthometric_Inundation_{yr}_AR6_{ssp}_RP_{RETURN_PERIOD}_yrs.tif'
+            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_AR6_SSP{ssp}_RP_{RETURN_PERIOD}_yrs.tif'
             lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,dem_file,ssp,osm_shp_file,yr)
         if geoid_file is not None:
-            output_inundation_file = output_inundation_file.replace('Inundation','Orthometric_Inundation')
+            output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
         h_projection_coast = interpolate_points(lon_projection,lat_projection,slr_projection,x_coast,y_coast,INTERPOLATE_METHOD)
         h_coast_yr = h_coast + h_projection_coast
         output_file_coastline_yr = output_file_coastline.replace('.csv',f'_{yr}.csv')
