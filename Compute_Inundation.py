@@ -14,7 +14,7 @@ import configparser
 from dem_utils import get_lonlat_gdf,find_corner_points_gdf
 from dem_utils import get_raster_extents,resample_raster,get_gsw
 from inundation_utils import create_icesat2_grid, interpolate_grid, interpolate_points,get_codec,csv_to_grid
-from inundation_utils import upscale_SROCC_grid
+from inundation_utils import upscale_SROCC_grid,upscale_ar6_data
 
 
 def main():
@@ -35,7 +35,8 @@ def main():
     parser.add_argument('--coastline',help='Path to coastline file to calculate coastal sea level on.')
     parser.add_argument('--clip_coast',help='Clip DEM to coastline?',default=False,action='store_true')
     parser.add_argument('--years',help='Years to compute inundation for.',nargs='*',default='2020')
-    parser.add_argument('--rcp',help='RCP to use.',default='4.5')
+    parser.add_argument('--rcp',help='RCP to use.')
+    parser.add_argument('--ssp',help='RCP to use.')
     parser.add_argument('--t0',help='Time to use as t0 to zero SLR.',default='2020')
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
     args = parser.parse_args()
@@ -53,6 +54,7 @@ def main():
     years = args.years
     years = [int(yr) for yr in np.atleast_1d(years)]
     rcp = args.rcp
+    ssp = args.ssp
     t0 = int(args.t0)
     connectivity_flag = args.connectivity
 
@@ -69,6 +71,14 @@ def main():
     if vlm_file is None and clip_vlm_flag == True:
         print('No VLM file supplied, but clipping desired!')
         sys.exit()
+    if rcp is None and ssp is None:
+        print('No RCP or SSP pathway supplied!')
+        sys.exit()
+    
+    if rcp is not None and ssp is not None:
+        print('Both RCP and SSP supplied, only one can be used!')
+        sys.exit()
+    
 
     if os.path.dirname(os.path.abspath(dem_file)).split('/')[-1] == 'Mosaic':
         inundation_dir = f'{"/".join(os.path.dirname(os.path.abspath(dem_file)).split("/")[:-1])}/Inundation/'
@@ -80,9 +90,12 @@ def main():
 
     
     SROCC_dir = config.get('INUNDATION_PATHS','SROCC_dir')
+    AR6_dir = config.get('INUNDATION_PATHS','AR6_dir')
     CODEC_file = config.get('INUNDATION_PATHS','CODEC_file')
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
+    landmask_c_file = config.get('GENERAL_PATHS','landmask_c_file')
+    osm_shp_file = config.get('GENERAL_PATHS','osm_shp_file')
     VLM_NODATA = config.getfloat('VLM_CONSTANTS','VLM_NODATA')
     N_PTS = config.getint('INUNDATION_CONSTANTS','N_PTS')
     INTERPOLATE_METHOD = config.get('INUNDATION_CONSTANTS','INTERPOLATE_METHOD')
@@ -111,6 +124,12 @@ def main():
     src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
     dem_nodata = src.GetRasterBand(1).GetNoDataValue()
     epsg_code = osr.SpatialReference(wkt=src.GetProjection()).GetAttrValue('AUTHORITY',1)
+
+    if ssp is not None:
+        projection_select = 'AR6'
+        ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
+    elif rcp is not None:
+        projection_select = 'SROCC'
 
     gdf_coast = gpd.read_file(coastline_file)
     epsg_coastline = gdf_coast.crs.to_epsg()
@@ -247,7 +266,6 @@ def main():
     codec_grid_intermediate_res = csv_to_grid(output_file_codec,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
     codec_grid_full_res = codec_grid_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
     resample_raster(codec_grid_intermediate_res,dem_file,codec_grid_full_res)
-    # t_SROCC,slr_md_closest_minus_t0,slr_he_closest_minus_t0,slr_le_closest_minus_t0 = get_SROCC_data(SROCC_dir,dem_file,rcp,t0)
     t_end = datetime.datetime.now()
     delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
     delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
@@ -266,13 +284,16 @@ def main():
     for yr in years:
         print(f'Creating inundation in {yr}...')
         t_start = datetime.datetime.now()
+        if projection_select == 'SROCC':
+            output_inundation_file = f'{inundation_dir}{loc_name}_Orthometric_Inundation_{yr}_SROCC_RCP_{str(rcp).replace(".","p")}_RP_{RETURN_PERIOD}_yrs.tif'
+            lon_projection,lat_projection,slr_projection = upscale_SROCC_grid(SROCC_dir,dem_file,rcp,t0,yr)
+        elif projection_select == 'AR6':
+            output_inundation_file = f'{inundation_dir}{loc_name}_Orthometric_Inundation_{yr}_AR6_{ssp}_RP_{RETURN_PERIOD}_yrs.tif'
+            lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,dem_file,ssp,osm_shp_file,yr)
         if geoid_file is not None:
-            output_inundation_file = f'{inundation_dir}{loc_name}_Orthometric_Inundation_{yr}_RCP_{str(rcp).replace(".","p")}_RP_{RETURN_PERIOD}_yrs.tif'
-        else:
-            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_RCP_{str(rcp).replace(".","p")}_RP_{RETURN_PERIOD}_yrs.tif'
-        lon_SROCC_t_select,lat_SROCC_t_select,slr_SROCC_t_select = upscale_SROCC_grid(SROCC_dir,dem_file,rcp,t0,yr)
-        h_SROCC_coast = interpolate_points(lon_SROCC_t_select,lat_SROCC_t_select,slr_SROCC_t_select,x_coast,y_coast,INTERPOLATE_METHOD)
-        h_coast_yr = h_coast + h_SROCC_coast
+            output_inundation_file = output_inundation_file.replace('Inundation','Orthometric_Inundation')
+        h_projection_coast = interpolate_points(lon_projection,lat_projection,slr_projection,x_coast,y_coast,INTERPOLATE_METHOD)
+        h_coast_yr = h_coast + h_projection_coast
         output_file_coastline_yr = output_file_coastline.replace('.csv',f'_{yr}.csv')
         np.savetxt(output_file_coastline_yr,np.c_[x_coast,y_coast,h_coast_yr],fmt='%f',delimiter=',',comments='')
         sl_grid_file_intermediate_res = csv_to_grid(output_file_coastline_yr,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)

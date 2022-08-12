@@ -3,8 +3,8 @@ import pandas as pd
 import geopandas as gpd
 import netCDF4 as nc
 from osgeo import gdal,gdalconst,osr
-from dem_utils import get_raster_extents,great_circle_distance,lonlat2epsg,deg2utm
-from dem_utils import utm2epsg
+from dem_utils import get_lonlat_gdf, get_raster_extents,great_circle_distance,lonlat2epsg,deg2utm
+from dem_utils import utm2epsg, landmask_dem
 import os,sys
 import xml.etree.ElementTree as ET
 import subprocess
@@ -63,6 +63,73 @@ def get_SROCC_data(SROCC_dir,raster,rcp,t0):
     slr_le_closest_minus_t0 = slr_le_closest - slr_le_closest[idx_t0]
     return t_SROCC,slr_md_closest_minus_t0,slr_he_closest_minus_t0,slr_le_closest_minus_t0
 
+def upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,raster,ssp,shp_file,t_select,quantile_select=0.5,conf_level='medium',upscaling_factor=10,search_radius=3.0):
+    lon_min,lon_max,lat_min,lat_max = get_raster_extents(raster,'global')
+    if not isinstance(ssp,str):
+        ssp = f'{ssp:.2f}'.replace('.','')
+    AR6_file = f'{AR6_dir}Regional/{conf_level}_confidence/ssp{ssp}/total_ssp{ssp}_{conf_level}_confidence_values.nc'
+    if np.mod(t_select,10) != 0:
+        print('Invalid time selected, must be ')
+        return None
+    if not os.path.isfile(AR6_file):
+        print('No valid AR6 projection file found.')
+        return None
+    tmp_shp = f'{tmp_dir}tmp_shp.shp'
+    shp_subset_command = f'ogr2ogr {tmp_shp} {shp_file} -f "ESRI Shapefile" -clipsrc {lon_min-search_radius} {lat_min-search_radius} {lon_max+search_radius} {lat_max+search_radius}'
+    subprocess.run(shp_subset_command,shell=True)
+    gdf_coast_large = gpd.read_file(tmp_shp)
+    lon_coast_large,lat_coast_large = get_lonlat_gdf(gdf_coast_large)
+    AR6_data = nc.Dataset(AR6_file)
+    lon_AR6 = np.asarray(AR6_data['lon'][:])
+    lat_AR6 = np.asarray(AR6_data['lat'][:])
+    t_AR6 = np.asarray(AR6_data['years'][:])
+    sl_change_AR6 = np.asarray(AR6_data['sea_level_change'][:])
+    quantiles_AR6 = np.asarray(AR6_data['quantiles'][:])
+
+    idx_quantile = np.argwhere(quantiles_AR6==quantile_select).squeeze()
+    idx_no_tg = np.arange(1030,len(lon_AR6))
+    idx_t_select = np.atleast_1d(np.argwhere(t_AR6==t_select).squeeze())
+    lon_AR6 = lon_AR6[idx_no_tg]
+    lat_AR6 = lat_AR6[idx_no_tg]
+    sl_change_AR6 = sl_change_AR6[idx_quantile,idx_t_select,idx_no_tg]
+    idx_invalid = sl_change_AR6 == -32768
+    lon_AR6 = lon_AR6[~idx_invalid]
+    lat_AR6 = lat_AR6[~idx_invalid]
+    sl_change_AR6 = sl_change_AR6[~idx_invalid]
+
+    idx_lon = np.logical_and(lon_AR6>=lon_min-search_radius,lon_AR6<=lon_max+search_radius)
+    idx_lat = np.logical_and(lat_AR6>=lat_min-search_radius,lat_AR6<=lat_max+search_radius)
+    idx_tot = np.logical_and(idx_lon,idx_lat)
+    lon_AR6_search = lon_AR6[idx_tot]
+    lat_AR6_search = lat_AR6[idx_tot]
+    sl_change_AR6_search = sl_change_AR6[idx_tot]
+
+    landmask = landmask_dem(lon_AR6_search,lat_AR6_search,lon_coast_large,lat_coast_large,landmask_c_file,0)
+    lon_AR6_search = lon_AR6_search[landmask]
+    lat_AR6_search = lat_AR6_search[landmask]
+    sl_change_AR6_search = sl_change_AR6_search[landmask]
+
+    lon_AR6_high_res = np.linspace(np.min(lon_AR6_search),np.max(lon_AR6_search),int((np.max(lon_AR6_search)-np.min(lon_AR6_search))/(1/upscaling_factor))+1)
+    lat_AR6_high_res = np.linspace(np.min(lat_AR6_search),np.max(lat_AR6_search),int((np.max(lat_AR6_search)-np.min(lat_AR6_search))/(1/upscaling_factor))+1)
+    interp_func = LinearNDInterpolator(list(zip(lon_AR6_search, lat_AR6_search)), sl_change_AR6_search)
+    lon_AR6_high_res_meshgrid,lat_AR6_high_res_meshgrid = np.meshgrid(lon_AR6_high_res,lat_AR6_high_res)
+    slr_high_res = interp_func(lon_AR6_high_res_meshgrid,lat_AR6_high_res_meshgrid)
+    lon_pts = np.reshape(lon_AR6_high_res_meshgrid,lon_AR6_high_res_meshgrid.shape[0]*lon_AR6_high_res_meshgrid.shape[1])
+    lat_pts = np.reshape(lat_AR6_high_res_meshgrid,lat_AR6_high_res_meshgrid.shape[0]*lat_AR6_high_res_meshgrid.shape[1])
+    slr_pts = np.reshape(slr_high_res,slr_high_res.shape[0]*slr_high_res.shape[1])
+    idx_has_ne = np.asarray([np.sum(np.all((ln - lon_AR6_search >= 0,ln - lon_AR6_search < 1,lt - lat_AR6_search <= 0,lt - lat_AR6_search > -1),axis=0)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
+    idx_has_nw = np.asarray([np.sum(np.all((ln - lon_AR6_search <= 0,ln - lon_AR6_search > -1,lt - lat_AR6_search <= 0,lt - lat_AR6_search > -1),axis=0)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
+    idx_has_se = np.asarray([np.sum(np.all((ln - lon_AR6_search >= 0,ln - lon_AR6_search < 1,lt - lat_AR6_search >= 0,lt - lat_AR6_search < 1),axis=0)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
+    idx_has_sw = np.asarray([np.sum(np.all((ln - lon_AR6_search <= 0,ln - lon_AR6_search > -1,lt - lat_AR6_search >= 0,lt - lat_AR6_search < 1),axis=0)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
+
+    idx_contained = np.all((idx_has_ne,idx_has_nw,idx_has_se,idx_has_sw),axis=0)
+    lon_pts = lon_pts[idx_contained]
+    lat_pts = lat_pts[idx_contained]
+    slr_pts = slr_pts[idx_contained]
+    subprocess.run(f'rm {tmp_shp.replace(".shp",".*")}',shell=True)
+    return lon_pts,lat_pts,slr_pts
+
+
 def upscale_SROCC_grid(SROCC_dir,raster,rcp,t0,t_select,high_med_low_select='md',upscaling_factor=10,search_radius=3.0):
     '''
     Get SROCC data for a raster
@@ -106,10 +173,10 @@ def upscale_SROCC_grid(SROCC_dir,raster,rcp,t0,t_select,high_med_low_select='md'
     lon_pts = np.reshape(lon_SROCC_high_res_meshgrid,lon_SROCC_high_res_meshgrid.shape[0]*lon_SROCC_high_res_meshgrid.shape[1])
     lat_pts = np.reshape(lat_SROCC_high_res_meshgrid,lat_SROCC_high_res_meshgrid.shape[0]*lat_SROCC_high_res_meshgrid.shape[1])
     slr_pts = np.reshape(slr_high_res,slr_high_res.shape[0]*slr_high_res.shape[1])
-    idx_has_ne = np.asarray([np.sum(np.logical_and(ln<=lon_SROCC_search,lt<=lat_SROCC_search)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
-    idx_has_nw = np.asarray([np.sum(np.logical_and(ln>=lon_SROCC_search,lt<=lat_SROCC_search)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
-    idx_has_se = np.asarray([np.sum(np.logical_and(ln<=lon_SROCC_search,lt>=lat_SROCC_search)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
-    idx_has_sw = np.asarray([np.sum(np.logical_and(ln>=lon_SROCC_search,lt>=lat_SROCC_search)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
+    idx_has_ne = np.asarray([np.sum(np.all((ln - lon_SROCC_search >= 0,ln - lon_SROCC_search < 1,lt - lat_SROCC_search <= 0,lt - lat_SROCC_search > -1),axis=0)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
+    idx_has_nw = np.asarray([np.sum(np.all((ln - lon_SROCC_search <= 0,ln - lon_SROCC_search > -1,lt - lat_SROCC_search <= 0,lt - lat_SROCC_search > -1),axis=0)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
+    idx_has_se = np.asarray([np.sum(np.all((ln - lon_SROCC_search >= 0,ln - lon_SROCC_search < 1,lt - lat_SROCC_search >= 0,lt - lat_SROCC_search < 1),axis=0)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
+    idx_has_sw = np.asarray([np.sum(np.all((ln - lon_SROCC_search <= 0,ln - lon_SROCC_search > -1,lt - lat_SROCC_search >= 0,lt - lat_SROCC_search < 1),axis=0)) > 0 for (ln,lt) in zip(lon_pts,lat_pts)])
     idx_contained = np.all((idx_has_ne,idx_has_nw,idx_has_se,idx_has_sw),axis=0)
     lon_pts = lon_pts[idx_contained]
     lat_pts = lat_pts[idx_contained]
