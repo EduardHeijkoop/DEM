@@ -38,6 +38,7 @@ def main():
     parser.add_argument('--rcp',help='RCP to use.')
     parser.add_argument('--ssp',help='RCP to use.')
     parser.add_argument('--t0',help='Time to use as t0 to zero SLR.',default='2020')
+    parser.add_argument('--return_period',help='Return period of CoDEC in years',default='10')
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
     args = parser.parse_args()
 
@@ -56,6 +57,8 @@ def main():
     rcp = args.rcp
     ssp = args.ssp
     t0 = int(args.t0)
+    return_period = int(args.return_period)
+    return_period_options = np.asarray([2,5,10,25,50,100,250,500,1000])
     connectivity_flag = args.connectivity
 
     if icesat2_file is not None and sl_grid_file is not None:
@@ -74,9 +77,12 @@ def main():
     if rcp is None and ssp is None:
         print('No RCP or SSP pathway supplied!')
         sys.exit()
-    
     if rcp is not None and ssp is not None:
         print('Both RCP and SSP supplied, only one can be used!')
+        sys.exit()
+    if return_period not in return_period_options:
+        print('Invalid return period selected!')
+        print('Must be 2, 5, 10, 25, 50, 100, 250, 500 or 1000 years.')
         sys.exit()
     
 
@@ -107,7 +113,6 @@ def main():
     GRID_MAX_PTS = config.getint('INUNDATION_CONSTANTS','GRID_MAX_PTS')
     GRID_NUM_THREADS = config.getint('INUNDATION_CONSTANTS','GRID_NUM_THREADS')
     GRID_INTERMEDIATE_RES = config.getint('INUNDATION_CONSTANTS','GRID_INTERMEDIATE_RES')
-    RETURN_PERIOD = config.getint('INUNDATION_CONSTANTS','RETURN_PERIOD')
     INUNDATION_NODATA = config.getfloat('INUNDATION_CONSTANTS','INUNDATION_NODATA')
     GSW_BUFFER = config.getfloat('INUNDATION_CONSTANTS','GSW_BUFFER')
 
@@ -259,9 +264,9 @@ def main():
 
     
     t_start = datetime.datetime.now()
-    print(f'Finding CoDEC sea level extremes for return period of {RETURN_PERIOD} years...')
-    rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,RETURN_PERIOD)
-    output_file_codec = f'{tmp_dir}{loc_name}_CoDEC_{RETURN_PERIOD}_yrs_coastline.csv'
+    print(f'Finding CoDEC sea level extremes for return period of {return_period} years...')
+    rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,return_period)
+    output_file_codec = f'{tmp_dir}{loc_name}_CoDEC_{return_period}_yrs_coastline.csv'
     np.savetxt(output_file_codec,np.c_[x_coast,y_coast,rps_coast],fmt='%f',delimiter=',',comments='')
     codec_grid_intermediate_res = csv_to_grid(output_file_codec,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
     codec_grid_full_res = codec_grid_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
@@ -285,10 +290,10 @@ def main():
         print(f'Creating inundation in {yr}...')
         t_start = datetime.datetime.now()
         if projection_select == 'SROCC':
-            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_SROCC_RCP_{str(rcp).replace(".","p")}_RP_{RETURN_PERIOD}_yrs.tif'
+            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_SROCC_RCP_{str(rcp).replace(".","p")}_RP_{return_period}_yrs.tif'
             lon_projection,lat_projection,slr_projection = upscale_SROCC_grid(SROCC_dir,dem_file,rcp,t0,yr)
         elif projection_select == 'AR6':
-            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_AR6_SSP{ssp}_RP_{RETURN_PERIOD}_yrs.tif'
+            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_AR6_SSP{ssp}_RP_{return_period}_yrs.tif'
             lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,dem_file,ssp,osm_shp_file,yr)
         if geoid_file is not None:
             output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
