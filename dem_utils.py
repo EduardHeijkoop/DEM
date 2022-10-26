@@ -270,7 +270,7 @@ def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resamp
     src = gdal.Open(src_filename, gdalconst.GA_ReadOnly)
     src_proj = src.GetProjection()
     src_geotrans = src.GetGeoTransform()
-    src_espg = osr.SpatialReference(wkt=src_proj).GetAttrValue('AUTHORITY',1)
+    src_epsg = osr.SpatialReference(wkt=src_proj).GetAttrValue('AUTHORITY',1)
 
     match_ds = gdal.Open(match_filename, gdalconst.GA_ReadOnly)
     match_proj = match_ds.GetProjection()
