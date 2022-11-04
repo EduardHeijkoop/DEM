@@ -19,6 +19,7 @@ from dem_utils import find_mosaic,build_mosaic,copy_single_strips
 
 def main():
     #testing new coregistration
+    #another test
     warnings.simplefilter(action='ignore')
     config_file = 'dem_config.ini'
     config = configparser.ConfigParser()
