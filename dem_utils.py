@@ -1009,7 +1009,7 @@ def filter_outliers(dh,mean_median_mode='mean',n_sigma_filter=2):
     dh_filter = np.abs(dh-dh_mean_filter) < n_sigma_filter*dh_std
     return dh_filter
 
-def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.02):
+def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.02,printing=False):
     count = 0
     cumulative_shift = 0
     original_len = len(df_sampled)
@@ -1030,8 +1030,9 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
         df_sampled = df_sampled[dh_filter].reset_index(drop=True)
         df_sampled.h_secondary = df_sampled.h_secondary + incremental_shift
         cumulative_shift = cumulative_shift + incremental_shift
-        print(f'Iteration        : {count}')
-        print(f'Incremental shift: {incremental_shift:.2f} m\n')
+        if printing == True:
+            print(f'Iteration        : {count}')
+            print(f'Incremental shift: {incremental_shift:.2f} m\n')
         if np.abs(incremental_shift) <= vertical_shift_iterative_threshold:
             break
         if count == 15:
@@ -1040,13 +1041,14 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
     h_primary_filtered = np.asarray(df_sampled.h_secondary)
     dh_filtered = h_primary - h_secondary
     rmse_filtered = np.sqrt(np.sum(dh_filtered**2)/len(dh_filtered))
-    print(f'Number of iterations: {count}')
-    print(f'Number of points before filtering: {original_len}')
-    print(f'Number of points after filtering: {len(df_sampled)}')
-    print(f'Retained {len(df_sampled)/original_len*100:.1f}% of points.')
-    print(f'Cumulative shift: {cumulative_shift:.2f} m')
-    print(f'RMSE before filtering: {rmse_original:.2f} m')
-    print(f'RMSE after filtering: {rmse_filtered:.2f} m')
+    if printing == True:
+        print(f'Number of iterations: {count}')
+        print(f'Number of points before filtering: {original_len}')
+        print(f'Number of points after filtering: {len(df_sampled)}')
+        print(f'Retained {len(df_sampled)/original_len*100:.1f}% of points.')
+        print(f'Cumulative shift: {cumulative_shift:.2f} m')
+        print(f'RMSE before filtering: {rmse_original:.2f} m')
+        print(f'RMSE after filtering: {rmse_filtered:.2f} m')
     return cumulative_shift
 
 
