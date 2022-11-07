@@ -1038,8 +1038,8 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
         if count == 15:
             break
     h_primary_filtered = np.asarray(df_sampled.h_primary)
-    h_primary_filtered = np.asarray(df_sampled.h_secondary)
-    dh_filtered = h_primary - h_secondary
+    h_secondary_filtered = np.asarray(df_sampled.h_secondary)
+    dh_filtered = h_primary_filtered - h_secondary_filtered
     rmse_filtered = np.sqrt(np.sum(dh_filtered**2)/len(dh_filtered))
     if printing == True:
         print(f'Number of iterations: {count}')
