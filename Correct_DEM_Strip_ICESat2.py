@@ -106,7 +106,7 @@ def fit_jitter(xy,A,c,p,k,x0,y0):
     dh = A*np.sin(2*np.math.pi*(y-y0)/p + c*(x-x0)) * k*(x-x0)
     return dh
 
-def compute_jitter_correction(df_sampled,dem_file,N_segments_x=6,N_segments_y=1000):
+def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=1000):
     '''
     
     '''
@@ -160,7 +160,7 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=6,N_segments_y=10
     xy_mesh_array = np.stack((x_mesh_array,y_mesh_array),axis=1)
     params_jitter,params_covariance_jitter = scipy.optimize.curve_fit(fit_jitter,xy_segments_array,dh_segments_array,
         p0=[A_jitter,c_jitter,p_jitter,k_jitter,x_dem_min,y_dem_min],
-        bounds=((-np.max(np.abs(dh_segments_array)),-0.0005,0.9*p_jitter,-5e-5,0.9*x_dem_min,0.9*y_dem_min),(np.max(np.abs(dh_segments_array)),0.0005,1.1*p_jitter,5e-5,1.1*x_dem_max,1.1*y_dem_max)))
+        bounds=((-np.max(np.abs(dh_segments_array)),-0.0005,0.9*p_jitter,-5e-5,0.9*x_dem_min,0.9*y_dem_min),(1.5*np.max(np.abs(dh_segments_array)),0.0005,1.1*p_jitter,5e-5,1.1*x_dem_max,1.1*y_dem_max)))
     dh_jitter_orig = fit_jitter(xy_segments_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
     dh_jitter = fit_jitter(xy_mesh_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
     dh_grid = np.reshape(dh_jitter,x_mesh.shape)
@@ -320,7 +320,7 @@ def main():
     if np.sum(idx_lonlat)/len(idx_lonlat) < 0.9:
         print('ICESat-2 file covers more than just the DEM.')
         print('Subsetting into new file.')
-        icesat2_file = f'{os.path.splitext(icesat2_file)[0]}_subset{os.path.splitext(icesat2_file)[1]}'
+        icesat2_file = f'{os.path.dirname(dem_file)}/{os.path.splitext(os.path.basename(icesat2_file))[0]}_subset{os.path.splitext(icesat2_file)[1]}'
         np.savetxt(icesat2_file,np.c_[lon_icesat2,lat_icesat2,height_icesat2,time_icesat2.astype(object)],fmt='%f,%f,%f,%s',delimiter=',')
 
     sample_code = sample_raster(dem_file,icesat2_file,sampled_file)
