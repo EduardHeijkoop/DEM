@@ -41,7 +41,7 @@ def filter_outliers(dh,mean_median_mode='mean',n_sigma_filter=2):
     dh_filter = np.abs(dh-dh_mean_filter) < n_sigma_filter*dh_std
     return dh_filter
 
-def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05):
+def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05,printing=False):
     count = 0
     cumulative_shift = 0
     original_len = len(df_sampled)
@@ -62,8 +62,9 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
         df_sampled = df_sampled[dh_filter].reset_index(drop=True)
         df_sampled.height_dem = df_sampled.height_dem + incremental_shift
         cumulative_shift = cumulative_shift + incremental_shift
-        print(f'Iteration        : {count}')
-        print(f'Incremental shift: {incremental_shift:.2f} m\n')
+        if printing == True:
+            print(f'Iteration        : {count}')
+            print(f'Incremental shift: {incremental_shift:.2f} m\n')
         if np.abs(incremental_shift) <= vertical_shift_iterative_threshold:
             break
         if count == 15:
@@ -72,24 +73,28 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
     height_dem_filtered = np.asarray(df_sampled.height_dem)
     dh_filtered = height_icesat2_filtered - height_dem_filtered
     rmse_filtered = np.sqrt(np.sum(dh_filtered**2)/len(dh_filtered))
-    print(f'Number of iterations: {count}')
-    print(f'Number of points before filtering: {original_len}')
-    print(f'Number of points after filtering: {len(df_sampled)}')
-    print(f'Retained {len(df_sampled)/original_len*100:.1f}% of points.')
-    print(f'Cumulative shift: {cumulative_shift:.2f} m')
-    print(f'RMSE before filtering: {rmse_original:.2f} m')
-    print(f'RMSE after filtering: {rmse_filtered:.2f} m')
+    if printing == True:
+        print(f'Number of iterations: {count}')
+        print(f'Number of points before filtering: {original_len}')
+        print(f'Number of points after filtering: {len(df_sampled)}')
+        print(f'Retained {len(df_sampled)/original_len*100:.1f}% of points.')
+        print(f'Cumulative shift: {cumulative_shift:.2f} m')
+        print(f'RMSE before filtering: {rmse_original:.2f} m')
+        print(f'RMSE after filtering: {rmse_filtered:.2f} m')
     return df_sampled,cumulative_shift
 
 
-def vertical_shift_raster(raster_path,df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05):
+def vertical_shift_raster(raster_path,df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05,jitter_only_flag=False):
     src = gdal.Open(raster_path,gdalconst.GA_ReadOnly)
     raster_nodata = src.GetRasterBand(1).GetNoDataValue()
     df_sampled_filtered,vertical_shift = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold)
     raster_base,raster_ext = os.path.splitext(raster_path)
-    raster_shifted = f'{raster_base}_shifted_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
-    shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
-    subprocess.run(shift_command,shell=True)
+    if jitter_only_flag == False:
+        raster_shifted = f'{raster_base}_shifted_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
+        shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+        subprocess.run(shift_command,shell=True)
+    else:
+        raster_shifted = raster_path
     return df_sampled_filtered,raster_shifted
 
 def fit_sine(x,a,b):
@@ -98,7 +103,7 @@ def fit_sine(x,a,b):
 def fit_jitter(xy,A,c,p,k,x0,y0):
     x = xy[:,0]
     y = xy[:,1]
-    dh = A*np.sin(2*np.math.pi*(y-y0)/p + c*(x-x0)) + k*(x-x0)
+    dh = A*np.sin(2*np.math.pi*(y-y0)/p + c*(x-x0)) * k*(x-x0)
     return dh
 
 def compute_jitter_correction(df_sampled,dem_file,N_segments_x=6,N_segments_y=1000):
@@ -257,7 +262,7 @@ def main():
     parser.add_argument('--mean',default=False,action='store_true')
     parser.add_argument('--median',default=False,action='store_true')
     parser.add_argument('--sigma', nargs='?', type=int, default=2)
-    parser.add_argument('--threshold', nargs='?', type=float, default=0.05)
+    parser.add_argument('--threshold', nargs='?', type=float, default=0.02)
     args = parser.parse_args()
 
     dem_file = args.dem
@@ -318,9 +323,8 @@ def main():
 
     sample_code = sample_raster(dem_file,icesat2_file,sampled_file)
     df_sampled_original = pd.read_csv(sampled_file,header=None,names=['lon','lat','height_icesat2','time','height_dem'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float'})
-    df_sampled_coregistered,raster_shifted = vertical_shift_raster(dem_file,df_sampled_original,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold)
-
-    df_sampled_coregistered.iloc[:,:4].to_csv(sampled_coregistered_file,header=None,index=False,sep=',',float_format='%.6f')
+    df_sampled_coregistered,raster_shifted = vertical_shift_raster(dem_file,df_sampled_original,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,jitter_only_flag)
+    df_sampled_coregistered.to_csv(sampled_coregistered_file,header=None,index=False,sep=',',float_format='%.6f')
 
     x_grid,y_grid,dh_grid = compute_jitter_correction(df_sampled_coregistered,raster_shifted)
     write_code = raster_to_geotiff(x_grid,y_grid,dh_grid,src_dem_epsg,jitter_correction_file_coarse)
@@ -328,10 +332,10 @@ def main():
     subprocess.run(f'rm {jitter_correction_file_coarse}',shell=True)
 
     jitter_corrected_dem = f'{os.path.splitext(raster_shifted)[0]}_jitter_corrected{os.path.splitext(raster_shifted)[1]}'
-    jitter_correction_command = f'gdal_calc.py --quiet -A {raster_shifted} -B {jitter_correction_file} --outfile={jitter_corrected_dem} --calc="A+B" --NoDataValue={GRID_NODATA} --overwrite'
+    jitter_correction_command = f'gdal_calc.py --quiet -A {raster_shifted} -B {jitter_correction_file} --outfile={jitter_corrected_dem} --calc="A+B" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
     subprocess.run(jitter_correction_command,shell=True)
     sample_code = sample_raster(jitter_corrected_dem,sampled_coregistered_file,sampled_jitter_corrected_file)
-    df_sampled_jitter_corrected = pd.read_csv(sampled_jitter_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float'})
+    df_sampled_jitter_corrected = pd.read_csv(sampled_jitter_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem','height_dem_jitter_corrected'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float','height_dem_jitter_corrected':'float'})
 
 
 if __name__ == "__main__":

@@ -16,7 +16,6 @@ from dem_utils import get_gsw,get_strip_shp,filter_strip_gsw
 from dem_utils import get_contained_strips,get_valid_strip_overlaps,get_minimum_spanning_tree
 from dem_utils import find_mosaic,build_mosaic,copy_single_strips
 
-
 def main():
     warnings.simplefilter(action='ignore')
     config_file = 'dem_config.ini'
