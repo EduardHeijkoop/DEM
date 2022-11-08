@@ -103,12 +103,12 @@ def fit_sine(x,a,b):
 def fit_jitter(xy,A,c,p,k,x0,y0):
     x = xy[:,0]
     y = xy[:,1]
-    dh = A*np.sin(2*np.math.pi*(y-y0)/p + c*(x-x0)) * k*(x-x0)
+    dh = A*np.sin(2*np.math.pi*(y-y0)/p + c*(x-x0)) * (1-k)*(x/x0)
     return dh
 
 def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=1000):
     '''
-    
+    Checks if DEM has jitter effect in it and corrects for it, using ICESat-2 as truth
     '''
     lon_icesat2 = np.asarray(df_sampled.lon)
     lat_icesat2 = np.asarray(df_sampled.lat)
@@ -151,7 +151,7 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
     A_jitter = 0.6
     c_jitter = 0
     p_jitter = 15133
-    k_jitter = 1e-5
+    k_jitter = 0
     x_grid = np.arange(np.floor(x_dem_min/xres)*xres,np.ceil(x_dem_max/xres)*xres,xres)
     y_grid = np.arange(np.floor(y_dem_min/yres)*yres,np.ceil(y_dem_max/yres)*yres,yres)
     x_mesh,y_mesh = np.meshgrid(x_grid,y_grid)
@@ -160,7 +160,7 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
     xy_mesh_array = np.stack((x_mesh_array,y_mesh_array),axis=1)
     params_jitter,params_covariance_jitter = scipy.optimize.curve_fit(fit_jitter,xy_segments_array,dh_segments_array,
         p0=[A_jitter,c_jitter,p_jitter,k_jitter,x_dem_min,y_dem_min],
-        bounds=((-np.max(np.abs(dh_segments_array)),-0.0005,0.9*p_jitter,-5e-5,0.9*x_dem_min,0.9*y_dem_min),(1.5*np.max(np.abs(dh_segments_array)),0.0005,1.1*p_jitter,5e-5,1.1*x_dem_max,1.1*y_dem_max)))
+        bounds=((-np.max(np.abs(dh_segments_array)),-0.0005,0.9*p_jitter,-2,0.8*x_dem_min,0.8*y_dem_min),(1.5*np.max(np.abs(dh_segments_array)),0.0005,1.1*p_jitter,2,1.1*x_dem_max,1.1*y_dem_max)))
     dh_jitter_orig = fit_jitter(xy_segments_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
     dh_jitter = fit_jitter(xy_mesh_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
     dh_grid = np.reshape(dh_jitter,x_mesh.shape)
@@ -250,29 +250,33 @@ def main():
     '''
     dem_file = '/media/heijkoop/DATA/DEM/Accuracy_Assessment/Mosaic/WV01_20190126_1020010082E41B00_1020010083282500/strips/WV01_20190126_1020010082E41B00_1020010083282500_2m_lsf_seg4_dem.tif'
     icesat2_file = '/media/heijkoop/DATA/DEM/Accuracy_Assessment/Strip/Rural/US_Savannah_ATL03_Rural_Strip_Filtered_NDVI_NDWI.txt'
+    dem_file = '/media/heijkoop/DATA/DEM/Accuracy_Assessment/Mosaic/WV01_20190126_10200100827B1600_102001007F04DC00/strips/WV01_20190126_10200100827B1600_102001007F04DC00_2m_lsf_seg3_dem.tif'
+    icesat2_file = '/media/heijkoop/DATA/DEM/Accuracy_Assessment/Mosaic/WV01_20190126_10200100827B1600_102001007F04DC00/strips/US_Savannah_ATL03_high_conf_masked_SRTM_filtered_threshold_10p0_m_subset.txt'
     mean_mode = True
     median_mode = False
     n_sigma_filter = 2
     vertical_shift_iterative_threshold = 0.02
+    jitter_only_flag = True
+    print_flag = True
     '''
     parser = argparse.ArgumentParser()
     parser.add_argument('--dem',help='Path to input DEM to correct.')
     parser.add_argument('--icesat2',help='Return period of CoDEC in years')
-    parser.add_argument('--jitter_only',help='Correct for jitter only?',default=False,action='store_true')
     parser.add_argument('--mean',default=False,action='store_true')
     parser.add_argument('--median',default=False,action='store_true')
     parser.add_argument('--sigma', nargs='?', type=int, default=2)
     parser.add_argument('--threshold', nargs='?', type=float, default=0.02)
+    parser.add_argument('--jitter_only',help='Correct for jitter only?',default=False,action='store_true')
     parser.add_argument('--print',default=False,action='store_true')
     args = parser.parse_args()
 
     dem_file = args.dem
     icesat2_file = args.icesat2
-    jitter_only_flag = args.jitter_only
     mean_mode = args.mean
     median_mode = args.median
     n_sigma_filter = args.sigma
     vertical_shift_iterative_threshold = args.threshold
+    jitter_only_flag = args.jitter_only
     print_flag = args.print
 
     
@@ -287,9 +291,7 @@ def main():
 
     '''
     To do:
-    if jitter_only_flag is not true, then apply that coregistration too
-    There will still be residuals, fit sinusoidal surface through residuals and compute best fitting smooth surface
-        if fit can't be made, or jitter amplitude is too small, print out "no jitter!"
+    if fit can't be made, or jitter amplitude is too small, print out "no jitter!"
     '''
 
     sampled_file = f'{os.path.splitext(icesat2_file)[0]}_Sampled_{os.path.splitext(os.path.basename(dem_file))[0]}{os.path.splitext(icesat2_file)[1]}'
