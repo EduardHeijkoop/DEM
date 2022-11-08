@@ -84,10 +84,10 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
     return df_sampled,cumulative_shift
 
 
-def vertical_shift_raster(raster_path,df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05,jitter_only_flag=False):
+def vertical_shift_raster(raster_path,df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05,jitter_only_flag=False,print_flag=False):
     src = gdal.Open(raster_path,gdalconst.GA_ReadOnly)
     raster_nodata = src.GetRasterBand(1).GetNoDataValue()
-    df_sampled_filtered,vertical_shift = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold)
+    df_sampled_filtered,vertical_shift = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,print_flag)
     raster_base,raster_ext = os.path.splitext(raster_path)
     if jitter_only_flag == False:
         raster_shifted = f'{raster_base}_shifted_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
@@ -263,6 +263,7 @@ def main():
     parser.add_argument('--median',default=False,action='store_true')
     parser.add_argument('--sigma', nargs='?', type=int, default=2)
     parser.add_argument('--threshold', nargs='?', type=float, default=0.02)
+    parser.add_argument('--print',default=False,action='store_true')
     args = parser.parse_args()
 
     dem_file = args.dem
@@ -272,6 +273,7 @@ def main():
     median_mode = args.median
     n_sigma_filter = args.sigma
     vertical_shift_iterative_threshold = args.threshold
+    print_flag = args.print
 
     
     if np.logical_xor(mean_mode,median_mode) == True:
@@ -323,7 +325,7 @@ def main():
 
     sample_code = sample_raster(dem_file,icesat2_file,sampled_file)
     df_sampled_original = pd.read_csv(sampled_file,header=None,names=['lon','lat','height_icesat2','time','height_dem'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float'})
-    df_sampled_coregistered,raster_shifted = vertical_shift_raster(dem_file,df_sampled_original,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,jitter_only_flag)
+    df_sampled_coregistered,raster_shifted = vertical_shift_raster(dem_file,df_sampled_original,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,jitter_only_flag,print_flag)
     df_sampled_coregistered.to_csv(sampled_coregistered_file,header=None,index=False,sep=',',float_format='%.6f')
 
     x_grid,y_grid,dh_grid = compute_jitter_correction(df_sampled_coregistered,raster_shifted)
