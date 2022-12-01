@@ -405,6 +405,8 @@ def main():
         dh_plane_corrected = df_sampled_plane_corrected.height_icesat2 - df_sampled_plane_corrected.height_dem_plane_corrected
         rmse_plane_corrected = np.sqrt(np.sum(dh_plane_corrected**2)/len(dh_plane_corrected))
         print(f'RMSE of plane-corrected DEM: {rmse_plane_corrected:.2f} m')
+    else:
+        plane_corrected_dem = raster_shifted
 
     x_jitter,y_jitter,dh_jitter = compute_jitter_correction(df_sampled_plane_corrected,plane_corrected_dem)
     if x_jitter is not None:
