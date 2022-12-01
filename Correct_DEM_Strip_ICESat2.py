@@ -126,7 +126,11 @@ def compute_plane_correction(df_sampled,dem_file):
     height_dem = np.asarray(df_sampled.height_dem)
     dh = height_icesat2 - height_dem
     x_icesat2,y_icesat2,zone_icesat2 = deg2utm(lon_icesat2,lat_icesat2)
-    params_plane,params_covariance_plane = scipy.optimize.curve_fit(fit_plane,np.stack((x_icesat2,y_icesat2),axis=1),dh)
+    try:
+        params_plane,params_covariance_plane = scipy.optimize.curve_fit(fit_plane,np.stack((x_icesat2,y_icesat2),axis=1),dh)
+    except ValueError:
+        print('Plane fit failed. Skipping plane correction.')
+        return None,None,None
     src_dem = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
     src_dem_proj = src_dem.GetProjection()
     src_dem_geotrans = src_dem.GetGeoTransform()
@@ -173,21 +177,29 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
     dx_dem = np.abs(x_dem_max - x_dem_min)
     dy_dem = np.abs(y_dem_max - y_dem_min)
     grid_max_dist = np.max((dx_dem,dy_dem))
-    x_segments_array = np.zeros(N_segments_x*N_segments_y)
-    y_segments_array = np.zeros(N_segments_x*N_segments_y)
-    dh_segments_array = np.zeros(N_segments_x*N_segments_y)
+    x_segments_array = np.empty([0,1],dtype=float)
+    y_segments_array = np.empty([0,1],dtype=float)
+    dh_segments_array = np.empty([0,1],dtype=float)
     p0_estimate = 15133
+    count_error = 0
     for i in range(N_segments_x):
         idx_x = np.logical_and(x_icesat2 >= x_segments[i],x_icesat2 <= x_segments[i+1])
         x_segment_middle = np.mean(x_segments[i:i+2])
         x_segment = x_icesat2[idx_x]
         y_segment = y_icesat2[idx_x]
         dh_segment = dh[idx_x]
-        params_segment,params_covariance_segment = scipy.optimize.curve_fit(fit_sine,y_segment,dh_segment,p0=[1, 2*np.math.pi/p0_estimate],bounds=((0,-np.inf),(np.max(dh_segment),np.inf)))
+        try:
+            params_segment,params_covariance_segment = scipy.optimize.curve_fit(fit_sine,y_segment,dh_segment,p0=[1, 2*np.math.pi/p0_estimate],bounds=((0,-np.inf),(np.max(dh_segment),np.inf)))
+        except ValueError:
+            count_error += 1
+            continue
         dh_segment_sine = fit_sine(y_segments,params_segment[0],params_segment[1])
-        x_segments_array[i*N_segments_y:(i+1)*N_segments_y] = x_segment_middle
-        y_segments_array[i*N_segments_y:(i+1)*N_segments_y] = y_segments
-        dh_segments_array[i*N_segments_y:(i+1)*N_segments_y] = dh_segment_sine
+        x_segments_array = np.append(x_segments_array,x_segment_middle*np.ones([len(y_segments),1]),axis=0)
+        y_segments_array = np.append(y_segments_array,y_segments)
+        dh_segments_array = np.append(dh_segments_array,dh_segment_sine)
+    if count_error >= N_segments_x/2:
+        print('Jitter correction failed')
+        return None,None,None
     xy_segments_array = np.stack((x_segments_array,y_segments_array),axis=1)
     xres = 100
     yres = 100
@@ -294,11 +306,13 @@ def main():
     icesat2_file = '/media/heijkoop/DATA/DEM/Accuracy_Assessment/Strip/Rural/US_Savannah_ATL03_Rural_Strip_Filtered_NDVI_NDWI.txt'
     dem_file = '/media/heijkoop/DATA/DEM/Accuracy_Assessment/Mosaic/WV01_20190126_10200100827B1600_102001007F04DC00/strips/WV01_20190126_10200100827B1600_102001007F04DC00_2m_lsf_seg3_dem.tif'
     icesat2_file = '/media/heijkoop/DATA/DEM/Accuracy_Assessment/Mosaic/WV01_20190126_10200100827B1600_102001007F04DC00/strips/US_Savannah_ATL03_high_conf_masked_SRTM_filtered_threshold_10p0_m_subset.txt'
+    dem_file = '/media/heijkoop/DATA/DEM/Locations/Bolivia_SalarDeUyuni/Accuracy_Assessment/WV02_20141208_103001003B2BD300_103001003B5B7600_2m_lsf_seg1_dem.tif'
+    icesat2_file = '/media/heijkoop/DATA/DEM/Locations/Bolivia_SalarDeUyuni/Accuracy_Assessment/Salar_de_Uyuni_ATL03_WV02_20141208.txt'
     mean_mode = True
     median_mode = False
     n_sigma_filter = 2
     vertical_shift_iterative_threshold = 0.02
-    jitter_only_flag = True
+    jitter_only_flag = False
     print_flag = True
     '''
     parser = argparse.ArgumentParser()
@@ -333,7 +347,7 @@ def main():
 
     '''
     To do:
-    if fit can't be made, or jitter amplitude is too small, print out "no jitter!"
+    change naming of jitter only flag
     '''
 
     sampled_file = f'{os.path.splitext(icesat2_file)[0]}_Sampled_{os.path.splitext(os.path.basename(dem_file))[0]}{os.path.splitext(icesat2_file)[1]}'
@@ -379,32 +393,32 @@ def main():
     print(f'RMSE of co-registered DEM: {rmse_coregistered:.2f} m')
 
     x_plane,y_plane,dh_plane = compute_plane_correction(df_sampled_coregistered,raster_shifted)
-    write_code = raster_to_geotiff(x_plane,y_plane,dh_plane,src_dem_epsg,plane_correction_file_coarse)
-    resample_code = resample_raster(plane_correction_file_coarse,raster_shifted,plane_correction_file)
-    subprocess.run(f'rm {plane_correction_file_coarse}',shell=True)
-    plane_corrected_dem = f'{os.path.splitext(raster_shifted)[0]}_plane_corrected{os.path.splitext(raster_shifted)[1]}'
-    plane_correction_command = f'gdal_calc.py --quiet -A {raster_shifted} -B {plane_correction_file} --outfile={plane_corrected_dem} --calc="A+B" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
-    subprocess.run(plane_correction_command,shell=True)
-
-    sample_code = sample_raster(plane_corrected_dem,sampled_coregistered_file,sampled_plane_corrected_file)
-    df_sampled_plane_corrected = pd.read_csv(sampled_plane_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem','height_dem_plane_corrected'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float','height_dem__plane_corrected':'float'})
-    dh_plane_corrected = df_sampled_plane_corrected.height_icesat2 - df_sampled_plane_corrected.height_dem_plane_corrected
-    rmse_plane_corrected = np.sqrt(np.sum(dh_plane_corrected**2)/len(dh_plane_corrected))
-    print(f'RMSE of plane-corrected DEM: {rmse_plane_corrected:.2f} m')
+    if x_plane is not None:
+        write_code = raster_to_geotiff(x_plane,y_plane,dh_plane,src_dem_epsg,plane_correction_file_coarse)
+        resample_code = resample_raster(plane_correction_file_coarse,raster_shifted,plane_correction_file)
+        subprocess.run(f'rm {plane_correction_file_coarse}',shell=True)
+        plane_corrected_dem = f'{os.path.splitext(raster_shifted)[0]}_plane_corrected{os.path.splitext(raster_shifted)[1]}'
+        plane_correction_command = f'gdal_calc.py --quiet -A {raster_shifted} -B {plane_correction_file} --outfile={plane_corrected_dem} --calc="A+B" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
+        subprocess.run(plane_correction_command,shell=True)
+        sample_code = sample_raster(plane_corrected_dem,sampled_coregistered_file,sampled_plane_corrected_file)
+        df_sampled_plane_corrected = pd.read_csv(sampled_plane_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem','height_dem_plane_corrected'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float','height_dem__plane_corrected':'float'})
+        dh_plane_corrected = df_sampled_plane_corrected.height_icesat2 - df_sampled_plane_corrected.height_dem_plane_corrected
+        rmse_plane_corrected = np.sqrt(np.sum(dh_plane_corrected**2)/len(dh_plane_corrected))
+        print(f'RMSE of plane-corrected DEM: {rmse_plane_corrected:.2f} m')
 
     x_jitter,y_jitter,dh_jitter = compute_jitter_correction(df_sampled_plane_corrected,plane_corrected_dem)
-    write_code = raster_to_geotiff(x_jitter,y_jitter,dh_jitter,src_dem_epsg,jitter_correction_file_coarse)
-    resample_code = resample_raster(jitter_correction_file_coarse,raster_shifted,jitter_correction_file)
-    subprocess.run(f'rm {jitter_correction_file_coarse}',shell=True)
-
-    jitter_corrected_dem = f'{os.path.splitext(raster_shifted)[0]}_jitter_corrected{os.path.splitext(raster_shifted)[1]}'
-    jitter_correction_command = f'gdal_calc.py --quiet -A {plane_corrected_dem} -B {jitter_correction_file} --outfile={jitter_corrected_dem} --calc="A+B" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
-    subprocess.run(jitter_correction_command,shell=True)
-    sample_code = sample_raster(jitter_corrected_dem,sampled_coregistered_file,sampled_jitter_corrected_file)
-    df_sampled_jitter_corrected = pd.read_csv(sampled_jitter_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem','height_dem_jitter_corrected'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float','height_dem_jitter_corrected':'float'})
-    dh_jitter_corrected = df_sampled_jitter_corrected.height_icesat2 - df_sampled_jitter_corrected.height_dem_jitter_corrected
-    rmse_jitter_corrected = np.sqrt(np.sum(dh_jitter_corrected**2)/len(dh_jitter_corrected))
-    print(f'RMSE of jitter-corrected DEM: {rmse_jitter_corrected:.2f} m')
+    if x_jitter is not None:
+        write_code = raster_to_geotiff(x_jitter,y_jitter,dh_jitter,src_dem_epsg,jitter_correction_file_coarse)
+        resample_code = resample_raster(jitter_correction_file_coarse,raster_shifted,jitter_correction_file)
+        subprocess.run(f'rm {jitter_correction_file_coarse}',shell=True)
+        jitter_corrected_dem = f'{os.path.splitext(raster_shifted)[0]}_jitter_corrected{os.path.splitext(raster_shifted)[1]}'
+        jitter_correction_command = f'gdal_calc.py --quiet -A {plane_corrected_dem} -B {jitter_correction_file} --outfile={jitter_corrected_dem} --calc="A+B" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
+        subprocess.run(jitter_correction_command,shell=True)
+        sample_code = sample_raster(jitter_corrected_dem,sampled_coregistered_file,sampled_jitter_corrected_file)
+        df_sampled_jitter_corrected = pd.read_csv(sampled_jitter_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem','height_dem_jitter_corrected'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float','height_dem_jitter_corrected':'float'})
+        dh_jitter_corrected = df_sampled_jitter_corrected.height_icesat2 - df_sampled_jitter_corrected.height_dem_jitter_corrected
+        rmse_jitter_corrected = np.sqrt(np.sum(dh_jitter_corrected**2)/len(dh_jitter_corrected))
+        print(f'RMSE of jitter-corrected DEM: {rmse_jitter_corrected:.2f} m')
 
 if __name__ == "__main__":
     main()
