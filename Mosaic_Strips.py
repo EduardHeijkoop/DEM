@@ -24,8 +24,10 @@ def main():
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_file',default=config.get('MOSAIC_PATHS','input_file'),help='path to dir containing strips')
+    parser.add_argument('--list',default=None,help='path to list of strips to mosaic')
     args = parser.parse_args()
     input_file = args.input_file
+    list_file = args.list
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
@@ -34,6 +36,8 @@ def main():
     df_input = pd.read_csv(input_file,header=0,names=['loc_dirs','output_dirs','input_types'],dtype={'loc_dirs':'str','output_dirs':'str','input_types':'object'})
     df_input.input_types = df_input.input_types.fillna('0')
     df_input.input_types = df_input.input_types.astype(int)
+
+    df_list = pd.read_csv(list_file,header=None,names=['strip'],dtype={'strip':'str'})
 
     POLYGON_AREA_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','POLYGON_AREA_THRESHOLD') #in m^2
     STRIP_AREA_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','STRIP_AREA_THRESHOLD') #in m^2
@@ -71,7 +75,10 @@ def main():
         if loc_name != output_name:
             print('Warning! Output name and location name not the same. Continuing...')
             print(f'Calling everything {output_name} now.')
-        full_ortho_list = get_ortho_list(loc_dir)
+        if np.any([loc_name in s for s in df_list.strip]):
+            full_ortho_list = np.asarray([s.replace('dem_smooth.tif','ortho.tif').replace('dem.tif','ortho.tif') for s in df_list.strip])
+        else:
+            full_ortho_list = get_ortho_list(loc_dir)
         full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(ortho,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for ortho in full_ortho_list])
         unique_epsg_list = np.unique(full_epsg_list)
 
