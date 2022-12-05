@@ -84,11 +84,13 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
     return df_sampled,cumulative_shift
 
 
-def vertical_shift_raster(raster_path,df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05,corrections_only_flag=False,print_flag=False):
+def vertical_shift_raster(raster_path,df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05,corrections_only_flag=False,print_flag=False,new_dir=None):
     src = gdal.Open(raster_path,gdalconst.GA_Update)
     raster_nodata = src.GetRasterBand(1).GetNoDataValue()
     df_sampled_filtered,vertical_shift = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,print_flag)
     raster_base,raster_ext = os.path.splitext(raster_path)
+    if new_dir is not None:
+        raster_base = os.path.join(new_dir,os.path.basename(raster_base))
     if corrections_only_flag == False:
         raster_shifted = f'{raster_base}_Shifted_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
         shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
@@ -387,7 +389,7 @@ def main():
 
     sample_code = sample_raster(dem_file,icesat2_file,sampled_original_file)
     df_sampled_original = pd.read_csv(sampled_original_file,header=None,names=['lon','lat','height_icesat2','time','height_dem'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float'})
-    df_sampled_coregistered,raster_shifted = vertical_shift_raster(dem_file,df_sampled_original,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,corrections_only_flag,print_flag)
+    df_sampled_coregistered,raster_shifted = vertical_shift_raster(dem_file,df_sampled_original,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,corrections_only_flag,print_flag,new_dir=tmp_dir)
     raster_shifted_base,raster_shifted_ext = os.path.splitext(os.path.basename(raster_shifted))
     sampled_coregistered_file = f'{tmp_dir}{icesat2_base}_Sampled_{dem_base}_Coregistered{icesat2_ext}'
     df_sampled_coregistered.to_csv(sampled_coregistered_file,header=None,index=False,sep=',',float_format='%.6f')
