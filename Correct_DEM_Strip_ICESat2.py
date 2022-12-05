@@ -197,7 +197,7 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
             count_error += 1
             continue
         dh_segment_sine = fit_sine(y_segments,params_segment[0],params_segment[1])
-        x_segments_array = np.append(x_segments_array,x_segment_middle*np.ones([len(y_segments),1]),axis=0)
+        x_segments_array = np.append(x_segments_array,x_segment_middle*np.ones([len(y_segments),1]),axis=0).squeeze()
         y_segments_array = np.append(y_segments_array,y_segments)
         dh_segments_array = np.append(dh_segments_array,dh_segment_sine)
     if count_error >= N_segments_x/2:
