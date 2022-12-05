@@ -85,7 +85,7 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
 
 
 def vertical_shift_raster(raster_path,df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05,corrections_only_flag=False,print_flag=False):
-    src = gdal.Open(raster_path,gdalconst.GA_ReadOnly)
+    src = gdal.Open(raster_path,gdalconst.GA_Update)
     raster_nodata = src.GetRasterBand(1).GetNoDataValue()
     df_sampled_filtered,vertical_shift = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,print_flag)
     raster_base,raster_ext = os.path.splitext(raster_path)
@@ -131,7 +131,7 @@ def compute_plane_correction(df_sampled,dem_file):
     except ValueError:
         print('Plane fit failed. Skipping plane correction.')
         return None,None,None
-    src_dem = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
+    src_dem = gdal.Open(dem_file,gdalconst.GA_Update)
     src_dem_proj = src_dem.GetProjection()
     src_dem_geotrans = src_dem.GetGeoTransform()
     src_dem_epsg = osr.SpatialReference(wkt=src_dem_proj).GetAttrValue('AUTHORITY',1)
@@ -169,7 +169,7 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
     x_icesat2,y_icesat2,zone_icesat2 = deg2utm(lon_icesat2,lat_icesat2)
     x_segments = np.linspace(np.min(x_icesat2),np.max(x_icesat2),N_segments_x+1)
     y_segments = np.linspace(np.min(y_icesat2),np.max(y_icesat2),N_segments_y)
-    src_dem = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
+    src_dem = gdal.Open(dem_file,gdalconst.GA_Update)
     src_dem_proj = src_dem.GetProjection()
     src_dem_geotrans = src_dem.GetGeoTransform()
     src_dem_epsg = osr.SpatialReference(wkt=src_dem_proj).GetAttrValue('AUTHORITY',1)
@@ -366,7 +366,7 @@ def main():
     height_icesat2 = np.asarray(df_icesat2.height_icesat2)
     time_icesat2 = np.asarray(df_icesat2.time)
 
-    src_dem = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
+    src_dem = gdal.Open(dem_file,gdalconst.GA_Update)
     src_dem_proj = src_dem.GetProjection()
     src_dem_geotrans = src_dem.GetGeoTransform()
     src_dem_epsg = osr.SpatialReference(wkt=src_dem_proj).GetAttrValue('AUTHORITY',1)
