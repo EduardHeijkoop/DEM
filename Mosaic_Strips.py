@@ -58,8 +58,7 @@ def main():
         loc_dir = df_input.loc_dirs[i]
         output_dir = df_input.output_dirs[i]
         input_type = df_input.input_types[i]
-        #force the directories to end on a slash
-        if loc_dir[len(loc_dir)-1] != '/':
+        if loc_dir[len(loc_dir)-1] != '/': #force the directories to end on a slash
             loc_dir = loc_dir + '/'
         if output_dir[len(output_dir)-1] != '/':
             output_dir = output_dir + '/'
@@ -77,16 +76,21 @@ def main():
             print(f'Calling everything {output_name} now.')
         if np.any([loc_name in s for s in df_list.strip]):
             full_ortho_list = np.asarray([s.replace('dem_smooth.tif','ortho.tif').replace('dem.tif','ortho.tif') for s in df_list.strip])
+            full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(s,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for s in full_ortho_list])
         else:
             full_ortho_list = get_ortho_list(loc_dir)
-        full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(ortho,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for ortho in full_ortho_list])
+            full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(ortho,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for ortho in full_ortho_list])
         unique_epsg_list = np.unique(full_epsg_list)
 
         for epsg_code in unique_epsg_list:
             print(f'EPSG:{epsg_code}')
             idx_epsg = full_epsg_list == epsg_code
             ortho_list = full_ortho_list[idx_epsg]
-            strip_list_coarse,strip_list_full_res = get_strip_list(ortho_list,input_type)
+            if np.any([loc_name in s for s in df_list.strip]):
+                strip_list_coarse = np.asarray([s for s in df_list.strip])
+                strip_list_full_res = np.asarray([s for s in df_list.strip])
+            else:
+                strip_list_coarse,strip_list_full_res = get_strip_list(ortho_list,input_type)
             if strip_list_coarse.size == 0:
                 print('No strips found!')
                 continue
@@ -99,7 +103,7 @@ def main():
                 lat_min_strips = np.min((lat_min_strips,lat_min_single_strip))
                 lat_max_strips = np.max((lat_max_strips,lat_max_single_strip))
 
-            gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed = get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min_strips,lon_max_strips,lat_min_strips,lat_max_strips,GSW_POCKET_THRESHOLD,GSW_CRS_TRANSFORM_THRESHOLD)
+            gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed = get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min_strips,lon_max_strips,lat_min_strips,lat_max_strips,loc_name,GSW_POCKET_THRESHOLD,GSW_CRS_TRANSFORM_THRESHOLD)
             if gsw_main_sea_only is not None:
                 gsw_main_sea_only_buffered = gsw_main_sea_only.buffer(0)
             else:
@@ -123,10 +127,10 @@ def main():
 
             strip_list_coarse = strip_list_coarse[strip_idx]
             strip_list_full_res = strip_list_full_res[strip_idx]
-            output_strips_shp_file = output_dir + output_name + '_Strips_' + epsg_code + '.shp'
-            output_strips_shp_file_dissolved = output_dir + output_name + '_Strips_' + epsg_code + '_Dissolved.shp'
-            output_strips_shp_file_filtered = output_dir + output_name + '_Strips_' + epsg_code + '_Filtered.shp'
-            output_strips_shp_file_filtered_dissolved = output_dir + output_name + '_Strips_' + epsg_code + '_Filtered_Dissolved.shp'
+            output_strips_shp_file = f'{output_dir}{output_name}_Strips_{epsg_code}.shp'
+            output_strips_shp_file_dissolved = f'{output_dir}{output_name}_Strips_{epsg_code}_Dissolved.shp'
+            output_strips_shp_file_filtered = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered.shp'
+            output_strips_shp_file_filtered_dissolved = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered_Dissolved.shp'
             print('\n')
             print(output_strips_shp_file)
             
