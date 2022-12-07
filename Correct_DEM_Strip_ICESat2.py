@@ -199,7 +199,7 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
             count_error += 1
             continue
         dh_segment_sine = fit_sine(y_segments,params_segment[0],params_segment[1])
-        x_segments_array = np.append(x_segments_array,x_segment_middle*np.ones([len(y_segments),1]),axis=0).squeeze()
+        x_segments_array = np.append(x_segments_array,x_segment_middle*np.ones([len(y_segments),1]).squeeze())
         y_segments_array = np.append(y_segments_array,y_segments)
         dh_segments_array = np.append(dh_segments_array,dh_segment_sine)
     if count_error >= N_segments_x/2:
@@ -218,9 +218,13 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
     x_mesh_array = np.reshape(x_mesh,x_mesh.shape[0]*x_mesh.shape[1])
     y_mesh_array = np.reshape(y_mesh,y_mesh.shape[0]*y_mesh.shape[1])
     xy_mesh_array = np.stack((x_mesh_array,y_mesh_array),axis=1)
-    params_jitter,params_covariance_jitter = scipy.optimize.curve_fit(fit_jitter,xy_segments_array,dh_segments_array,
-        p0=[A_jitter,c_jitter,p_jitter,k_jitter,x_dem_min,y_dem_min],
-        bounds=((-np.max(np.abs(dh_segments_array)),-0.0005,0.9*p_jitter,-2,0.8*x_dem_min,0.8*y_dem_min),(1.5*np.max(np.abs(dh_segments_array)),0.0005,1.1*p_jitter,2,1.1*x_dem_max,1.1*y_dem_max)))
+    try:
+        params_jitter,params_covariance_jitter = scipy.optimize.curve_fit(fit_jitter,xy_segments_array,dh_segments_array,
+            p0=[A_jitter,c_jitter,p_jitter,k_jitter,x_dem_min,y_dem_min],
+            bounds=((-np.max(np.abs(dh_segments_array)),-0.0005,0.9*p_jitter,-2,0.8*x_dem_min,0.8*y_dem_min),(1.5*np.max(np.abs(dh_segments_array)),0.0005,1.1*p_jitter,2,1.1*x_dem_max,1.1*y_dem_max)))
+    except ValueError:
+        print('Jitter correction failed')
+        return None,None,None
     dh_jitter_orig = fit_jitter(xy_segments_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
     dh_jitter = fit_jitter(xy_mesh_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
     dh_grid = np.reshape(dh_jitter,x_mesh.shape)
