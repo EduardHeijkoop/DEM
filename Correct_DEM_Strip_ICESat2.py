@@ -374,12 +374,12 @@ def main():
     
     icesat2_orig_file = icesat2_file
     df_icesat2 = pd.read_csv(icesat2_file,header=None,names=['lon','lat','height_icesat2','time'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str'})
-    lon_icesat2 = np.asarray(df_icesat2.lon)
-    lat_icesat2 = np.asarray(df_icesat2.lat)
-    height_icesat2 = np.asarray(df_icesat2.height_icesat2)
-    time_icesat2 = np.asarray(df_icesat2.time)
 
     for dem in dem_array:
+        lon_icesat2 = np.asarray(df_icesat2.lon)
+        lat_icesat2 = np.asarray(df_icesat2.lat)
+        height_icesat2 = np.asarray(df_icesat2.height_icesat2)
+        time_icesat2 = np.asarray(df_icesat2.time)
         print(f'Processing {dem}')
         icesat2_base,icesat2_ext = os.path.splitext(os.path.basename(icesat2_file))
         dem_base,dem_ext = os.path.splitext(os.path.basename(dem))
@@ -441,7 +441,6 @@ def main():
                     subprocess.run(f'rm {sampled_plane_corrected_file}',shell=True)
                 if os.path.exists(plane_correction_file):
                     subprocess.run(f'rm {plane_correction_file}',shell=True)
-
         else:
             plane_corrected_dem = raster_shifted
 
