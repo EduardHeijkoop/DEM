@@ -407,6 +407,9 @@ def main():
             print('Subsetting into new file.')
             icesat2_file = f'{tmp_dir}{os.path.splitext(os.path.basename(icesat2_file))[0]}_Subset_{os.path.splitext(os.path.basename(dem))[0]}{os.path.splitext(icesat2_file)[1]}'
             np.savetxt(icesat2_file,np.c_[lon_icesat2,lat_icesat2,height_icesat2,time_icesat2.astype(object)],fmt='%f,%f,%f,%s',delimiter=',')
+            subset_flag = True
+        else:
+            subset_flag = False
 
         sample_code = sample_raster(dem,icesat2_file,sampled_original_file)
         df_sampled_original = pd.read_csv(sampled_original_file,header=None,names=['lon','lat','height_icesat2','time','height_dem'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float'})
@@ -433,6 +436,12 @@ def main():
             dh_plane_corrected = df_sampled_plane_corrected.height_icesat2 - df_sampled_plane_corrected.height_dem_plane_corrected
             rmse_plane_corrected = np.sqrt(np.sum(dh_plane_corrected**2)/len(dh_plane_corrected))
             print(f'RMSE of plane-corrected DEM: {rmse_plane_corrected:.2f} m')
+            if keep_flag == False:
+                if os.path.exists(sampled_plane_corrected_file):
+                    subprocess.run(f'rm {sampled_plane_corrected_file}',shell=True)
+                if os.path.exists(plane_correction_file):
+                    subprocess.run(f'rm {plane_correction_file}',shell=True)
+
         else:
             plane_corrected_dem = raster_shifted
 
@@ -452,10 +461,17 @@ def main():
             dh_jitter_corrected = df_sampled_jitter_corrected.height_icesat2 - df_sampled_jitter_corrected.height_dem_jitter_corrected
             rmse_jitter_corrected = np.sqrt(np.sum(dh_jitter_corrected**2)/len(dh_jitter_corrected))
             print(f'RMSE of jitter-corrected DEM: {rmse_jitter_corrected:.2f} m')
+            if keep_flag == False:
+                if os.path.exists(sampled_jitter_corrected_file):
+                    subprocess.run(f'rm {sampled_jitter_corrected_file}',shell=True)
+                if os.path.exists(jitter_correction_file):
+                    subprocess.run(f'rm {jitter_correction_file}',shell=True)
         else:
             jitter_corrected_dem = plane_corrected_dem
         subprocess.run(f'mv {jitter_corrected_dem} {os.path.dirname(dem)}/',shell=True)
 
+        if subset_flag == True:
+            subprocess.run(f'rm {icesat2_file}',shell=True)
         icesat2_file = icesat2_orig_file
 
         if keep_flag == False:
@@ -463,16 +479,8 @@ def main():
                 subprocess.run(f'rm {sampled_original_file}',shell=True)
             if os.path.exists(sampled_coregistered_file):
                 subprocess.run(f'rm {sampled_coregistered_file}',shell=True)
-            if os.path.exists(sampled_plane_corrected_file):
-                subprocess.run(f'rm {sampled_plane_corrected_file}',shell=True)
-            if os.path.exists(sampled_jitter_corrected_file):
-                subprocess.run(f'rm {sampled_jitter_corrected_file}',shell=True)
             if os.path.exists(raster_shifted):
                 subprocess.run(f'rm {raster_shifted}',shell=True)
-            if os.path.exists(plane_correction_file):
-                subprocess.run(f'rm {plane_correction_file}',shell=True)
-            if os.path.exists(jitter_correction_file):
-                subprocess.run(f'rm {jitter_correction_file}',shell=True)
             if os.path.exists(plane_corrected_dem):
                 subprocess.run(f'rm {plane_corrected_dem}',shell=True)
             if os.path.exists(jitter_corrected_dem):
