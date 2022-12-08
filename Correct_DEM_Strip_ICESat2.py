@@ -361,7 +361,7 @@ def main():
         df_list = pd.read_csv(dem_list_file,header=None,names=['dem_file'],dtype={'dem_file':'str'})
         dem_array = np.asarray(df_list.dem_file)
     else:
-        dem_array = np.atleas1d(dem_file)
+        dem_array = np.atleast_1d(dem_file)
     
     if np.logical_xor(mean_mode,median_mode) == True:
         if mean_mode == True:
@@ -398,6 +398,9 @@ def main():
         idx_lon = np.logical_and(lon_icesat2 >= lon_min_dem,lon_icesat2 <= lon_max_dem)
         idx_lat = np.logical_and(lat_icesat2 >= lat_min_dem,lat_icesat2 <= lat_max_dem)
         idx_lonlat = np.logical_and(idx_lon,idx_lat)
+        if np.sum(idx_lonlat) / len(idx_lonlat) < 0.01:
+            print('Not enough ICESat-2 coverage over this DEM. Skipping.')
+            continue
         lon_icesat2 = lon_icesat2[idx_lonlat]
         lat_icesat2 = lat_icesat2[idx_lonlat]
         height_icesat2 = height_icesat2[idx_lonlat]
