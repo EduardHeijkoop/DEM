@@ -25,9 +25,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_file',default=config.get('MOSAIC_PATHS','input_file'),help='path to dir containing strips')
     parser.add_argument('--list',default=None,help='path to list of strips to mosaic')
+    parser.add_argument('--horizontal',default=False,help='Incorperate horizontal alignment in mosaic?',action='store_true')
     args = parser.parse_args()
     input_file = args.input_file
     list_file = args.list
+    horizontal_flag = args.horizontal
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
@@ -37,7 +39,10 @@ def main():
     df_input.input_types = df_input.input_types.fillna('0')
     df_input.input_types = df_input.input_types.astype(int)
 
-    df_list = pd.read_csv(list_file,header=None,names=['strip'],dtype={'strip':'str'})
+    if list_file is not None:
+        df_list = pd.read_csv(list_file,header=None,names=['strip'],dtype={'strip':'str'})
+    else:
+        df_list = None
 
     POLYGON_AREA_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','POLYGON_AREA_THRESHOLD') #in m^2
     STRIP_AREA_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','STRIP_AREA_THRESHOLD') #in m^2
@@ -160,7 +165,7 @@ def main():
             
             mosaic_dict,singles_dict = find_mosaic(strip_shp_data,mst_weighted_array,strip_dates)
             for mosaic_number in range(len(mosaic_dict)):
-                merge_mosaic_output_file = build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict[str(mosaic_number)],mosaic_dir,output_name,mosaic_number,epsg_code,X_SPACING,Y_SPACING,MOSAIC_TILE_SIZE)
+                merge_mosaic_output_file = build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict[str(mosaic_number)],mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,MOSAIC_TILE_SIZE)
             singles_list = copy_single_strips(strip_shp_data,singles_dict,mosaic_dir,output_name,epsg_code)
             t_end = datetime.datetime.now()
             dt = t_end - t_start

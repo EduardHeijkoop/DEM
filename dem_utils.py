@@ -911,7 +911,7 @@ def populate_intersection(geom_intersection,gsw_main_sea_only_buffered,landmask_
         y = np.append(y,y_sampling_masked_intersection_gsw)
     return x,y
 
-def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict,mosaic_dir,output_name,mosaic_number,epsg_code,X_SPACING,Y_SPACING,MOSAIC_TILE_SIZE):
+def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict,mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,MOSAIC_TILE_SIZE):
     '''
     Build the mosaic, given list of indices of strips to co-register to each other
     Co-registering ref to src, by sampling src and treating that as truth
@@ -928,10 +928,9 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
         geom_intersection = strip_shp_data.geometry[src_strip_ID].intersection(strip_shp_data.geometry[ref_strip_ID])
         x_masked_total,y_masked_total = populate_intersection(geom_intersection,gsw_main_sea_only_buffered,landmask_c_file,X_SPACING,Y_SPACING)
         strip_sampled_file = mosaic_dir + output_name + f'_Mosaic_{mosaic_number}_{epsg_code}_sampled_{src_strip_ID}_for_coregistering_{ref_strip_ID}.txt'
-        strip_sampled_file_base = strip_sampled_file.replace('.txt','')
-        output_xy_file = strip_sampled_file.replace('.txt','_xy.txt')
-        output_h_file = strip_sampled_file.replace('.txt','_h.txt')
-        np.savetxt(strip_sampled_file,np.c_[x_masked_total,y_masked_total],fmt='%.3f',delimiter=' ')
+        # strip_sampled_file_base = strip_sampled_file.replace('.txt','')
+        # output_xy_file = strip_sampled_file.replace('.txt','_xy.txt')
+        # output_h_file = strip_sampled_file.replace('.txt','_h.txt')
         if i in np.argwhere(src_list == src_list[0]):
             if not copy_check:
                 subprocess.run(f'cp {src_strip} {mosaic_dir}',shell=True)
@@ -939,10 +938,27 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
                 copy_check = True
             src_file = mosaic_dir + src_strip.split('/')[-1]
         else:
-            src_file = glob.glob(f'{mosaic_dir}{os.path.splitext(src_strip.split("/")[-1])[0]}_shifted*{os.path.splitext(src_strip.split("/")[-1])[1]}')[0]
+            src_file = glob.glob(f'{mosaic_dir}{os.path.splitext(src_strip.split("/")[-1])[0]}*Shifted*{os.path.splitext(src_strip.split("/")[-1])[1]}')[0]
+        np.savetxt(strip_sampled_file,np.c_[x_masked_total,y_masked_total],fmt='%.3f',delimiter=' ')
         df_sampled = sample_two_rasters(src_strip,ref_strip,strip_sampled_file)
-        ref_strip_shifted = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
-        strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
+        if horizontal_flag == True:
+            x_shift,y_shift = evaluate_horizontal_shift(df_sampled,ref_strip,tmp_dir)
+            if ~np.logical_and(x_shift==0,y_shift==0):
+                x_min,x_max,y_min,y_max = get_raster_extents(ref_strip,'local')
+                new_ref_strip = f'{tmp_dir}{os.path.splitext(os.path.basename(ref_strip))[0]}_x_{int(x_shift)}m_y_{int(y_shift)}m.tif'.replace('-','neg')
+                translate_command = f'gdal_translate -q -a_ullr {x_min + x_shift} {y_max + y_shift} {x_max + x_shift} {y_min + y_shift} -co "COMPRESS=LZW" {ref_strip} {new_ref_strip}'
+                subprocess.run(translate_command,shell=True)
+                # strip_shp_data.strip[ref_strip_ID] = new_ref_strip
+                ref_strip_shifted = vertical_shift_raster(new_ref_strip,df_sampled,mosaic_dir)
+                strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
+                subprocess.run(f'rm {new_ref_strip}',shell=True)
+            else:
+                ref_strip_shifted = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
+                strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
+        else:
+            ref_strip_shifted = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
+            strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
+
     print('')
     print('Mosaicing...')
     strip_list_coregistered_date = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list_coregistered])
@@ -962,6 +978,38 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
     subprocess.run(f'rm {mosaic_dir}{output_name}_Mosaic_{mosaic_number}_{epsg_code}-tile-*-first.tif',shell=True)
     print('')
     return merge_mosaic_output_file
+
+def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir):
+    x_res = 2.0
+    y_res = 2.0
+    x_offset_max = 8
+    y_offset_max = 8
+    x_offset = np.arange(-1*x_offset_max,x_offset_max+x_res,x_res)
+    y_offset = np.arange(-1*y_offset_max,y_offset_max+y_res,y_res)
+    rmse_min = np.inf
+    for x in x_offset:
+        for y in y_offset:
+            df_offset = df_sampled.copy()
+            df_offset = df_offset.drop(columns='h_secondary')
+            output_file = f'{tmp_dir}offset_x_{x}_y_{y}.txt'.replace('-','neg').replace('.0','p0')
+            df_offset['x'] = df_offset['x'] - x
+            df_offset['y'] = df_offset['y'] - y
+            df_offset.to_csv(output_file,columns=['x','y'],float_format='%.1f',sep=' ',index=False,header=False)
+            cat_command = f'cat {output_file} | gdallocationinfo -valonly -geoloc {raster_secondary} > {tmp_dir}tmp_sampled.txt'
+            subprocess.run(cat_command,shell=True)
+            df_offset['h_secondary'] = np.loadtxt(f'{tmp_dir}tmp_sampled.txt')
+            df_offset = df_offset.dropna()
+            idx_9999 = np.logical_or(df_offset['h_primary'] == -9999,df_offset['h_secondary'] == -9999)
+            df_offset = df_offset[~idx_9999].reset_index(drop=True)
+            vertical_shift,df_offset_filtered = calculate_shift(df_offset)
+            dh = df_offset_filtered['h_primary'] - df_offset_filtered['h_secondary']
+            rmse = np.sqrt(np.sum(dh**2)/len(dh))
+            subprocess.run(f'rm {output_file} {tmp_dir}tmp_sampled.txt',shell=True)
+            if rmse < rmse_min:
+                rmse_min = rmse
+                x_opt = x
+                y_opt = y
+    return x_opt,y_opt
 
 def copy_single_strips(strip_shp_data,singles_dict,mosaic_dir,output_name,epsg_code):
     '''
@@ -1049,15 +1097,15 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
         print(f'Cumulative shift: {cumulative_shift:.2f} m')
         print(f'RMSE before filtering: {rmse_original:.2f} m')
         print(f'RMSE after filtering: {rmse_filtered:.2f} m')
-    return cumulative_shift
+    return cumulative_shift,df_sampled
 
 
 def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.02):
     src = gdal.Open(raster_path,gdalconst.GA_ReadOnly)
     raster_nodata = src.GetRasterBand(1).GetNoDataValue()
-    vertical_shift = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold)
+    vertical_shift,df_new = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold)
     raster_base,raster_ext = os.path.splitext(raster_path.split('/')[-1])
-    raster_shifted = f'{output_dir}{raster_base}_shifted_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
+    raster_shifted = f'{output_dir}{raster_base}_Shifted_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
     shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
     subprocess.run(shift_command,shell=True)
     return raster_shifted
