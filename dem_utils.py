@@ -928,9 +928,6 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
         geom_intersection = strip_shp_data.geometry[src_strip_ID].intersection(strip_shp_data.geometry[ref_strip_ID])
         x_masked_total,y_masked_total = populate_intersection(geom_intersection,gsw_main_sea_only_buffered,landmask_c_file,X_SPACING,Y_SPACING)
         strip_sampled_file = mosaic_dir + output_name + f'_Mosaic_{mosaic_number}_{epsg_code}_sampled_{src_strip_ID}_for_coregistering_{ref_strip_ID}.txt'
-        # strip_sampled_file_base = strip_sampled_file.replace('.txt','')
-        # output_xy_file = strip_sampled_file.replace('.txt','_xy.txt')
-        # output_h_file = strip_sampled_file.replace('.txt','_h.txt')
         if i in np.argwhere(src_list == src_list[0]):
             if not copy_check:
                 subprocess.run(f'cp {src_strip} {mosaic_dir}',shell=True)
@@ -997,6 +994,7 @@ def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir):
             df_offset.to_csv(output_file,columns=['x','y'],float_format='%.1f',sep=' ',index=False,header=False)
             cat_command = f'cat {output_file} | gdallocationinfo -valonly -geoloc {raster_secondary} > {tmp_dir}tmp_sampled.txt'
             subprocess.run(cat_command,shell=True)
+            subprocess.run(f"sed -i 's/^$/-9999/g' {tmp_dir}tmp_sampled.txt",shell=True)
             df_offset['h_secondary'] = np.loadtxt(f'{tmp_dir}tmp_sampled.txt')
             df_offset = df_offset.dropna()
             idx_9999 = np.logical_or(df_offset['h_primary'] == -9999,df_offset['h_secondary'] == -9999)
