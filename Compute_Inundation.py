@@ -203,7 +203,7 @@ def main():
     lat_center_dem = (lat_dem_min + lat_dem_max)/2
 
     t_start = datetime.datetime.now()
-    print('Resampling DEM to {GRID_INTERMEDIATE_RES} meters.')
+    print(f'Resampling DEM to {GRID_INTERMEDIATE_RES} meters.')
     dem_resampled_file = dem_file.replace('.tif',f'_resampled_{GRID_INTERMEDIATE_RES}m.tif')
     resample_dem_command = f'gdalwarp -overwrite -tr {GRID_INTERMEDIATE_RES} {GRID_INTERMEDIATE_RES} -r bilinear {dem_file} {dem_resampled_file}'
     subprocess.run(resample_dem_command,shell=True)
@@ -261,6 +261,9 @@ def main():
     delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
     print(f'Generating coastal sea level took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
 
+    idx_keep = ~np.isnan(x_coast)
+    x_coast = x_coast[idx_keep]
+    y_coast = y_coast[idx_keep]
 
     
     t_start = datetime.datetime.now()
