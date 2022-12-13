@@ -144,8 +144,13 @@ def main():
     lat_coast[idx_corners] = np.nan
     gdf_coast = gdf_coast.to_crs(f'EPSG:{epsg_code}')
     x_coast,y_coast = get_lonlat_gdf(gdf_coast)
+    x_coast[idx_corners] = np.nan
+    y_coast[idx_corners] = np.nan
     x_coast_orig = x_coast
     y_coast_orig = y_coast
+
+    # When coastline extends further than sea level extents, it will cause errors, needs to be consistent with x_coast and lon_coast
+    # Probably best to sort that out first, and then not edit anymore
 
     print(f'Working on {loc_name}.')
 
@@ -234,6 +239,8 @@ def main():
         x_coast = x_coast[idx_keep]
         y_coast = y_coast[idx_keep]
         h_coast = h_coast[idx_keep]
+        lon_coast = lon_coast[idx_keep]
+        lat_coast = lat_coast[idx_keep]
         if loc_name in sl_grid_file:
             output_file_coastline = f'{tmp_dir}{os.path.basename(sl_grid_file).replace(".tif","_subset_interpolated_coastline.csv")}'
         else:
@@ -261,11 +268,7 @@ def main():
     delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
     print(f'Generating coastal sea level took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
 
-    idx_keep = ~np.isnan(x_coast)
-    x_coast = x_coast[idx_keep]
-    y_coast = y_coast[idx_keep]
 
-    
     t_start = datetime.datetime.now()
     print(f'Finding CoDEC sea level extremes for return period of {return_period} years...')
     rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,return_period)

@@ -84,6 +84,7 @@ def upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,raster,ssp,shp_file,t_selec
     lat_AR6 = np.asarray(AR6_data['lat'][:])
     t_AR6 = np.asarray(AR6_data['years'][:])
     sl_change_AR6 = np.asarray(AR6_data['sea_level_change'][:])
+    sl_change_AR6 = sl_change_AR6/1000
     quantiles_AR6 = np.asarray(AR6_data['quantiles'][:])
 
     idx_quantile = np.argwhere(quantiles_AR6==quantile_select).squeeze()
