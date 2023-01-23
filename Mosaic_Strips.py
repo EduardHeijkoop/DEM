@@ -25,10 +25,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_file',default=config.get('MOSAIC_PATHS','input_file'),help='path to dir containing strips')
     parser.add_argument('--list',default=None,help='path to list of strips to mosaic')
+    parser.add_argument('--output_dir',default=None,help='path to output directory')
+    parser.add_argument('--loc_name',default=None,help='name of location')
     parser.add_argument('--horizontal',default=False,help='Incorperate horizontal alignment in mosaic?',action='store_true')
     args = parser.parse_args()
     input_file = args.input_file
     list_file = args.list
+    single_output_dir = args.output_dir
+    single_loc_name = args.loc_name
     horizontal_flag = args.horizontal
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
@@ -36,11 +40,16 @@ def main():
     landmask_c_file = config.get('GENERAL_PATHS','landmask_c_file')
 
     df_input = pd.read_csv(input_file,header=0,names=['loc_dirs','output_dirs','input_types'],dtype={'loc_dirs':'str','output_dirs':'str','input_types':'object'})
-    df_input.input_types = df_input.input_types.fillna('0')
-    df_input.input_types = df_input.input_types.astype(int)
+    df_input.input_types = df_input.input_types.fillna('0').astype(int)
 
     if list_file is not None:
         df_list = pd.read_csv(list_file,header=None,names=['strip'],dtype={'strip':'str'})
+        if single_output_dir is None:
+            print('If a list is provided, then an output directory must be provided.')
+            sys.exit()
+        elif single_loc_name is None:
+            single_loc_name = single_output_dir.split('/')[-2]
+        df_input.loc[len(df_input.index)] = ['list',single_output_dir,3]
     else:
         df_list = None
 
@@ -72,14 +81,17 @@ def main():
             subprocess.os.mkdir(output_dir)
         if not subprocess.os.path.isdir(mosaic_dir):
             subprocess.os.mkdir(mosaic_dir)
-        loc_name = loc_dir.split('/')[-2]
+        if loc_dir != 'list':
+            loc_name = loc_dir.split('/')[-2]
+        else:
+            loc_name = single_loc_name
         output_name = output_dir.split('/')[-2]
         t_start = datetime.datetime.now()
         print('Working on ' + loc_name)
         if loc_name != output_name:
             print('Warning! Output name and location name not the same. Continuing...')
             print(f'Calling everything {output_name} now.')
-        if np.any([loc_name in s for s in df_list.strip]):
+        if input_type == 3:
             full_ortho_list = np.asarray([s.replace('dem_smooth.tif','ortho.tif').replace('dem.tif','ortho.tif') for s in df_list.strip])
             full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(s,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for s in full_ortho_list])
         else:
@@ -91,9 +103,9 @@ def main():
             print(f'EPSG:{epsg_code}')
             idx_epsg = full_epsg_list == epsg_code
             ortho_list = full_ortho_list[idx_epsg]
-            if np.any([loc_name in s for s in df_list.strip]):
-                strip_list_coarse = np.asarray([s for s in df_list.strip])
-                strip_list_full_res = np.asarray([s for s in df_list.strip])
+            if input_type == 3:
+                strip_list_coarse = np.asarray([s for s in df_list.strip[idx_epsg]])
+                strip_list_full_res = np.asarray([s for s in df_list.strip[idx_epsg]])
             else:
                 strip_list_coarse,strip_list_full_res = get_strip_list(ortho_list,input_type)
             if strip_list_coarse.size == 0:
