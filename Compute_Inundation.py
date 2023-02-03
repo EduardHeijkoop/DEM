@@ -39,7 +39,7 @@ def main():
     parser.add_argument('--ssp',help='RCP to use.')
     parser.add_argument('--t0',help='Time to use as t0 to zero SLR.',default='2020')
     parser.add_argument('--return_period',help='Return period of CoDEC in years')
-    parser.add_argument('--fes2014_file',help='Path to FES2014 max tidal heights.')
+    parser.add_argument('--fes2014',help='Flag to use FES2014 max tidal heights.',default=False,action='store_true')
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
     args = parser.parse_args()
 
@@ -60,7 +60,7 @@ def main():
     t0 = int(args.t0)
     return_period = int(args.return_period)
     return_period_options = np.asarray([2,5,10,25,50,100,250,500,1000])
-    fes2014_file = args.fes2014_file
+    fes2014_flag = args.fes2014_flag
     connectivity_flag = args.connectivity
 
     if icesat2_file is not None and sl_grid_file is not None:
