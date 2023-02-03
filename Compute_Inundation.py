@@ -13,7 +13,7 @@ import warnings
 import configparser
 from dem_utils import get_lonlat_gdf,find_corner_points_gdf
 from dem_utils import get_raster_extents,resample_raster,get_gsw
-from inundation_utils import create_icesat2_grid, interpolate_grid, interpolate_points,get_codec,csv_to_grid
+from inundation_utils import create_icesat2_grid, interpolate_grid, interpolate_points,get_codec,get_fes,csv_to_grid
 from inundation_utils import upscale_SROCC_grid,upscale_ar6_data
 
 
@@ -38,7 +38,8 @@ def main():
     parser.add_argument('--rcp',help='RCP to use.')
     parser.add_argument('--ssp',help='RCP to use.')
     parser.add_argument('--t0',help='Time to use as t0 to zero SLR.',default='2020')
-    parser.add_argument('--return_period',help='Return period of CoDEC in years',default='10')
+    parser.add_argument('--return_period',help='Return period of CoDEC in years')
+    parser.add_argument('--fes2014_file',help='Path to FES2014 max tidal heights.')
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
     args = parser.parse_args()
 
@@ -59,6 +60,7 @@ def main():
     t0 = int(args.t0)
     return_period = int(args.return_period)
     return_period_options = np.asarray([2,5,10,25,50,100,250,500,1000])
+    fes2014_file = args.fes2014_file
     connectivity_flag = args.connectivity
 
     if icesat2_file is not None and sl_grid_file is not None:
@@ -80,6 +82,9 @@ def main():
     if rcp is not None and ssp is not None:
         print('Both RCP and SSP supplied, only one can be used!')
         sys.exit()
+    if fes2014_file is not None and return_period is not None:
+        print('Cannot use FES2014 and CoDEC together!')
+        sys.exit()
     if return_period not in return_period_options:
         print('Invalid return period selected!')
         print('Must be 2, 5, 10, 25, 50, 100, 250, 500 or 1000 years.')
@@ -98,6 +103,7 @@ def main():
     SROCC_dir = config.get('INUNDATION_PATHS','SROCC_dir')
     AR6_dir = config.get('INUNDATION_PATHS','AR6_dir')
     CODEC_file = config.get('INUNDATION_PATHS','CODEC_file')
+    fes2014_file = config.get('INUNDATION_PATHS','fes2014_file')
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
     landmask_c_file = config.get('GENERAL_PATHS','landmask_c_file')
@@ -135,6 +141,9 @@ def main():
         ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
     elif rcp is not None:
         projection_select = 'SROCC'
+    else:
+        print('No RCP or SSP pathway selected!')
+        sys.exit()
 
     gdf_coast = gpd.read_file(coastline_file)
     epsg_coastline = gdf_coast.crs.to_epsg()
@@ -146,11 +155,8 @@ def main():
     x_coast,y_coast = get_lonlat_gdf(gdf_coast)
     x_coast[idx_corners] = np.nan
     y_coast[idx_corners] = np.nan
-    x_coast_orig = x_coast
-    y_coast_orig = y_coast
-
-    # When coastline extends further than sea level extents, it will cause errors, needs to be consistent with x_coast and lon_coast
-    # Probably best to sort that out first, and then not edit anymore
+    x_coast_orig = x_coast.copy()
+    y_coast_orig = y_coast.copy()
 
     print(f'Working on {loc_name}.')
 
@@ -269,18 +275,33 @@ def main():
     print(f'Generating coastal sea level took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
 
 
-    t_start = datetime.datetime.now()
-    print(f'Finding CoDEC sea level extremes for return period of {return_period} years...')
-    rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,return_period)
-    output_file_codec = f'{tmp_dir}{loc_name}_CoDEC_{return_period}_yrs_coastline.csv'
-    np.savetxt(output_file_codec,np.c_[x_coast,y_coast,rps_coast],fmt='%f',delimiter=',',comments='')
-    codec_grid_intermediate_res = csv_to_grid(output_file_codec,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
-    codec_grid_full_res = codec_grid_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
-    resample_raster(codec_grid_intermediate_res,dem_file,codec_grid_full_res)
-    t_end = datetime.datetime.now()
-    delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
-    delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
-    print(f'Generating CoDEC sea level extremes took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+    if return_period is not None:
+        t_start = datetime.datetime.now()
+        print(f'Finding CoDEC sea level extremes for return period of {return_period} years...')
+        rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,return_period)
+        output_file_codec = f'{tmp_dir}{loc_name}_CoDEC_{return_period}_yrs_coastline.csv'
+        np.savetxt(output_file_codec,np.c_[x_coast,y_coast,rps_coast],fmt='%f',delimiter=',',comments='')
+        codec_grid_intermediate_res = csv_to_grid(output_file_codec,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
+        codec_grid_full_res = codec_grid_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
+        resample_raster(codec_grid_intermediate_res,dem_file,codec_grid_full_res)
+        t_end = datetime.datetime.now()
+        delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+        delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+        print(f'Generating CoDEC sea level extremes took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+    elif fes2014_file is not None:
+        t_start = datetime.datetime.now()
+        print(f'Finding FES2014 max tidal heights...')
+        fes_heights_coast = get_fes(lon_coast,lat_coast,fes2014_file)
+        output_file_fes = f'{tmp_dir}{loc_name}_FES2014_coastline.csv'
+        np.savetxt(output_file_fes,np.c_[x_coast,y_coast,fes_heights_coast],fmt='%f',delimiter=',',comments='')
+        fes_grid_intermediate_res = csv_to_grid(output_file_fes,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
+        fes_grid_full_res = fes_grid_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
+        resample_raster(fes_grid_intermediate_res,dem_file,fes_grid_full_res)
+        t_end = datetime.datetime.now()
+        delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+        delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+        print(f'Generating FES2014 high tides took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+
 
     if connectivity_flag == True:
         gdf_gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed = get_gsw(inundation_dir,tmp_dir,gsw_dir,epsg_code,lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max,loc_name)
