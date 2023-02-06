@@ -11,6 +11,7 @@ import subprocess
 import matplotlib.pyplot as plt
 import warnings
 import configparser
+import itertools
 from dem_utils import get_lonlat_gdf,find_corner_points_gdf
 from dem_utils import get_raster_extents,resample_raster,get_gsw
 from inundation_utils import create_icesat2_grid, interpolate_grid, interpolate_points,get_codec,get_fes,csv_to_grid
@@ -41,6 +42,8 @@ def main():
     parser.add_argument('--return_period',help='Return period of CoDEC in years')
     parser.add_argument('--fes2014',help='Flag to use FES2014 max tidal heights.',default=False,action='store_true')
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
+    parser.add_argument('--uncertainty',help='Calculate inundation uncertainty?',default=False,action='store_true')
+    parser.add_argument('--sigma',help='Sigma value to use for uncertainty calculation.')
     args = parser.parse_args()
 
     dem_file = args.dem
@@ -58,10 +61,15 @@ def main():
     rcp = args.rcp
     ssp = args.ssp
     t0 = int(args.t0)
-    return_period = int(args.return_period)
+    if args.return_period is not None:
+        return_period = int(args.return_period)
+    else:
+        return_period = None
     return_period_options = np.asarray([2,5,10,25,50,100,250,500,1000])
-    fes2014_flag = args.fes2014_flag
+    fes2014_flag = args.fes2014
     connectivity_flag = args.connectivity
+    uncertainty_flag = args.uncertainty
+    sigma = int(args.sigma)
 
     if icesat2_file is not None and sl_grid_file is not None:
         print('ICESat-2 file and sea level grid given, cannot handle both!')
@@ -82,12 +90,16 @@ def main():
     if rcp is not None and ssp is not None:
         print('Both RCP and SSP supplied, only one can be used!')
         sys.exit()
-    if fes2014_file is not None and return_period is not None:
+    if fes2014_flag is not None and return_period is not None:
         print('Cannot use FES2014 and CoDEC together!')
         sys.exit()
     if return_period not in return_period_options:
         print('Invalid return period selected!')
         print('Must be 2, 5, 10, 25, 50, 100, 250, 500 or 1000 years.')
+        sys.exit()
+    if sigma not in [1,2,3]:
+        print('Invalid sigma value selected!')
+        print('Must be 1, 2 or 3.')
         sys.exit()
     
 
@@ -157,6 +169,18 @@ def main():
     y_coast[idx_corners] = np.nan
     x_coast_orig = x_coast.copy()
     y_coast_orig = y_coast.copy()
+
+    if uncertainty_flag == True:
+        if sigma == 1:
+            quantiles = [0.16,0.5,0.84]
+        elif sigma == 2:
+            quantiles = [0.02,0.5,0.98]
+        elif sigma == 3:
+            quantiles = [0.001,0.5,0.999]
+    else:
+        quantiles = [0.5]
+
+
 
     print(f'Working on {loc_name}.')
 
@@ -313,15 +337,23 @@ def main():
 
 
 
-    for yr in years:
+    for yr,quantile_select in itertools.product(years,quantiles):
         print(f'Creating inundation in {yr}...')
         t_start = datetime.datetime.now()
+        if fes2014_flag == True:
+            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_PROJECTION_METHOD_FES2014.tif'
+        elif return_period is not None:
+            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_PROJECTION_METHOD_CoDEC_RP_{return_period}_yrs.tif'
         if projection_select == 'SROCC':
-            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_SROCC_RCP_{str(rcp).replace(".","p")}_RP_{return_period}_yrs.tif'
-            lon_projection,lat_projection,slr_projection = upscale_SROCC_grid(SROCC_dir,dem_file,rcp,t0,yr)
+            output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'SROCC_RCP_{str(rcp).replace(".","p")}')
+            lon_projection,lat_projection,slr_projection = upscale_SROCC_grid(SROCC_dir,dem_file,rcp,t0,yr,)
         elif projection_select == 'AR6':
-            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_AR6_SSP{ssp}_RP_{return_period}_yrs.tif'
-            lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,dem_file,ssp,osm_shp_file,yr)
+            output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'AR6_SSP_{ssp}')
+            if quantile_select < 0.5:
+                output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Minus_{sigma}sigma_')
+            elif quantile_select > 0.5:
+                output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Plus_{sigma}sigma_')
+            lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,dem_file,ssp,osm_shp_file,yr,quantile_select=quantile_select)
         if geoid_file is not None:
             output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
         h_projection_coast = interpolate_points(lon_projection,lat_projection,slr_projection,x_coast,y_coast,INTERPOLATE_METHOD)

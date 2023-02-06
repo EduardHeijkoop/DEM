@@ -93,7 +93,7 @@ def upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,raster,ssp,shp_file,t_selec
     lon_AR6 = lon_AR6[idx_no_tg]
     lat_AR6 = lat_AR6[idx_no_tg]
     sl_change_AR6 = sl_change_AR6[idx_quantile,idx_t_select,idx_no_tg]
-    idx_invalid = sl_change_AR6 == -32768
+    idx_invalid = sl_change_AR6 == -32.768 #because divide by 1000
     lon_AR6 = lon_AR6[~idx_invalid]
     lat_AR6 = lat_AR6[~idx_invalid]
     sl_change_AR6 = sl_change_AR6[~idx_invalid]
