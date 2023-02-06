@@ -1001,10 +1001,15 @@ def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir,x_res=2.0,y_re
             dh = df_offset_filtered['h_primary'] - df_offset_filtered['h_secondary']
             rmse = np.sqrt(np.sum(dh**2)/len(dh))
             subprocess.run(f'rm {output_file} {tmp_dir}tmp_sampled.txt',shell=True)
+            if x == 0 and y == 0:
+                rmse_zero = rmse
             if rmse < rmse_min:
                 rmse_min = rmse
                 x_opt = x
                 y_opt = y
+    print(f'Optimal horizontal shift: x = {x_opt} m, y = {y_opt} m')
+    print(f'RMSE (zero shift): {rmse_zero:.2f} m, RMSE (optimal shift): {rmse_min:.2f} m')
+    print(f'Relative RMSE: {rmse_min/rmse_zero:.2f}')
     return x_opt,y_opt
 
 def copy_single_strips(strip_shp_data,singles_dict,mosaic_dir,output_name,epsg_code):
