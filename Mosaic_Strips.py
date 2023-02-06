@@ -66,6 +66,8 @@ def main():
     GSW_INTERSECTION_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','GSW_INTERSECTION_THRESHOLD') #in %
     X_SPACING = config.getfloat('MOSAIC_CONSTANTS','X_SPACING') #in m
     Y_SPACING = config.getfloat('MOSAIC_CONSTANTS','Y_SPACING') #in m
+    X_MAX_SEARCH = config.getfloat('MOSAIC_CONSTANTS','X_MAX_SEARCH') #in m
+    Y_MAX_SEARCH = config.getfloat('MOSAIC_CONSTANTS','y_MAX_SEARCH') #in m
     MOSAIC_TILE_SIZE = config.getfloat('MOSAIC_CONSTANTS','MOSAIC_TILE_SIZE') #in m^2   
     
     for i in range(len(df_input)):
@@ -177,7 +179,7 @@ def main():
             
             mosaic_dict,singles_dict = find_mosaic(strip_shp_data,mst_weighted_array,strip_dates)
             for mosaic_number in range(len(mosaic_dict)):
-                merge_mosaic_output_file = build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict[str(mosaic_number)],mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,MOSAIC_TILE_SIZE)
+                merge_mosaic_output_file = build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict[str(mosaic_number)],mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH,MOSAIC_TILE_SIZE)
             singles_list = copy_single_strips(strip_shp_data,singles_dict,mosaic_dir,output_name,epsg_code)
             t_end = datetime.datetime.now()
             dt = t_end - t_start

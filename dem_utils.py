@@ -911,7 +911,7 @@ def populate_intersection(geom_intersection,gsw_main_sea_only_buffered,landmask_
         y = np.append(y,y_sampling_masked_intersection_gsw)
     return x,y
 
-def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict,mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,MOSAIC_TILE_SIZE):
+def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict,mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH,MOSAIC_TILE_SIZE):
     '''
     Build the mosaic, given list of indices of strips to co-register to each other
     Co-registering ref to src, by sampling src and treating that as truth
@@ -937,13 +937,15 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
         else:
             src_file = glob.glob(f'{mosaic_dir}{os.path.splitext(src_strip.split("/")[-1])[0]}*Shifted*{os.path.splitext(src_strip.split("/")[-1])[1]}')[0]
         np.savetxt(strip_sampled_file,np.c_[x_masked_total,y_masked_total],fmt='%.3f',delimiter=' ')
-        df_sampled = sample_two_rasters(src_strip,ref_strip,strip_sampled_file)
+        df_sampled = sample_two_rasters(src_file,ref_strip,strip_sampled_file)
         if horizontal_flag == True:
-            x_shift,y_shift = evaluate_horizontal_shift(df_sampled,ref_strip,tmp_dir)
+            x_res = gdal.Open(src_strip).GetGeoTransform()[1]
+            y_res = -gdal.Open(src_strip).GetGeoTransform()[5]
+            x_shift,y_shift = evaluate_horizontal_shift(df_sampled,ref_strip,tmp_dir,x_res=x_res,y_res=y_res,x_offset_max=X_MAX_SEARCH,y_offset_max=Y_MAX_SEARCH)
             if ~np.logical_and(x_shift==0,y_shift==0):
                 x_min,x_max,y_min,y_max = get_raster_extents(ref_strip,'local')
                 new_ref_strip = f'{tmp_dir}{os.path.splitext(os.path.basename(ref_strip))[0]}_x_{int(x_shift)}m_y_{int(y_shift)}m.tif'.replace('-','neg')
-                translate_command = f'gdal_translate -q -a_ullr {x_min + x_shift} {y_max + y_shift} {x_max + x_shift} {y_min + y_shift} -co "COMPRESS=LZW" {ref_strip} {new_ref_strip}'
+                translate_command = f'gdal_translate -q -a_ullr {x_min + x_shift} {y_max + y_shift} {x_max + x_shift} {y_min + y_shift} -co "COMPRESS=LZW" -co "BIGTIFF=YES" {ref_strip} {new_ref_strip}'
                 subprocess.run(translate_command,shell=True)
                 # strip_shp_data.strip[ref_strip_ID] = new_ref_strip
                 ref_strip_shifted = vertical_shift_raster(new_ref_strip,df_sampled,mosaic_dir)
@@ -976,11 +978,7 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
     print('')
     return merge_mosaic_output_file
 
-def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir):
-    x_res = 2.0
-    y_res = 2.0
-    x_offset_max = 8
-    y_offset_max = 8
+def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir,x_res=2.0,y_res=2.0,x_offset_max=8.0,y_offset_max=8.0):
     x_offset = np.arange(-1*x_offset_max,x_offset_max+x_res,x_res)
     y_offset = np.arange(-1*y_offset_max,y_offset_max+y_res,y_res)
     rmse_min = np.inf
