@@ -310,20 +310,7 @@ def main():
     config_file = 'dem_config.ini'
     config = configparser.ConfigParser()
     config.read(config_file)
-    '''
-    dem_file = '/media/heijkoop/DATA/DEM/Accuracy_Assessment/Mosaic/WV01_20190126_1020010082E41B00_1020010083282500/strips/WV01_20190126_1020010082E41B00_1020010083282500_2m_lsf_seg4_dem.tif'
-    icesat2_file = '/media/heijkoop/DATA/DEM/Accuracy_Assessment/Strip/Rural/US_Savannah_ATL03_Rural_Strip_Filtered_NDVI_NDWI.txt'
-    dem_file = '/media/heijkoop/DATA/DEM/Accuracy_Assessment/Mosaic/WV01_20190126_10200100827B1600_102001007F04DC00/strips/WV01_20190126_10200100827B1600_102001007F04DC00_2m_lsf_seg3_dem.tif'
-    icesat2_file = '/media/heijkoop/DATA/DEM/Accuracy_Assessment/Mosaic/WV01_20190126_10200100827B1600_102001007F04DC00/strips/US_Savannah_ATL03_high_conf_masked_SRTM_filtered_threshold_10p0_m_subset.txt'
-    dem_file = '/media/heijkoop/DATA/DEM/Locations/Bolivia_SalarDeUyuni/Accuracy_Assessment/WV02_20141208_103001003B2BD300_103001003B5B7600_2m_lsf_seg1_dem.tif'
-    icesat2_file = '/media/heijkoop/DATA/DEM/Locations/Bolivia_SalarDeUyuni/Accuracy_Assessment/Salar_de_Uyuni_ATL03_WV02_20141208.txt'
-    mean_mode = True
-    median_mode = False
-    n_sigma_filter = 2
-    vertical_shift_iterative_threshold = 0.02
-    corrections_only_flag = False
-    print_flag = True
-    '''
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('--dem',help='Path to input DEM to correct.')
     parser.add_argument('--dem_list',help='Path to input list of DEMs to correct.')
