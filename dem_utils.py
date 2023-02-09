@@ -944,7 +944,11 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
             x_shift,y_shift = evaluate_horizontal_shift(df_sampled,ref_strip,tmp_dir,x_res=x_res,y_res=y_res,x_offset_max=X_MAX_SEARCH,y_offset_max=Y_MAX_SEARCH)
             if ~np.logical_and(x_shift==0,y_shift==0):
                 x_min,x_max,y_min,y_max = get_raster_extents(ref_strip,'local')
-                new_ref_strip = f'{tmp_dir}{os.path.splitext(os.path.basename(ref_strip))[0]}_x_{int(x_shift)}m_y_{int(y_shift)}m.tif'.replace('-','neg')
+                horizontal_shift_str = f'x_{x_shift:.2f}m_y_{y_shift:.2f}m'.replace('.','p').replace('-','neg')
+                if 'Shifted' in ref_strip:
+                    new_ref_strip = f'{tmp_dir}{os.path.basename(ref_strip).replace("Shifted",f"Shifted_{horizontal_shift_str}")}'
+                else:
+                    new_ref_strip = f'{tmp_dir}{os.path.splitext(os.path.basename(ref_strip))[0]}_Shifted_{horizontal_shift_str}.tif'
                 translate_command = f'gdal_translate -q -a_ullr {x_min + x_shift} {y_max + y_shift} {x_max + x_shift} {y_min + y_shift} -co "COMPRESS=LZW" -co "BIGTIFF=YES" {ref_strip} {new_ref_strip}'
                 subprocess.run(translate_command,shell=True)
                 # strip_shp_data.strip[ref_strip_ID] = new_ref_strip
@@ -986,7 +990,7 @@ def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir,x_res=2.0,y_re
         for y in y_offset:
             df_offset = df_sampled.copy()
             df_offset = df_offset.drop(columns='h_secondary')
-            output_file = f'{tmp_dir}offset_x_{x}_y_{y}.txt'.replace('-','neg').replace('.0','p0')
+            output_file = f'{tmp_dir}offset_x_{x}_y_{y}.txt'.replace('-','neg').replace('.','p').replace('ptxt','.txt')
             df_offset['x'] = df_offset['x'] - x
             df_offset['y'] = df_offset['y'] - y
             df_offset.to_csv(output_file,columns=['x','y'],float_format='%.1f',sep=' ',index=False,header=False)
@@ -1106,7 +1110,31 @@ def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='me
     raster_nodata = src.GetRasterBand(1).GetNoDataValue()
     vertical_shift,df_new = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold)
     raster_base,raster_ext = os.path.splitext(raster_path.split('/')[-1])
-    raster_shifted = f'{output_dir}{raster_base}_Shifted_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
+    if 'Shifted' in raster_base:
+        if 'Shifted_x' in raster_base:
+            if '_z_' in raster_base:
+                #case: input is Shifted_x_0.00m_y_0.00m_z_0.00m*.tif
+                original_shift = float(raster_base.split('Shifted')[1].split('_z_')[1].split('_')[0].replace('p','.').replace('neg','-').replace('m',''))
+                original_shift_str = f'{original_shift}'.replace(".","p").replace("-","neg")
+                new_shift = original_shift + vertical_shift
+                new_shift_str = f'{new_shift:.2f}'.replace('.','p').replace('-','neg')
+                raster_shifted = f'{output_dir}{raster_base}{raster_ext}'.replace(original_shift_str,new_shift_str)
+            else:
+                #case: input is Shifted_x_0.00m_y_0.00m*.tif
+                vertical_shift_str = f'{vertical_shift:.2f}'.replace('.','p').replace('-','neg')
+                post_string_fill = "_".join(raster_base.split("_y_")[1].split("_")[1:])
+                if len(post_string_fill) == 0:
+                    raster_shifted = f'{output_dir}{raster_base}{raster_ext}'.replace(raster_ext,f'_z_{vertical_shift_str}m{raster_ext}')
+                else:
+                    raster_shifted = f'{output_dir}{raster_base.split(post_string_fill)[0]}z_{vertical_shift_str}m_{post_string_fill}{raster_ext}'
+        elif 'Shifted_z' in raster_base:
+            #case: input is Shifted_z_0.00m*.tif
+            original_shift = float(raster_base.split('Shifted')[1].split('_z_')[1].split('_')[0].replace('p','.').replace('neg','-').replace('m',''))
+            new_shift = original_shift + vertical_shift
+            raster_shifted = f'{output_dir}{raster_base.split("Shifted")[0]}Shifted_z_{"{:.2f}".format(new_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
+    else:
+        #case: input is *.tif
+        raster_shifted = f'{output_dir}{raster_base}_Shifted_z_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
     shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
     subprocess.run(shift_command,shell=True)
     return raster_shifted
