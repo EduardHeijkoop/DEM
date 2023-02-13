@@ -982,7 +982,7 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
     strip_list_coregistered_sorted_file = f'{mosaic_dir}{output_name}_Mosaic_{mosaic_number}_{epsg_code}_Coregistered_Strips_Sorted_Date_{epsg_code}.txt'
     np.savetxt(strip_list_coregistered_sorted_file,np.c_[strip_list_coregistered_sorted],fmt='%s')
     mosaic_results_file = f'{mosaic_dir}{output_name}_Mosaic_{mosaic_number}_{epsg_code}_results.txt'
-    mosaic_command = f'dem_mosaic -l {strip_list_coregistered_sorted_file} --first --georef-tile-size {MOSAIC_TILE_SIZE} -o {mosaic_dir+output_name}_Mosaic_{mosaic_number}_{epsg_code} > {mosaic_results_file}'
+    mosaic_command = f'dem_mosaic --tap -l {strip_list_coregistered_sorted_file} --first --georef-tile-size {MOSAIC_TILE_SIZE} -o {mosaic_dir+output_name}_Mosaic_{mosaic_number}_{epsg_code} > {mosaic_results_file}'
     subprocess.run(mosaic_command,shell=True)
     merge_mosaic_output_file = f'{mosaic_dir}{output_name}_Full_Mosaic_{mosaic_number}_{epsg_code}.tif'
     merge_mosaic_output_file_vrt = merge_mosaic_output_file.replace('.tif','.vrt')
