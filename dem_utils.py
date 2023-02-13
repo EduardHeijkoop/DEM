@@ -531,8 +531,14 @@ def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max
         for f1 in glob.glob(gsw_output_shp_file_main_sea_only_clipped_transformed.replace('.shp','.*')):
             subprocess.os.remove(f1)
     gsw_merge_command = f'gdal_merge.py -q -o {gsw_output_file} -co COMPRESS=LZW '
+    tile_count = 0
+    total_count = 0
     for lon in lon_gsw_range:
         for lat in lat_gsw_range:
+            total_count += 1
+            if np.logical_or(lat>80,lat<-50):
+                continue # GSW doesn't have data for these regions
+            tile_count += 1
             if lon>=0:
                 EW_str = 'E'
             else:
@@ -543,6 +549,12 @@ def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max
                 NS_str = 'S'
             gsw_file = f'{gsw_dir}extent_{np.abs(lon)}{EW_str}_{np.abs(lat)}{NS_str}_v1_1.tif '
             gsw_merge_command = gsw_merge_command + gsw_file
+    if tile_count == 0:
+        print('No GSW tiles found for this area')
+        return None,None
+    elif tile_count < total_count:
+        print(f'Warning! Some tiles not found for this area.')
+        print(f'Doing GSW analysis for {tile_count} tiles instead of {total_count} tiles.')
     subprocess.run(gsw_merge_command,shell=True)
     lonlat_str = f'{lon_min} {lat_min} {lon_max} {lat_max}'
     clip_command = f'gdalwarp -q -overwrite -te {lonlat_str} -co COMPRESS=LZW {gsw_output_file} {gsw_output_file_clipped}'
