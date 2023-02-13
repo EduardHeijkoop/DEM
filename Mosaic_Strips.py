@@ -74,11 +74,15 @@ def main():
         loc_dir = df_input.loc_dirs[i]
         output_dir = df_input.output_dirs[i]
         input_type = df_input.input_types[i]
-        if loc_dir[len(loc_dir)-1] != '/': #force the directories to end on a slash
+        if loc_dir[len(loc_dir)-1] != '/' and loc_dir != 'list': #force the directories to end on a slash
             loc_dir = loc_dir + '/'
         if output_dir[len(output_dir)-1] != '/':
             output_dir = output_dir + '/'
-        mosaic_dir = output_dir + 'Mosaic/'
+        if output_dir.split('/')[-2].lower() == 'mosaic':
+            mosaic_dir = output_dir
+            output_dir = '/'.join(output_dir.split('/')[:-2]) + '/'
+        else:
+            mosaic_dir = f'{output_dir}Mosaic/'
         if not subprocess.os.path.isdir(output_dir):
             subprocess.os.mkdir(output_dir)
         if not subprocess.os.path.isdir(mosaic_dir):
@@ -95,7 +99,7 @@ def main():
             print(f'Calling everything {output_name} now.')
         if input_type == 3:
             full_ortho_list = np.asarray([s.replace('dem_smooth.tif','ortho.tif').replace('dem.tif','ortho.tif') for s in df_list.strip])
-            full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(s,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for s in full_ortho_list])
+            full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(s,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for s in df_list.strip])
         else:
             full_ortho_list = get_ortho_list(loc_dir)
             full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(ortho,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for ortho in full_ortho_list])
