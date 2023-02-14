@@ -337,7 +337,7 @@ def main():
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--dem',help='Path to input DEM to correct.')
-    parser.add_argument('--dem_list',help='Path to input list of DEMs to correct.')
+    parser.add_argument('--dem_list',default=None,help='Path to input list of DEMs to correct.')
     parser.add_argument('--icesat2',help='Path to ICESat-2 file used to correct DEM(s).')
     parser.add_argument('--mean',default=False,action='store_true')
     parser.add_argument('--median',default=False,action='store_true')
@@ -450,6 +450,10 @@ def main():
             dh_plane_corrected = df_sampled_plane_corrected.height_icesat2 - df_sampled_plane_corrected.height_dem_plane_corrected
             rmse_plane_corrected = np.sqrt(np.sum(dh_plane_corrected**2)/len(dh_plane_corrected))
             print(f'RMSE of plane-corrected DEM: {rmse_plane_corrected:.2f} m')
+            if rmse_plane_corrected > rmse_coregistered:
+                print('Plane correction did not improve RMSE. Keeping co-registered DEM.')
+                plane_corrected_dem = raster_shifted
+                df_sampled_plane_corrected = df_sampled_coregistered
             if keep_flag == False:
                 if os.path.exists(sampled_plane_corrected_file):
                     subprocess.run(f'rm {sampled_plane_corrected_file}',shell=True)
@@ -457,6 +461,7 @@ def main():
                     subprocess.run(f'rm {plane_correction_file}',shell=True)
         else:
             plane_corrected_dem = raster_shifted
+            df_sampled_plane_corrected = df_sampled_coregistered
 
         x_jitter,y_jitter,dh_jitter = compute_jitter_correction(df_sampled_plane_corrected,plane_corrected_dem)
         if x_jitter is not None:
