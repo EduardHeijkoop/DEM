@@ -937,6 +937,8 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
         src_strip_ID = src_list[i]
         ref_strip = strip_shp_data.strip[ref_strip_ID]
         src_strip = strip_shp_data.strip[src_strip_ID]
+        ref_strip_sensor = ref_strip.split('/')[-1].split('_')[0]
+        src_strip_sensor = src_strip.split('/')[-1].split('_')[0]
         geom_intersection = strip_shp_data.geometry[src_strip_ID].intersection(strip_shp_data.geometry[ref_strip_ID])
         x_masked_total,y_masked_total = populate_intersection(geom_intersection,gsw_main_sea_only_buffered,landmask_c_file,X_SPACING,Y_SPACING)
         strip_sampled_file = mosaic_dir + output_name + f'_Mosaic_{mosaic_number}_{epsg_code}_sampled_{src_strip_ID}_for_coregistering_{ref_strip_ID}.txt'
@@ -950,6 +952,7 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
             src_file = glob.glob(f'{mosaic_dir}{os.path.splitext(src_strip.split("/")[-1])[0]}*Shifted*{os.path.splitext(src_strip.split("/")[-1])[1]}')[0]
         np.savetxt(strip_sampled_file,np.c_[x_masked_total,y_masked_total],fmt='%.3f',delimiter=' ')
         df_sampled = sample_two_rasters(src_file,ref_strip,strip_sampled_file)
+        print(f'Linking {ref_strip_ID} ({ref_strip_sensor}) to {src_strip_ID} ({src_strip_sensor})...')
         if horizontal_flag == True:
             x_res = gdal.Open(src_strip).GetGeoTransform()[1]
             y_res = -gdal.Open(src_strip).GetGeoTransform()[5]
@@ -1149,4 +1152,7 @@ def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='me
         raster_shifted = f'{output_dir}{raster_base}_Shifted_z_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
     shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
     subprocess.run(shift_command,shell=True)
+    print(f'Retained {len(df_new)/len(df_sampled)*100:.1f}% of points.')
+    print(f'Vertical shift: {vertical_shift:.2f} m')
+    print(f'RMSE: {np.sqrt(np.sum((df_new.h_primary-df_new.h_secondary)**2)/len(df_new)):.2f} m')
     return raster_shifted
