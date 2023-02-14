@@ -949,7 +949,10 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
                 copy_check = True
             src_file = mosaic_dir + src_strip.split('/')[-1]
         else:
-            src_file = glob.glob(f'{mosaic_dir}{os.path.splitext(src_strip.split("/")[-1])[0]}*Shifted*{os.path.splitext(src_strip.split("/")[-1])[1]}')[0]
+            src_seg = f'seg{src_strip.split("seg")[1].split("_")[0]}'
+            src_base = f'{mosaic_dir}{os.path.splitext(src_strip.split("/")[-1].split(src_seg)[0])[0]}{src_seg}'
+            src_ext = os.path.splitext(src_strip)[1]
+            src_file = glob.glob(f'{src_base}*{src_ext}')[0]
         np.savetxt(strip_sampled_file,np.c_[x_masked_total,y_masked_total],fmt='%.3f',delimiter=' ')
         df_sampled = sample_two_rasters(src_file,ref_strip,strip_sampled_file)
         print(f'Linking {ref_strip_ID} ({ref_strip_sensor}) to {src_strip_ID} ({src_strip_sensor})...')
@@ -976,7 +979,6 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
         else:
             ref_strip_shifted = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
             strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
-
     print('')
     print('Mosaicing...')
     strip_list_coregistered_date = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list_coregistered])
