@@ -932,6 +932,9 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
     src_list = mosaic_dict['src']
     copy_check = False
     strip_list_coregistered = np.empty([0,1],dtype=str)
+    mosaic_stats_file = mosaic_dir + output_name + f'_Mosaic_{mosaic_number}_{epsg_code}_Statistics.txt'
+    mosaic_stats = open(mosaic_stats_file,'w')
+    mosaic_stats.write('ref_strip_ID,src_strip_ID,x_shift,y_shift,z_shift,RMSE\n')
     for i in range(len(ref_list)):
         ref_strip_ID = ref_list[i]
         src_strip_ID = src_list[i]
@@ -971,15 +974,19 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
                 subprocess.run(translate_command,shell=True)
                 df_sampled = sample_two_rasters(src_file,new_ref_strip,strip_sampled_file)
                 # strip_shp_data.strip[ref_strip_ID] = new_ref_strip
-                ref_strip_shifted = vertical_shift_raster(new_ref_strip,df_sampled,mosaic_dir)
+                ref_strip_shifted,vertical_shift,rmse = vertical_shift_raster(new_ref_strip,df_sampled,mosaic_dir)
                 strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
                 subprocess.run(f'rm {new_ref_strip}',shell=True)
             else:
-                ref_strip_shifted = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
+                ref_strip_shifted,vertical_shift,rmse = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
                 strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
         else:
-            ref_strip_shifted = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
+            x_shift = 0
+            y_shift = 0
+            ref_strip_shifted,vertical_shift,rmse = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
             strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
+        mosaic_stats.write(f'{ref_strip_ID},{src_strip_ID},{x_shift:.2f},{y_shift:.2f},{vertical_shift:.2f},{rmse:.2f}\n')
+    mosaic_stats.close()
     print('')
     print('Mosaicing...')
     strip_list_coregistered_date = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list_coregistered])
@@ -1155,7 +1162,8 @@ def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='me
         raster_shifted = f'{output_dir}{raster_base}_Shifted_z_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
     shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
     subprocess.run(shift_command,shell=True)
+    rmse = np.sqrt(np.sum((df_new.h_primary-df_new.h_secondary)**2)/len(df_new))
     print(f'Retained {len(df_new)/len(df_sampled)*100:.1f}% of points.')
     print(f'Vertical shift: {vertical_shift:.2f} m')
-    print(f'RMSE: {np.sqrt(np.sum((df_new.h_primary-df_new.h_secondary)**2)/len(df_new)):.2f} m')
-    return raster_shifted
+    print(f'RMSE: {rmse:.2f} m')
+    return raster_shifted,vertical_shift,rmse
