@@ -969,6 +969,7 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
                     new_ref_strip = f'{tmp_dir}{os.path.splitext(os.path.basename(ref_strip))[0]}_Shifted_{horizontal_shift_str}.tif'
                 translate_command = f'gdal_translate -q -a_ullr {x_min + x_shift} {y_max + y_shift} {x_max + x_shift} {y_min + y_shift} -co "COMPRESS=LZW" -co "BIGTIFF=YES" {ref_strip} {new_ref_strip}'
                 subprocess.run(translate_command,shell=True)
+                df_sampled = sample_two_rasters(src_file,new_ref_strip,strip_sampled_file)
                 # strip_shp_data.strip[ref_strip_ID] = new_ref_strip
                 ref_strip_shifted = vertical_shift_raster(new_ref_strip,df_sampled,mosaic_dir)
                 strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
