@@ -28,12 +28,14 @@ def main():
     parser.add_argument('--output_dir',default=None,help='path to output directory')
     parser.add_argument('--loc_name',default=None,help='name of location')
     parser.add_argument('--horizontal',default=False,help='Incorperate horizontal alignment in mosaic?',action='store_true')
+    parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
     args = parser.parse_args()
     input_file = args.input_file
     list_file = args.list
     single_output_dir = args.output_dir
     single_loc_name = args.loc_name
     horizontal_flag = args.horizontal
+    machine_name = args.machine
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
@@ -52,6 +54,15 @@ def main():
         df_input.loc[len(df_input.index)] = ['list',single_output_dir,3]
     else:
         df_list = None
+    
+    if machine_name == 'b':
+        tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+        gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+        if df_list is not None:
+            df_list.strip = [s.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/') for s in df_list.strip]
+    elif machine_name == 'local':
+        tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/EDUARD/','/home/heijkoop/Desktop/Projects/')
+        gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/').replace('Extent/','')
 
     POLYGON_AREA_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','POLYGON_AREA_THRESHOLD') #in m^2
     STRIP_AREA_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','STRIP_AREA_THRESHOLD') #in m^2

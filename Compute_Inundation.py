@@ -44,6 +44,7 @@ def main():
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
     parser.add_argument('--uncertainty',help='Calculate inundation uncertainty?',default=False,action='store_true')
     parser.add_argument('--sigma',help='Sigma value to use for uncertainty calculation.')
+    parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
     args = parser.parse_args()
 
     dem_file = args.dem
@@ -70,6 +71,7 @@ def main():
     connectivity_flag = args.connectivity
     uncertainty_flag = args.uncertainty
     sigma = int(args.sigma)
+    machine_name = args.machine
 
     if icesat2_file is not None and sl_grid_file is not None:
         print('ICESat-2 file and sea level grid given, cannot handle both!')
@@ -120,6 +122,24 @@ def main():
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
     landmask_c_file = config.get('GENERAL_PATHS','landmask_c_file')
     osm_shp_file = config.get('GENERAL_PATHS','osm_shp_file')
+
+    if machine_name == 'b':
+        SROCC_dir = SROCC_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+        AR6_dir = AR6_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+        CODEC_file = CODEC_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+        fes2014_file = fes2014_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+        tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+        gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+        osm_shp_file = osm_shp_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+    elif machine_name == 'local':
+        AR6_dir = AR6_dir.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
+        CODEC_file = CODEC_file.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
+        fes2014_file = fes2014_file.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
+        tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/EDUARD/','/home/heijkoop/Desktop/Projects/')
+        gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
+        landmask_c_file = landmask_c_file.replace('/home/eheijkoop/Scripts/','/media/heijkoop/DATA/Dropbox/TU/PhD/Github/')
+        osm_shp_file = osm_shp_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
+
     VLM_NODATA = config.getfloat('VLM_CONSTANTS','VLM_NODATA')
     N_PTS = config.getint('INUNDATION_CONSTANTS','N_PTS')
     INTERPOLATE_METHOD = config.get('INUNDATION_CONSTANTS','INTERPOLATE_METHOD')
@@ -177,6 +197,8 @@ def main():
             quantiles = [0.02,0.5,0.98]
         elif sigma == 3:
             quantiles = [0.001,0.5,0.999]
+        else:
+            quantiles = [0.5] #sigma is undefined, so just use median
     else:
         quantiles = [0.5]
 
