@@ -11,7 +11,7 @@ import datetime
 import warnings
 import configparser
 
-from dem_utils import get_ortho_list,get_strip_list,get_strip_extents
+from dem_utils import get_strip_list,get_strip_extents
 from dem_utils import get_gsw,get_strip_shp,filter_strip_gsw
 from dem_utils import get_contained_strips,get_valid_strip_overlaps,get_minimum_spanning_tree
 from dem_utils import find_mosaic,build_mosaic,copy_single_strips
@@ -123,12 +123,6 @@ def main():
             print(f'EPSG:{epsg_code}')
             idx_epsg = full_epsg_list == epsg_code
             strip_list = full_strip_list[idx_epsg]
-            # if input_type == 3:
-            #     strip_list_coarse = np.asarray([s for s in df_list.strip[idx_epsg]])
-            #     strip_list_full_res = np.asarray([s for s in df_list.strip[idx_epsg]])
-            # else:
-            #     ortho_list = full_ortho_list[idx_epsg]
-            #     strip_list_coarse,strip_list_full_res = get_strip_list(ortho_list,input_type)
             if strip_list.size == 0:
                 print('No strips found!')
                 continue
