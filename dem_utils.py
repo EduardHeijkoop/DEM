@@ -429,45 +429,38 @@ def landmask_dem(lon,lat,lon_coast,lat_coast,landmask_c_file,inside_flag):
     landmask = landmask == inside_flag #just to be consistent and return Boolean array
     return landmask
 
-def get_ortho_list(loc_dir):
+def get_strip_list(loc_dir,input_type,corrected_flag,dir_structure):
     '''
-    Get list of ortho images, using two different dir structures.
-    '''
-    full_ortho_list = glob.glob(loc_dir + 'UTM*/*/strips/*ortho.tif')
-    full_ortho_list.extend(glob.glob(loc_dir + '*/strips/*ortho.tif'))
-    full_ortho_list = np.asarray(full_ortho_list)
-    full_ortho_list.sort()
-    return full_ortho_list
-
-def get_strip_list(ortho_list,input_type):
-    '''
-    Given an ortho list, find the corresponding strip list.
     Different input types:
         0: old and new methods
         1: old only (dem_browse.tif for 10 m and dem_smooth.tif for 2 m)
         2: new only (dem_10m.tif for 10 m and dem.tif for 2 m)
+        3: input is from a list of strips
     '''
-    strip_exist_old_type = np.asarray([subprocess.os.path.exists(o) for o in [d.replace('ortho.tif','dem_browse.tif') for d in ortho_list]])
-    strip_exist_new_type = np.asarray([subprocess.os.path.exists(o) for o in [d.replace('ortho.tif','dem_10m.tif') for d in ortho_list]])
-    strip_exist_old_type_full_res = np.asarray([subprocess.os.path.exists(o) for o in [d.replace('ortho.tif','dem_smooth.tif') for d in ortho_list]])
-    strip_exist_new_type_full_res = np.asarray([subprocess.os.path.exists(o) for o in [d.replace('ortho.tif','dem.tif') for d in ortho_list]])
-    strip_list_old = [s.replace('ortho.tif','dem_browse.tif') for s in ortho_list[strip_exist_old_type]]
-    strip_list_old.extend([s.replace('ortho.tif','dem_smooth.tif') for s in ortho_list[np.logical_xor(strip_exist_old_type,strip_exist_old_type_full_res)]])
-    strip_list_new = [s.replace('ortho.tif','dem_10m.tif') for s in ortho_list[strip_exist_new_type]]
-    strip_list_new.extend([s.replace('ortho.tif','dem.tif') for s in ortho_list[np.logical_xor(strip_exist_new_type,strip_exist_new_type_full_res)]])
-    if input_type == 0:
-        strip_list_coarse = strip_list_old
-        strip_list_coarse.extend(strip_list_new)
-    elif input_type == 1:
-        strip_list_coarse = strip_list_old
-    elif input_type == 2:
-        strip_list_coarse = strip_list_new
-    strip_list_coarse = np.asarray(strip_list_coarse)
-    strip_list_coarse.sort()
-    strip_list_full_res = [s.replace('dem_10m.tif','dem.tif') for s in strip_list_coarse]
-    strip_list_full_res = [s.replace('2m_dem_browse.tif','2m_dem_smooth.tif') for s in strip_list_full_res]
-    strip_list_full_res = np.asarray(strip_list_full_res)
-    return strip_list_coarse,strip_list_full_res
+    if dir_structure == 'sealevel':
+        if corrected_flag == True:
+            strip_list_old = sorted(glob.glob(f'{loc_dir}*/strips/*dem_smooth_Shifted*.tif'))
+            strip_list_old.extend(sorted(glob.glob(f'{loc_dir}UTM*/*/strips/*dem_smooth_Shifted*.tif')))
+            strip_list_new = sorted(glob.glob(f'{loc_dir}*/strips/*dem_Shifted*.tif'))
+            strip_list_new.extend(sorted(glob.glob(f'{loc_dir}UTM*/*/strips/*dem_Shifted*.tif')))
+        else:
+            strip_list_old = sorted(glob.glob(f'{loc_dir}*/strips/*dem_smooth.tif'))
+            strip_list_old.extend(sorted(glob.glob(f'{loc_dir}UTM*/*/strips/*dem_smooth.tif')))
+            strip_list_new = sorted(glob.glob(f'{loc_dir}*/strips/*dem.tif'))
+            strip_list_new.extend(sorted(glob.glob(f'{loc_dir}UTM*/*/strips/*dem.tif')))
+        if input_type == 0:
+            strip_list = strip_list_old
+            strip_list.extend(strip_list_new)
+        elif input_type == 1:
+            strip_list = strip_list_old
+        elif input_type == 2:
+            strip_list = strip_list_new
+    elif dir_structure == 'simple':
+        if corrected_flag == True:
+            strip_list = sorted(glob.glob(f'{loc_dir}*dem_Shifted*.tif'))
+        else:
+            strip_list = sorted(glob.glob(f'{loc_dir}*dem.tif'))
+    return np.asarray(strip_list)
 
 def get_strip_extents(strip):
     '''

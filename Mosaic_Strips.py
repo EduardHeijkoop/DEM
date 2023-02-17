@@ -29,6 +29,8 @@ def main():
     parser.add_argument('--loc_name',default=None,help='name of location')
     parser.add_argument('--horizontal',default=False,help='Incorperate horizontal alignment in mosaic?',action='store_true')
     parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
+    parser.add_argument('--corrected',default=False,help='Find corrected strips instead?',action='store_true')
+    parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
     args = parser.parse_args()
     input_file = args.input_file
     list_file = args.list
@@ -36,6 +38,8 @@ def main():
     single_loc_name = args.loc_name
     horizontal_flag = args.horizontal
     machine_name = args.machine
+    corrected_flag = args.corrected
+    dir_structure = args.dir_structure
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
@@ -109,28 +113,28 @@ def main():
             print('Warning! Output name and location name not the same. Continuing...')
             print(f'Calling everything {output_name} now.')
         if input_type == 3:
-            full_ortho_list = np.asarray([s.replace('dem_smooth.tif','ortho.tif').replace('dem.tif','ortho.tif') for s in df_list.strip])
-            full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(s,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for s in df_list.strip])
+            full_strip_list = np.asarray([df_list.strip])
         else:
-            full_ortho_list = get_ortho_list(loc_dir)
-            full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(ortho,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for ortho in full_ortho_list])
+            full_strip_list = get_strip_list(loc_dir,input_type,corrected_flag,dir_structure)
+        full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(s,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for s in full_strip_list])
         unique_epsg_list = np.unique(full_epsg_list)
 
         for epsg_code in unique_epsg_list:
             print(f'EPSG:{epsg_code}')
             idx_epsg = full_epsg_list == epsg_code
-            ortho_list = full_ortho_list[idx_epsg]
-            if input_type == 3:
-                strip_list_coarse = np.asarray([s for s in df_list.strip[idx_epsg]])
-                strip_list_full_res = np.asarray([s for s in df_list.strip[idx_epsg]])
-            else:
-                strip_list_coarse,strip_list_full_res = get_strip_list(ortho_list,input_type)
-            if strip_list_coarse.size == 0:
+            strip_list = full_strip_list[idx_epsg]
+            # if input_type == 3:
+            #     strip_list_coarse = np.asarray([s for s in df_list.strip[idx_epsg]])
+            #     strip_list_full_res = np.asarray([s for s in df_list.strip[idx_epsg]])
+            # else:
+            #     ortho_list = full_ortho_list[idx_epsg]
+            #     strip_list_coarse,strip_list_full_res = get_strip_list(ortho_list,input_type)
+            if strip_list.size == 0:
                 print('No strips found!')
                 continue
             strip_shp_data = gpd.GeoDataFrame()
             lon_min_strips,lon_max_strips,lat_min_strips,lat_max_strips = 180,-180,90,-90
-            for strip in strip_list_coarse:
+            for strip in strip_list:
                 lon_min_single_strip,lon_max_single_strip,lat_min_single_strip,lat_max_single_strip = get_strip_extents(strip)
                 lon_min_strips = np.min((lon_min_strips,lon_min_single_strip))
                 lon_max_strips = np.max((lon_max_strips,lon_max_single_strip))
@@ -142,11 +146,11 @@ def main():
                 gsw_main_sea_only_buffered = gsw_main_sea_only.buffer(0)
             else:
                 gsw_main_sea_only_buffered = None
-            strip_idx = np.ones(len(strip_list_coarse),dtype=bool)
+            strip_idx = np.ones(len(strip_list),dtype=bool)
             print('Loading strips...')
-            for j,strip in enumerate(strip_list_full_res):
+            for j,strip in enumerate(strip_list):
                 sys.stdout.write('\r')
-                n_progressbar = (j + 1) / len(strip_list_full_res)
+                n_progressbar = (j + 1) / len(strip_list)
                 sys.stdout.write("[%-20s] %d%%" % ('='*int(20*n_progressbar), 100*n_progressbar))
                 sys.stdout.flush()
                 wv_strip_shp = get_strip_shp(strip,tmp_dir)
@@ -159,8 +163,7 @@ def main():
                 tmp_gdf = gpd.GeoDataFrame(df_strip,geometry=[tmp_mp],crs='EPSG:'+epsg_code)
                 strip_shp_data = gpd.GeoDataFrame(pd.concat([strip_shp_data,tmp_gdf],ignore_index=True),crs='EPSG:'+epsg_code)
 
-            strip_list_coarse = strip_list_coarse[strip_idx]
-            strip_list_full_res = strip_list_full_res[strip_idx]
+            strip_list = strip_list[strip_idx]
             output_strips_shp_file = f'{output_dir}{output_name}_Strips_{epsg_code}.shp'
             output_strips_shp_file_dissolved = f'{output_dir}{output_name}_Strips_{epsg_code}_Dissolved.shp'
             output_strips_shp_file_filtered = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered.shp'
@@ -168,12 +171,11 @@ def main():
             print('\n')
             print(output_strips_shp_file)
             
-            strip_dates = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list_full_res])
+            strip_dates = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list])
             idx_date = np.argsort(-strip_dates)
 
             strip_dates = strip_dates[idx_date]
-            strip_list_coarse = strip_list_coarse[idx_date]
-            strip_list_full_res = strip_list_full_res[idx_date]
+            strip_list = strip_list[idx_date]
             strip_shp_data = strip_shp_data.iloc[idx_date].reset_index(drop=True)
 
             strip_shp_data.to_file(output_strips_shp_file)
@@ -181,8 +183,7 @@ def main():
 
             idx_contained = get_contained_strips(strip_shp_data,strip_dates,epsg_code,STRIP_CONTAINMENT_THRESHOLD,STRIP_DELTA_TIME_THRESHOLD,N_STRIPS_CONTAINMENT)
             strip_dates = strip_dates[idx_contained]
-            strip_list_coarse = strip_list_coarse[idx_contained]
-            strip_list_full_res = strip_list_full_res[idx_contained]
+            strip_list = strip_list[idx_contained]
             strip_shp_data = strip_shp_data.iloc[idx_contained].reset_index(drop=True)
 
             strip_shp_data.to_file(output_strips_shp_file_filtered)
