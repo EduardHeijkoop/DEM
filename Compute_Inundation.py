@@ -334,6 +334,7 @@ def main():
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
         print(f'Generating CoDEC sea level extremes took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+        sealevel_high_grid_full_res = codec_grid_full_res
     elif fes2014_file is not None:
         t_start = datetime.datetime.now()
         print(f'Finding FES2014 max tidal heights...')
@@ -347,6 +348,7 @@ def main():
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
         print(f'Generating FES2014 high tides took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+        sealevel_high_grid_full_res = fes_grid_full_res
 
 
     if connectivity_flag == True:
@@ -386,7 +388,7 @@ def main():
         sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
         resample_raster(sl_grid_file_intermediate_res,dem_file,sl_grid_file_full_res)
         dt = int(yr - t0)
-        inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {codec_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+        inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
         subprocess.run(inundation_command,shell=True)
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
