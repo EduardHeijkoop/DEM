@@ -334,6 +334,8 @@ def main():
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
         print(f'Generating CoDEC sea level extremes took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+        sealevel_csv_output = output_file_codec
+        sealevel_high_grid_intermediate_res = codec_grid_intermediate_res
         sealevel_high_grid_full_res = codec_grid_full_res
     elif fes2014_file is not None:
         t_start = datetime.datetime.now()
@@ -348,6 +350,8 @@ def main():
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
         print(f'Generating FES2014 high tides took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+        sealevel_csv_output = output_file_fes
+        sealevel_high_grid_intermediate_res = fes_grid_intermediate_res
         sealevel_high_grid_full_res = fes_grid_full_res
 
 
@@ -426,10 +430,10 @@ def main():
         subprocess.run(f'rm {sl_grid_file_intermediate_res}',shell=True)
         subprocess.run(f'rm {sl_grid_file_full_res}',shell=True)
     
-    subprocess.run(f'rm {output_file_codec}',shell=True)
-    subprocess.run(f'rm {output_file_codec.replace(".csv",".vrt")}',shell=True)
-    subprocess.run(f'rm {codec_grid_intermediate_res}',shell=True)
-    subprocess.run(f'rm {codec_grid_full_res}',shell=True)
+    subprocess.run(f'rm {sealevel_csv_output}',shell=True)
+    subprocess.run(f'rm {sealevel_csv_output.replace(".csv",".vrt")}',shell=True)
+    subprocess.run(f'rm {sealevel_high_grid_intermediate_res}',shell=True)
+    subprocess.run(f'rm {sealevel_high_grid_full_res}',shell=True)
     print(f'Finished with {loc_name} at {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.')
 
 if __name__ == '__main__':
