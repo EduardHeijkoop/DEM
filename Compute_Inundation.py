@@ -95,7 +95,7 @@ def main():
     if fes2014_flag == True and return_period is not None:
         print('Cannot use FES2014 and CoDEC together!')
         sys.exit()
-    if return_period not in return_period_options:
+    if fes2014_flag == False and return_period not in return_period_options:
         print('Invalid return period selected!')
         print('Must be 2, 5, 10, 25, 50, 100, 250, 500 or 1000 years.')
         sys.exit()
