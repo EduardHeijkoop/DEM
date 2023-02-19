@@ -92,7 +92,7 @@ def main():
     if rcp is not None and ssp is not None:
         print('Both RCP and SSP supplied, only one can be used!')
         sys.exit()
-    if fes2014_flag is not None and return_period is not None:
+    if fes2014_flag == True and return_period is not None:
         print('Cannot use FES2014 and CoDEC together!')
         sys.exit()
     if return_period not in return_period_options:
