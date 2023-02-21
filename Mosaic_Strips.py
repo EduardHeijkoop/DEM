@@ -113,7 +113,7 @@ def main():
             print('Warning! Output name and location name not the same. Continuing...')
             print(f'Calling everything {output_name} now.')
         if input_type == 3:
-            full_strip_list = np.asarray([df_list.strip])
+            full_strip_list = np.asarray(df_list.strip)
         else:
             full_strip_list = get_strip_list(loc_dir,input_type,corrected_flag,dir_structure)
         full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(s,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for s in full_strip_list])
