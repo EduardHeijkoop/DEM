@@ -356,14 +356,17 @@ def main():
 
 
     if connectivity_flag == True:
-        gdf_gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed = get_gsw(inundation_dir,tmp_dir,gsw_dir,epsg_code,lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max,loc_name)
-        if loc_name not in os.path.basename(gsw_output_shp_file_main_sea_only_clipped_transformed):
-            gsw_output_shp_file_main_sea_only_clipped_transformed = f'{os.path.dirname(gsw_output_shp_file_main_sea_only_clipped_transformed)}/{loc_name}_{os.path.basename(gsw_output_shp_file_main_sea_only_clipped_transformed)}'
-        gsw_output_shp_file_main_sea_only_clipped_transformed_buffered = gsw_output_shp_file_main_sea_only_clipped_transformed.replace('.shp',f"_buffered_{int(GSW_BUFFER)}m.shp")
-        gdf_gsw_main_sea_only_buffered = gdf_gsw_main_sea_only.buffer(GSW_BUFFER)
-        gdf_gsw_main_sea_only_buffered.to_file(gsw_output_shp_file_main_sea_only_clipped_transformed_buffered)
-
-
+        if 'NDWI' in coastline_file:
+            surface_water_file = coastline_file.replace('Coastline','Surface_Water')
+            gdf_surface_water = gpd.read_file(surface_water_file)
+            gdf_surface_water = gdf_surface_water.to_crs(f'EPSG:{epsg_code}')
+        else:
+            gdf_surface_water,surface_water_file = get_gsw(inundation_dir,tmp_dir,gsw_dir,epsg_code,lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max,loc_name)
+            if loc_name not in os.path.basename(surface_water_file):
+                surface_water_file = f'{os.path.dirname(surface_water_file)}/{loc_name}_{os.path.basename(surface_water_file)}'
+        surface_water_file_buffered = surface_water_file.replace('.shp',f"_buffered_{int(GSW_BUFFER)}m.shp")
+        gdf_surface_water_buffered = gdf_surface_water.buffer(GSW_BUFFER)
+        gdf_surface_water_buffered.to_file(surface_water_file_buffered)
 
     for yr,quantile_select in itertools.product(years,quantiles):
         print(f'Creating inundation in {yr}...')
@@ -394,6 +397,9 @@ def main():
         dt = int(yr - t0)
         inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
         subprocess.run(inundation_command,shell=True)
+        output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
+        polygonize_command = f'gdal_polygonize.py -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
+        subprocess.run(polygonize_command,shell=True)
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
@@ -401,19 +407,16 @@ def main():
         if connectivity_flag == True:
             print('Computing connectivity to the ocean...')
             t_start = datetime.datetime.now()
-            output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
-            output_inundation_shp_file_connected = output_inundation_shp_file.replace('.shp','_connected_GSW.shp')
-            polygonize_command = f'gdal_polygonize.py -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
-            subprocess.run(polygonize_command,shell=True)
             gdf_inundation = gpd.read_file(output_inundation_shp_file)
-            if len(gdf_gsw_main_sea_only_buffered) == 1:
-                idx_intersects = np.asarray([gdf_gsw_main_sea_only_buffered.geometry[0].intersects(geom) for geom in gdf_inundation.geometry])
-                idx_contains = np.asarray([gdf_gsw_main_sea_only_buffered.geometry[0].contains(geom) for geom in gdf_inundation.geometry])
+            output_inundation_shp_file_connected = output_inundation_shp_file.replace('.shp','_connected_GSW.shp')
+            if len(gdf_surface_water_buffered) == 1:
+                idx_intersects = np.asarray([gdf_surface_water_buffered.geometry[0].intersects(geom) for geom in gdf_inundation.geometry])
+                idx_contains = np.asarray([gdf_surface_water_buffered.geometry[0].contains(geom) for geom in gdf_inundation.geometry])
                 idx_connected = np.any((idx_intersects,idx_contains),axis=0)
             else:
-                idx_intersects = np.zeros((len(gdf_inundation),len(gdf_gsw_main_sea_only_buffered)),dtype=bool)
-                idx_contains = np.zeros((len(gdf_inundation),len(gdf_gsw_main_sea_only_buffered)),dtype=bool)
-                for i,gsw_geom in enumerate(gdf_gsw_main_sea_only_buffered.geometry):
+                idx_intersects = np.zeros((len(gdf_inundation),len(gdf_surface_water_buffered)),dtype=bool)
+                idx_contains = np.zeros((len(gdf_inundation),len(gdf_surface_water_buffered)),dtype=bool)
+                for i,gsw_geom in enumerate(gdf_surface_water_buffered.geometry):
                     idx_intersects[i,:] = np.asarray([gsw_geom.intersects(geom) for geom in gdf_inundation.geometry])
                     idx_contains[i,:] = np.asarray([gsw_geom.contains(geom) for geom in gdf_inundation.geometry])
                 idx_intersects = np.any(idx_intersects,axis=0)
