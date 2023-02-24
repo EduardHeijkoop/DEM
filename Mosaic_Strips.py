@@ -106,9 +106,12 @@ def main():
             loc_name = loc_dir.split('/')[-2]
         else:
             loc_name = single_loc_name
-        output_name = output_dir.split('/')[-2]
         t_start = datetime.datetime.now()
         print('Working on ' + loc_name)
+        if loc_name is not None:
+            output_name = loc_name
+        else:
+            output_name = output_dir.split('/')[-2]
         if loc_name != output_name:
             print('Warning! Output name and location name not the same. Continuing...')
             print(f'Calling everything {output_name} now.')
