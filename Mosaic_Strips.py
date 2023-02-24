@@ -30,6 +30,7 @@ def main():
     parser.add_argument('--horizontal',default=False,help='Incorperate horizontal alignment in mosaic?',action='store_true')
     parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
     parser.add_argument('--corrected',default=False,help='Find corrected strips instead?',action='store_true')
+    parser.add_argument('--all_strips',default=False,help='Mosaic all strips in directory? (No geometry filtering.)',action='store_true')
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
     args = parser.parse_args()
     input_file = args.input_file
@@ -39,6 +40,7 @@ def main():
     horizontal_flag = args.horizontal
     machine_name = args.machine
     corrected_flag = args.corrected
+    all_strips_flag = args.all_strips
     dir_structure = args.dir_structure
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
@@ -178,10 +180,11 @@ def main():
             strip_shp_data.to_file(output_strips_shp_file)
             subprocess.run('ogr2ogr ' + output_strips_shp_file_dissolved + ' ' + output_strips_shp_file + ' -dialect sqlite -sql \'SELECT ST_Union("geometry") FROM "' + os.path.basename(output_strips_shp_file).replace('.shp','') + '"\'',shell=True)
 
-            idx_contained = get_contained_strips(strip_shp_data,strip_dates,epsg_code,STRIP_CONTAINMENT_THRESHOLD,STRIP_DELTA_TIME_THRESHOLD,N_STRIPS_CONTAINMENT)
-            strip_dates = strip_dates[idx_contained]
-            strip_list = strip_list[idx_contained]
-            strip_shp_data = strip_shp_data.iloc[idx_contained].reset_index(drop=True)
+            if all_strips_flag == False:
+                idx_contained = get_contained_strips(strip_shp_data,strip_dates,epsg_code,STRIP_CONTAINMENT_THRESHOLD,STRIP_DELTA_TIME_THRESHOLD,N_STRIPS_CONTAINMENT)
+                strip_dates = strip_dates[idx_contained]
+                strip_list = strip_list[idx_contained]
+                strip_shp_data = strip_shp_data.iloc[idx_contained].reset_index(drop=True)
 
             strip_shp_data.to_file(output_strips_shp_file_filtered)
             subprocess.run('ogr2ogr ' + output_strips_shp_file_filtered_dissolved + ' ' + output_strips_shp_file_filtered + ' -dialect sqlite -sql \'SELECT ST_Union("geometry") FROM "' + os.path.basename(output_strips_shp_file_filtered).replace('.shp','') + '"\'',shell=True)
