@@ -615,7 +615,7 @@ def get_strip_shp(strip,tmp_dir):
     if subprocess.os.path.exists(f'{tmp_dir}tmp_strip_binary.shp'):
         for fi in glob.glob(f'{tmp_dir}tmp_strip_binary.*'):
             subprocess.os.remove(fi)
-    calc_command = f'gdal_calc.py -A {strip} --calc="A>-9999" --outfile={tmp_dir}tmp_strip_binary.tif --format=GTiff --co=\"COMPRESS=LZW\" --quiet'
+    calc_command = f'gdal_calc.py -A {strip} --calc=\"A>-9999\" --outfile={tmp_dir}tmp_strip_binary.tif --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
     subprocess.run(calc_command,shell=True)
     polygonize_command = f'gdal_polygonize.py -q {tmp_dir}tmp_strip_binary.tif -f "ESRI Shapefile" {tmp_dir}tmp_strip_binary.shp'
     subprocess.run(polygonize_command,shell=True)
@@ -865,6 +865,7 @@ def find_mosaic(strip_shp_data,mst_array,strip_dates):
             'ref':ref_list,
             'src':src_list
         }
+    print('')
     return mosaic_dict,singles_dict
 
 def populate_intersection(geom_intersection,gsw_main_sea_only_buffered,landmask_c_file,X_SPACING,Y_SPACING):
