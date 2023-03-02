@@ -919,9 +919,6 @@ def populate_intersection(geom_intersection,gsw_main_sea_only_buffered,landmask_
     return x,y
 
 def parallel_coregistration(ref_strip_ID,src_strip_ID,strip_shp_data,gsw,landmask_c_file,mosaic_dir,tmp_dir,horizontal_flag,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH):
-    '''
-    
-    '''
     ref_strip = strip_shp_data.strip[ref_strip_ID]
     src_strip = strip_shp_data.strip[src_strip_ID]
     ref_strip_sensor = ref_strip.split('/')[-1].split('_')[0]
@@ -931,12 +928,12 @@ def parallel_coregistration(ref_strip_ID,src_strip_ID,strip_shp_data,gsw,landmas
     src_ext = os.path.splitext(src_strip)[1]
     src_file = glob.glob(f'{src_base}*{src_ext}')[0]
 
+    print(f'Linking {ref_strip_ID} ({ref_strip_sensor}) to {src_strip_ID} ({src_strip_sensor})...')
     geom_intersection = strip_shp_data.geometry[src_strip_ID].intersection(strip_shp_data.geometry[ref_strip_ID])
     x_masked_total,y_masked_total = populate_intersection(geom_intersection,gsw,landmask_c_file,X_SPACING,Y_SPACING)
     strip_sampled_file = f'{mosaic_dir}Mosaic_sampled_{src_strip_ID}_for_coregistering_{ref_strip_ID}.txt'
     np.savetxt(strip_sampled_file,np.c_[x_masked_total,y_masked_total],fmt='%.3f',delimiter=' ')
     df_sampled = sample_two_rasters(src_file,ref_strip,strip_sampled_file,src_strip_ID,ref_strip_ID)
-    print(f'Linking {ref_strip_ID} ({ref_strip_sensor}) to {src_strip_ID} ({src_strip_sensor})...')
     if horizontal_flag == True:
         x_res = gdal.Open(src_strip).GetGeoTransform()[1]
         y_res = -gdal.Open(src_strip).GetGeoTransform()[5]
@@ -1012,6 +1009,9 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
             ref_ext = os.path.splitext(ref_strip)[1]
             ref_file = glob.glob(f'{ref_base}*{ref_ext}')[0]
             strip_list_coregistered = np.append(strip_list_coregistered,ref_file)
+            strip_sampled_file = f'{mosaic_dir}Mosaic_sampled_{src}_for_coregistering_{ref}.txt'
+            full_strip_sampled_file = f'{mosaic_dir}{output_name}_Mosaic_{mosaic_number}_{epsg_code}_sampled_{src}_for_coregistering_{ref}.txt'
+            subprocess.run(f'mv {strip_sampled_file} {full_strip_sampled_file}',shell=True)
 
 
     '''
