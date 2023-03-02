@@ -831,13 +831,14 @@ def find_mosaic(strip_shp_data,mst_array,strip_dates):
         current_gen = np.asarray([mosaic_ID_start])
         next_gen = np.empty([0,1],dtype=np.int16)
         done_list = current_gen
-        generation_count = 0
+        generation_count = -1
         ref_list = np.empty([0,1],dtype=int)
         src_list = np.empty([0,1],dtype=int)
         print(' ')
         print(f'Mosaic {i}:')
         print(f'Starting at: {mosaic_ID_start}')
         print(strip_dict[ID_start])
+        generation_dict = {}
         while ~path_check:
             generation_count = generation_count+1
             gen_ref_list = np.empty([0,1],dtype=int)
@@ -856,15 +857,16 @@ def find_mosaic(strip_shp_data,mst_array,strip_dates):
                     src_list = np.append(src_list,src_ID)
                     gen_ref_list = np.append(gen_ref_list,ref_ID)
                     gen_src_list = np.append(gen_src_list,src_ID)
+            generation_dict[generation_count] = {
+                'ref':gen_ref_list,
+                'src':gen_src_list
+            }
             if np.array_equal(np.sort(done_list),groups_dict[str(i)]['group']):
                 path_check = True
                 break
             current_gen = next_gen
             next_gen = np.empty([0,1],dtype=int)
-        mosaic_dict[str(i)] = {
-            'ref':ref_list,
-            'src':src_list
-        }
+        mosaic_dict[i] = generation_dict
     print('')
     return mosaic_dict,singles_dict
 

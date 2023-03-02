@@ -172,7 +172,6 @@ def main():
             
             strip_dates = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list])
             idx_date = np.argsort(-strip_dates)
-
             strip_dates = strip_dates[idx_date]
             strip_list = strip_list[idx_date]
             strip_shp_data = strip_shp_data.iloc[idx_date].reset_index(drop=True)
@@ -195,7 +194,7 @@ def main():
             
             mosaic_dict,singles_dict = find_mosaic(strip_shp_data,mst_weighted_array,strip_dates)
             for mosaic_number in range(len(mosaic_dict)):
-                merge_mosaic_output_file = build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict[str(mosaic_number)],mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH,MOSAIC_TILE_SIZE)
+                merge_mosaic_output_file = build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict[mosaic_number],mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH,MOSAIC_TILE_SIZE)
             singles_list = copy_single_strips(strip_shp_data,singles_dict,mosaic_dir,output_name,epsg_code)
             t_end = datetime.datetime.now()
             dt = t_end - t_start
