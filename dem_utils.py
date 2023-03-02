@@ -948,18 +948,14 @@ def parallel_coregistration(ref_strip_ID,src_strip_ID,strip_shp_data,gsw,landmas
             translate_command = f'gdal_translate -q -a_ullr {x_min + x_shift} {y_max + y_shift} {x_max + x_shift} {y_min + y_shift} -co "COMPRESS=LZW" -co "BIGTIFF=YES" {ref_strip} {new_ref_strip}'
             subprocess.run(translate_command,shell=True)
             df_sampled = sample_two_rasters(src_file,new_ref_strip,strip_sampled_file)
-            # strip_shp_data.strip[ref_strip_ID] = new_ref_strip
             ref_strip_shifted,vertical_shift,rmse,ratio_pts = vertical_shift_raster(new_ref_strip,df_sampled,mosaic_dir)
-            strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
             subprocess.run(f'rm {new_ref_strip}',shell=True)
         else:
             ref_strip_shifted,vertical_shift,rmse,ratio_pts = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
-            strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
     else:
         x_shift = 0
         y_shift = 0
         ref_strip_shifted,vertical_shift,rmse,ratio_pts = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
-        strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
     print(f'Results for {ref_strip_ID} ({ref_strip_sensor}) to {src_strip_ID} ({src_strip_sensor}):')
     print(f'Retained {ratio_pts*100:.1f}% of points.')
     print(f'Vertical shift: {vertical_shift:.2f} m')
