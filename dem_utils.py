@@ -937,7 +937,7 @@ def parallel_coregistration(ref_strip_ID,src_strip_ID,strip_shp_data,gsw,landmas
     if horizontal_flag == True:
         x_res = gdal.Open(src_strip).GetGeoTransform()[1]
         y_res = -gdal.Open(src_strip).GetGeoTransform()[5]
-        x_shift,y_shift = evaluate_horizontal_shift(df_sampled,ref_strip,tmp_dir,x_res=x_res,y_res=y_res,x_offset_max=X_MAX_SEARCH,y_offset_max=Y_MAX_SEARCH)
+        x_shift,y_shift = evaluate_horizontal_shift(df_sampled,ref_strip,tmp_dir,x_res=x_res,y_res=y_res,x_offset_max=X_MAX_SEARCH,y_offset_max=Y_MAX_SEARCH,primary_ID=src_strip_ID,secondary_ID=ref_strip_ID)
         if ~np.logical_and(x_shift==0,y_shift==0):
             x_min,x_max,y_min,y_max = get_raster_extents(ref_strip,'local')
             horizontal_shift_str = f'x_{x_shift:.2f}m_y_{y_shift:.2f}m'.replace('.','p').replace('-','neg')
@@ -1087,7 +1087,7 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
     print('')
     return merge_mosaic_output_file
 
-def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir,x_res=2.0,y_res=2.0,x_offset_max=8.0,y_offset_max=8.0):
+def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir,x_res=2.0,y_res=2.0,x_offset_max=8.0,y_offset_max=8.0,primary_ID='',secondary_ID=''):
     x_offset = np.arange(-1*x_offset_max,x_offset_max+x_res,x_res)
     y_offset = np.arange(-1*y_offset_max,y_offset_max+y_res,y_res)
     rmse_min = np.inf
@@ -1095,21 +1095,21 @@ def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir,x_res=2.0,y_re
         for y in y_offset:
             df_offset = df_sampled.copy()
             df_offset = df_offset.drop(columns='h_secondary')
-            output_file = f'{tmp_dir}offset_x_{x}_y_{y}.txt'.replace('-','neg').replace('.','p').replace('ptxt','.txt')
+            output_file = f'{tmp_dir}offset_x_{x}_y_{y}_{secondary_ID}_to_{primary_ID}.txt'.replace('-','neg').replace('.','p').replace('ptxt','.txt')
             df_offset['x'] = df_offset['x'] - x
             df_offset['y'] = df_offset['y'] - y
             df_offset.to_csv(output_file,columns=['x','y'],float_format='%.1f',sep=' ',index=False,header=False)
-            cat_command = f'cat {output_file} | gdallocationinfo -valonly -geoloc {raster_secondary} > {tmp_dir}tmp_sampled.txt'
+            cat_command = f'cat {output_file} | gdallocationinfo -valonly -geoloc {raster_secondary} > {tmp_dir}tmp_sampled_{secondary_ID}_to_{primary_ID}.txt'
             subprocess.run(cat_command,shell=True)
-            subprocess.run(f"sed -i 's/^$/-9999/g' {tmp_dir}tmp_sampled.txt",shell=True)
-            df_offset['h_secondary'] = np.loadtxt(f'{tmp_dir}tmp_sampled.txt')
+            subprocess.run(f"sed -i 's/^$/-9999/g' {tmp_dir}tmp_sampled_{secondary_ID}_to_{primary_ID}.txt",shell=True)
+            df_offset['h_secondary'] = np.loadtxt(f'{tmp_dir}tmp_sampled_{secondary_ID}_to_{primary_ID}.txt')
             df_offset = df_offset.dropna()
             idx_9999 = np.logical_or(df_offset['h_primary'] == -9999,df_offset['h_secondary'] == -9999)
             df_offset = df_offset[~idx_9999].reset_index(drop=True)
             vertical_shift,df_offset_filtered = calculate_shift(df_offset)
             dh = df_offset_filtered['h_primary'] - df_offset_filtered['h_secondary']
             rmse = np.sqrt(np.sum(dh**2)/len(dh))
-            subprocess.run(f'rm {output_file} {tmp_dir}tmp_sampled.txt',shell=True)
+            subprocess.run(f'rm {output_file} {tmp_dir}tmp_sampled_{secondary_ID}_to_{primary_ID}.txt',shell=True)
             if x == 0 and y == 0:
                 rmse_zero = rmse
             if rmse < rmse_min:
