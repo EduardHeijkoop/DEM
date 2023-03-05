@@ -419,7 +419,8 @@ def landmask_dem(lon,lat,lon_coast,lat_coast,landmask_c_file,inside_flag):
     '''
     c_float_p = c.POINTER(c.c_float)
     landmask_so_file = landmask_c_file.replace('.c','.so') #the .so file is created
-    subprocess.run('cc -fPIC -shared -o ' + landmask_so_file + ' ' + landmask_c_file,shell=True)
+    if not os.path.exists(landmask_so_file):
+        subprocess.run('cc -fPIC -shared -o ' + landmask_so_file + ' ' + landmask_c_file,shell=True)
     landmask_lib = c.cdll.LoadLibrary(landmask_so_file)
     arrx = (c.c_float * len(lon_coast))(*lon_coast)
     arry = (c.c_float * len(lat_coast))(*lat_coast)
