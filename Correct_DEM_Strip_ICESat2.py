@@ -311,11 +311,11 @@ def csv_to_grid(csv_file,algorithm_dict,xmin,xmax,xres,ymin,ymax,yres,epsg_code)
     layer_name = os.path.splitext(os.path.basename(csv_file))[0]
     vrt_flag = create_csv_vrt(vrt_file,csv_file,layer_name)
     if grid_algorithm == 'nearest':
-        build_grid_command = f'gdal_grid -a {grid_algorithm}:nodata={grid_nodata} -txe {xmin} {xmax} -tye {ymax} {ymin} -tr {xres} {yres} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {vrt_file} {grid_file} --config GDAL_NUM_THREADS {grid_num_threads} -co "COMPRESS=LZW"'
+        build_grid_command = f'gdal_grid -q -a {grid_algorithm}:nodata={grid_nodata} -txe {xmin} {xmax} -tye {ymax} {ymin} -tr {xres} {yres} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {vrt_file} {grid_file} --config GDAL_NUM_THREADS {grid_num_threads} -co "COMPRESS=LZW"'
     elif grid_algorithm == 'invdist':
-        build_grid_command = f'gdal_grid -a {grid_algorithm}:nodata={grid_nodata}:smoothing={grid_smoothing}:power={grid_power} -txe {xmin} {xmax} -tye {ymax} {ymin} -tr {xres} {yres} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {vrt_file} {grid_file} --config GDAL_NUM_THREADS {grid_num_threads} -co "COMPRESS=LZW"'
+        build_grid_command = f'gdal_grid -q -a {grid_algorithm}:nodata={grid_nodata}:smoothing={grid_smoothing}:power={grid_power} -txe {xmin} {xmax} -tye {ymax} {ymin} -tr {xres} {yres} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {vrt_file} {grid_file} --config GDAL_NUM_THREADS {grid_num_threads} -co "COMPRESS=LZW"'
     elif grid_algorithm == 'invdistnn':
-        build_grid_command = f'gdal_grid -a {grid_algorithm}:nodata={grid_nodata}:smoothing={grid_smoothing}:power={grid_power}:max_points={grid_max_pts}:radius={grid_max_dist} -txe {xmin} {xmax} -tye {ymax} {ymin} -tr {xres} {yres} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {vrt_file} {grid_file} --config GDAL_NUM_THREADS {grid_num_threads} -co "COMPRESS=LZW"'
+        build_grid_command = f'gdal_grid -q -a {grid_algorithm}:nodata={grid_nodata}:smoothing={grid_smoothing}:power={grid_power}:max_points={grid_max_pts}:radius={grid_max_dist} -txe {xmin} {xmax} -tye {ymax} {ymin} -tr {xres} {yres} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {vrt_file} {grid_file} --config GDAL_NUM_THREADS {grid_num_threads} -co "COMPRESS=LZW"'
     subprocess.run(build_grid_command,shell=True)
     return grid_file
 
@@ -392,7 +392,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     x_plane,y_plane,dh_plane = compute_plane_correction(df_sampled_coregistered,raster_shifted)
     if x_plane is not None:
         write_code = raster_to_geotiff(x_plane,y_plane,dh_plane,src_dem_epsg,plane_correction_file_coarse)
-        resample_code = resample_raster(plane_correction_file_coarse,raster_shifted,plane_correction_file)
+        resample_code = resample_raster(plane_correction_file_coarse,raster_shifted,plane_correction_file,quiet_flag=True)
         subprocess.run(f'rm {plane_correction_file_coarse}',shell=True)
         plane_corrected_dem = f'{tmp_dir}{raster_shifted_base}_Plane_Corrected{raster_shifted_ext}'
         plane_corrected_dem_base,plane_corrected_dem_ext = os.path.splitext(os.path.basename(plane_corrected_dem))
@@ -424,7 +424,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     x_jitter,y_jitter,dh_jitter = compute_jitter_correction(df_sampled_plane_corrected,plane_corrected_dem)
     if x_jitter is not None:
         write_code = raster_to_geotiff(x_jitter,y_jitter,dh_jitter,src_dem_epsg,jitter_correction_file_coarse)
-        resample_code = resample_raster(jitter_correction_file_coarse,raster_shifted,jitter_correction_file)
+        resample_code = resample_raster(jitter_correction_file_coarse,raster_shifted,jitter_correction_file,quiet_flag=True)
         subprocess.run(f'rm {jitter_correction_file_coarse}',shell=True)
         jitter_corrected_dem = f'{tmp_dir}{plane_corrected_dem_base}_Jitter_Corrected{plane_corrected_dem_ext}'
         jitter_corrected_dem = jitter_corrected_dem.replace('Plane_Corrected_Jitter_Corrected','Plane_Jitter_Corrected')
@@ -454,7 +454,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         print(f'Finished correcting {dem}.')
         print(f'RMSE of original DEM: {raster_stats_dict["rmse_original"]:.2f} m')
         print(f'RMSE of co-registered DEM: {raster_stats_dict["rmse_coregistered"]:.2f} m')
-        print(f'Coregistration converged in {raster_stats_dict["iterations"]} iterations.')
+        print(f'Coregistration converged in {raster_stats_dict["N_iterations"]} iterations.')
         print(f'Retained {raster_stats_dict["N_points_after"]} of {raster_stats_dict["N_points_before"]} points ({100*raster_stats_dict["N_points_after"]/raster_stats_dict["N_points_before"]:.1f}%).')
         if x_plane is None:
             print(f'Plane correction was too small and was not applied.')
@@ -552,6 +552,7 @@ def main():
     
     print('Loading ICESat-2...')    
     df_icesat2 = pd.read_csv(icesat2_file,header=None,names=['lon','lat','height_icesat2','time'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str'})
+    print('Loading done.')
 
     ir = itertools.repeat
     p = multiprocessing.Pool(np.min((N_cpus,len(dem_array))))

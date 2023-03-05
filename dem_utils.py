@@ -259,7 +259,7 @@ def great_circle_distance(lon1,lat1,lon2,lat2,R=6378137.0):
     distance = R*dsigma
     return distance
 
-def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resample_method='bilinear',compress=True):
+def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resample_method='bilinear',compress=True,quiet_flag=False):
     '''
     src = what you want to resample
     match = resample to this one's resolution
@@ -290,10 +290,10 @@ def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resamp
         gdal.ReprojectImage(src,dst,src_proj,match_proj,gdalconst.GRA_CubicSpline)
     del dst # Flush
     if compress == True:
-        compress_raster(dst_filename,nodata)
+        compress_raster(dst_filename,nodata,quiet_flag)
     return None
 
-def compress_raster(filename,nodata=-9999):
+def compress_raster(filename,nodata=-9999,quiet_flag = False):
     '''
     Compress a raster using gdal_translate
     '''
@@ -303,6 +303,8 @@ def compress_raster(filename,nodata=-9999):
         compress_command = f'gdal_translate -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" -a_nodata {nodata} {filename} {tmp_filename}'
     else:
         compress_command = f'gdal_translate -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" {filename} {tmp_filename}'
+    if quiet_flag == True:
+        compress_command = compress_command.replace('gdal_translate','gdal_translate -q')
     move_command = f'mv {tmp_filename} {filename}'
     subprocess.run(compress_command,shell=True)
     subprocess.run(move_command,shell=True)
