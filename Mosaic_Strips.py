@@ -32,7 +32,7 @@ def main():
     parser.add_argument('--corrected',default=False,help='Find corrected strips instead?',action='store_true')
     parser.add_argument('--all_strips',default=False,help='Mosaic all strips in directory? (No geometry filtering.)',action='store_true')
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
-    parser.add_argument('--cpus',help='Number of cpus to use',default=1)
+    parser.add_argument('--cpus',help='Number of CPUs to use',default=1,type=int)
     args = parser.parse_args()
     input_file = args.input_file
     list_file = args.list
@@ -43,7 +43,7 @@ def main():
     corrected_flag = args.corrected
     all_strips_flag = args.all_strips
     dir_structure = args.dir_structure
-    N_cpus = int(args.cpus)
+    N_cpus = args.cpus
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
@@ -170,7 +170,7 @@ def main():
             output_strips_shp_file_filtered = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered.shp'
             output_strips_shp_file_filtered_dissolved = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered_Dissolved.shp'
             print('\n')
-            print(output_strips_shp_file)
+            # print(output_strips_shp_file)
             
             strip_dates = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list])
             idx_date = np.argsort(-strip_dates)

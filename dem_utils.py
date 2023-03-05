@@ -1093,6 +1093,8 @@ def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir,x_res=2.0,y_re
     x_offset = np.arange(-1*x_offset_max,x_offset_max+x_res,x_res)
     y_offset = np.arange(-1*y_offset_max,y_offset_max+y_res,y_res)
     rmse_min = np.inf
+    x_opt = x_offset[0]
+    y_opt = y_offset[0]
     for x in x_offset:
         for y in y_offset:
             df_offset = df_sampled.copy()
