@@ -340,7 +340,7 @@ def raster_to_geotiff(x,y,arr,epsg_code,output_file):
     dataset = None
     return None
 
-def parallel_corrections(dem,df_icesat2,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,N_coverage_minimum,N_photons_minimum,tmp_dir,keep_flag,print_flag):
+def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,N_coverage_minimum,N_photons_minimum,tmp_dir,keep_flag,print_flag):
     lon_icesat2 = np.asarray(df_icesat2.lon)
     lat_icesat2 = np.asarray(df_icesat2.lat)
     height_icesat2 = np.asarray(df_icesat2.height_icesat2)
@@ -557,7 +557,7 @@ def main():
     p = multiprocessing.Pool(np.min((N_cpus,len(dem_array))))
     p.starmap(parallel_corrections,zip(
         dem_array,
-        ir(df_icesat2),ir(mean_median_mode),ir(n_sigma_filter),ir(vertical_shift_iterative_threshold),
+        ir(df_icesat2),ir(icesat2_file),ir(mean_median_mode),ir(n_sigma_filter),ir(vertical_shift_iterative_threshold),
         ir(N_coverage_minimum),ir(N_photons_minimum),ir(tmp_dir),ir(keep_flag),ir(print_flag)
         ))
     p.close()
