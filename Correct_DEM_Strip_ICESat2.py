@@ -365,7 +365,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     idx_lonlat = np.logical_and(idx_lon,idx_lat)
     if not (np.sum(idx_lonlat) / len(idx_lonlat) >= N_coverage_minimum or np.sum(idx_lonlat) >= N_photons_minimum):
         print(f'Not enough ICESat-2 coverage over {dem_base}! Skipping.')
-        print(f'ICESat-2 coverage: {100*np.sum(idx_lonlat) / len(idx_lonlat):2.f}%')
+        print(f'ICESat-2 coverage: {100*np.sum(idx_lonlat) / len(idx_lonlat):.2f}%')
         print(f'ICESat-2 photons: {np.sum(idx_lonlat)}')
         return None
     lon_icesat2 = lon_icesat2[idx_lonlat]
