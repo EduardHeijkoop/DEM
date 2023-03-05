@@ -11,23 +11,26 @@ import os
 import sys
 import scipy.optimize
 import xml.etree.ElementTree as ET
+import multiprocessing
+import itertools
 
-from scipy.interpolate import SmoothBivariateSpline,LSQBivariateSpline,griddata
+from scipy.interpolate import SmoothBivariateSpline,LSQBivariateSpline
 
 from dem_utils import deg2utm,get_raster_extents,resample_raster
 
 
 def sample_raster(raster_path, csv_path, output_file,projection='wgs84'):
-    cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -{projection} {raster_path} > tmp.txt"
+    raster_base = os.path.splitext(raster_path.split('/')[-1])[0]
+    cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -{projection} {raster_path} > tmp_{raster_base}.txt"
     subprocess.run(cat_command,shell=True)
-    fill_nan_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp.txt > tmp2.txt"
+    fill_nan_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_{raster_base}.txt > tmp2_{raster_base}.txt"
     subprocess.run(fill_nan_command,shell=True)
-    paste_command = f"paste -d , {csv_path} tmp2.txt > {output_file}"
+    paste_command = f"paste -d , {csv_path} tmp2_{raster_base}.txt > {output_file}"
     subprocess.run(paste_command,shell=True)
     subprocess.run(f"sed -i '/-9999/d' {output_file}",shell=True)
     subprocess.run(f"sed -i '/NaN/d' {output_file}",shell=True)
     subprocess.run(f"sed -i '/nan/d' {output_file}",shell=True)
-    subprocess.run(f"rm tmp.txt tmp2.txt",shell=True)
+    subprocess.run(f"rm tmp_{raster_base}.txt tmp2_{raster_base}.txt",shell=True)
     return None
 
 def filter_outliers(dh,mean_median_mode='mean',n_sigma_filter=2):
@@ -41,7 +44,7 @@ def filter_outliers(dh,mean_median_mode='mean',n_sigma_filter=2):
     dh_filter = np.abs(dh-dh_mean_filter) < n_sigma_filter*dh_std
     return dh_filter
 
-def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05,printing=False):
+def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05):
     count = 0
     cumulative_shift = 0
     original_len = len(df_sampled)
@@ -62,9 +65,9 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
         df_sampled = df_sampled[dh_filter].reset_index(drop=True)
         df_sampled.height_dem = df_sampled.height_dem + incremental_shift
         cumulative_shift = cumulative_shift + incremental_shift
-        if printing == True:
-            print(f'Iteration        : {count}')
-            print(f'Incremental shift: {incremental_shift:.2f} m\n')
+        # if printing == True:
+            # print(f'Iteration        : {count}')
+            # print(f'Incremental shift: {incremental_shift:.2f} m\n')
         if np.abs(incremental_shift) <= vertical_shift_iterative_threshold:
             break
         if count == 15:
@@ -73,55 +76,60 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
     height_dem_filtered = np.asarray(df_sampled.height_dem)
     dh_filtered = height_icesat2_filtered - height_dem_filtered
     rmse_filtered = np.sqrt(np.sum(dh_filtered**2)/len(dh_filtered))
-    if printing == True:
-        print(f'Number of iterations: {count}')
-        print(f'Number of points before filtering: {original_len}')
-        print(f'Number of points after filtering: {len(df_sampled)}')
-        print(f'Retained {len(df_sampled)/original_len*100:.1f}% of points.')
-        print(f'Cumulative shift: {cumulative_shift:.2f} m')
-        print(f'RMSE before filtering: {rmse_original:.2f} m')
-        print(f'RMSE after filtering: {rmse_filtered:.2f} m')
-    return df_sampled,cumulative_shift
+    stats_dict = {
+        'N_iterations':count,
+        'N_points_before':original_len,
+        'N_points_after':len(df_sampled),
+        'cumulative_shift':cumulative_shift,
+        'rmse_original':rmse_original,
+        'rmse_coregistered':rmse_filtered
+    }
+    # if printing == True:
+    #     print(f'Number of iterations: {count}')
+    #     print(f'Number of points before filtering: {original_len}')
+    #     print(f'Number of points after filtering: {len(df_sampled)}')
+    #     print(f'Retained {len(df_sampled)/original_len*100:.1f}% of points.')
+    #     print(f'Cumulative shift: {cumulative_shift:.2f} m')
+    #     print(f'RMSE before filtering: {rmse_original:.2f} m')
+    #     print(f'RMSE after filtering: {rmse_filtered:.2f} m')
+    return df_sampled,cumulative_shift,stats_dict
 
 
-def vertical_shift_raster(raster_path,df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05,corrections_only_flag=False,print_flag=False,new_dir=None):
+def vertical_shift_raster(raster_path,df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.05,new_dir=None):
     src = gdal.Open(raster_path,gdalconst.GA_Update)
     raster_nodata = src.GetRasterBand(1).GetNoDataValue()
-    df_sampled_filtered,vertical_shift = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,print_flag)
+    df_sampled_filtered,vertical_shift,stats_dict = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold)
     raster_base,raster_ext = os.path.splitext(raster_path)
     if new_dir is not None:
         raster_base = os.path.join(new_dir,os.path.basename(raster_base))
-    if corrections_only_flag == False:
-        if 'Shifted' in raster_base:
-            if 'Shifted_x' in raster_base:
-                if '_z_' in raster_base:
-                    #case: input is Shifted_x_0.00m_y_0.00m_z_0.00m*.tif
-                    original_shift = float(raster_base.split('Shifted')[1].split('_z_')[1].split('_')[0].replace('p','.').replace('neg','-').replace('m',''))
-                    original_shift_str = f'{original_shift}'.replace(".","p").replace("-","neg")
-                    new_shift = original_shift + vertical_shift
-                    new_shift_str = f'{new_shift:.2f}'.replace('.','p').replace('-','neg')
-                    raster_shifted = f'{raster_base}{raster_ext}'.replace(original_shift_str,new_shift_str)
-                else:
-                    #case: input is Shifted_x_0.00m_y_0.00m*.tif
-                    vertical_shift_str = f'{vertical_shift:.2f}'.replace('.','p').replace('-','neg')
-                    post_string_fill = "_".join(raster_base.split("_y_")[1].split("_")[1:])
-                    if len(post_string_fill) == 0:
-                        raster_shifted = f'{raster_base}{raster_ext}'.replace(raster_ext,f'_z_{vertical_shift_str}m{raster_ext}')
-                    else:
-                        raster_shifted = f'{raster_base.split(post_string_fill)[0]}z_{vertical_shift_str}m_{post_string_fill}{raster_ext}'
-            elif 'Shifted_z' in raster_base:
-                #case: input is Shifted_z_0.00m*.tif
+    if 'Shifted' in raster_base:
+        if 'Shifted_x' in raster_base:
+            if '_z_' in raster_base:
+                #case: input is Shifted_x_0.00m_y_0.00m_z_0.00m*.tif
                 original_shift = float(raster_base.split('Shifted')[1].split('_z_')[1].split('_')[0].replace('p','.').replace('neg','-').replace('m',''))
+                original_shift_str = f'{original_shift}'.replace(".","p").replace("-","neg")
                 new_shift = original_shift + vertical_shift
-                raster_shifted = f'{raster_base.split("Shifted")[0]}Shifted_z_{"{:.2f}".format(new_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
-        else:
-            #case: input is *.tif
-            raster_shifted = f'{raster_base}_Shifted_z_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
-        shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
-        subprocess.run(shift_command,shell=True)
+                new_shift_str = f'{new_shift:.2f}'.replace('.','p').replace('-','neg')
+                raster_shifted = f'{raster_base}{raster_ext}'.replace(original_shift_str,new_shift_str)
+            else:
+                #case: input is Shifted_x_0.00m_y_0.00m*.tif
+                vertical_shift_str = f'{vertical_shift:.2f}'.replace('.','p').replace('-','neg')
+                post_string_fill = "_".join(raster_base.split("_y_")[1].split("_")[1:])
+                if len(post_string_fill) == 0:
+                    raster_shifted = f'{raster_base}{raster_ext}'.replace(raster_ext,f'_z_{vertical_shift_str}m{raster_ext}')
+                else:
+                    raster_shifted = f'{raster_base.split(post_string_fill)[0]}z_{vertical_shift_str}m_{post_string_fill}{raster_ext}'
+        elif 'Shifted_z' in raster_base:
+            #case: input is Shifted_z_0.00m*.tif
+            original_shift = float(raster_base.split('Shifted')[1].split('_z_')[1].split('_')[0].replace('p','.').replace('neg','-').replace('m',''))
+            new_shift = original_shift + vertical_shift
+            raster_shifted = f'{raster_base.split("Shifted")[0]}Shifted_z_{"{:.2f}".format(new_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
     else:
-        raster_shifted = raster_path
-    return df_sampled_filtered,raster_shifted
+        #case: input is *.tif
+        raster_shifted = f'{raster_base}_Shifted_z_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
+    shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+    subprocess.run(shift_command,shell=True)
+    return df_sampled_filtered,raster_shifted,stats_dict
 
 def fit_sine(x,a,b):
     return a*np.sin(b*x)
@@ -227,7 +235,7 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
         y_segments_array = np.append(y_segments_array,y_segments)
         dh_segments_array = np.append(dh_segments_array,dh_segment_sine)
     if count_error >= N_segments_x/2:
-        print('Jitter correction failed')
+        # print('Jitter correction failed')
         return None,None,None
     xy_segments_array = np.stack((x_segments_array,y_segments_array),axis=1)
     xres = 100
@@ -247,11 +255,14 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
             p0=[A_jitter,c_jitter,p_jitter,k_jitter,x_dem_min,y_dem_min],
             bounds=((-np.max(np.abs(dh_segments_array)),-0.0005,0.9*p_jitter,-2,0.8*x_dem_min,0.8*y_dem_min),(1.5*np.max(np.abs(dh_segments_array)),0.0005,1.1*p_jitter,2,1.1*x_dem_max,1.1*y_dem_max)))
     except ValueError:
-        print('Jitter correction failed')
+        # print('Jitter correction failed')
         return None,None,None
     dh_jitter_orig = fit_jitter(xy_segments_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
     dh_jitter = fit_jitter(xy_mesh_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
     dh_grid = np.reshape(dh_jitter,x_mesh.shape)
+    if np.max(np.abs(dh_grid)) < 0.1:
+        # print('Jitter correction is too flat. Skipping jitter correction.')
+        return None,None,None
     return x_grid,y_grid,dh_grid
 
 def interpolate_points(x_input,y_input,h_input,x_output,y_output,interpolate_method='Smooth',k_select=3):
@@ -329,6 +340,153 @@ def raster_to_geotiff(x,y,arr,epsg_code,output_file):
     dataset = None
     return None
 
+def parallel_corrections(dem,df_icesat2,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,N_coverage_minimum,N_photons_minimum,tmp_dir,keep_flag,print_flag):
+    lon_icesat2 = np.asarray(df_icesat2.lon)
+    lat_icesat2 = np.asarray(df_icesat2.lat)
+    height_icesat2 = np.asarray(df_icesat2.height_icesat2)
+    time_icesat2 = np.asarray(df_icesat2.time)
+    print(f'Processing {dem}...')
+    icesat2_base,icesat2_ext = os.path.splitext(os.path.basename(icesat2_file))
+    dem_base,dem_ext = os.path.splitext(os.path.basename(dem))
+    sampled_original_file = f'{tmp_dir}{icesat2_base}_Sampled_{dem_base}{icesat2_ext}'
+    plane_correction_file_coarse = f'{tmp_dir}{dem_base}_coarse_plane_correction{dem_ext}'
+    plane_correction_file = f'{tmp_dir}{dem_base}_plane_correction{dem_ext}'
+    jitter_correction_file_coarse = f'{tmp_dir}{dem_base}_coarse_jitter_correction{dem_ext}'
+    jitter_correction_file = f'{tmp_dir}{dem_base}_jitter_correction{dem_ext}'
+
+    src_dem = gdal.Open(dem,gdalconst.GA_Update)
+    src_dem_proj = src_dem.GetProjection()
+    src_dem_geotrans = src_dem.GetGeoTransform()
+    src_dem_epsg = osr.SpatialReference(wkt=src_dem_proj).GetAttrValue('AUTHORITY',1)
+    lon_min_dem,lon_max_dem,lat_min_dem,lat_max_dem = get_raster_extents(dem)
+
+    idx_lon = np.logical_and(lon_icesat2 >= lon_min_dem,lon_icesat2 <= lon_max_dem)
+    idx_lat = np.logical_and(lat_icesat2 >= lat_min_dem,lat_icesat2 <= lat_max_dem)
+    idx_lonlat = np.logical_and(idx_lon,idx_lat)
+    if np.sum(idx_lonlat) / len(idx_lonlat) < 0.01:
+        print(f'Not enough ICESat-2 coverage over {dem}! Skipping.')
+        return None
+    lon_icesat2 = lon_icesat2[idx_lonlat]
+    lat_icesat2 = lat_icesat2[idx_lonlat]
+    height_icesat2 = height_icesat2[idx_lonlat]
+    time_icesat2 = time_icesat2[idx_lonlat]
+    if np.sum(idx_lonlat)/len(idx_lonlat) < 0.9:
+        # print('ICESat-2 file covers more than just the DEM.')
+        # print('Subsetting into new file.')
+        icesat2_file = f'{tmp_dir}{os.path.splitext(os.path.basename(icesat2_file))[0]}_Subset_{os.path.splitext(os.path.basename(dem))[0]}{os.path.splitext(icesat2_file)[1]}'
+        np.savetxt(icesat2_file,np.c_[lon_icesat2,lat_icesat2,height_icesat2,time_icesat2.astype(object)],fmt='%f,%f,%f,%s',delimiter=',')
+        subset_flag = True
+    else:
+        subset_flag = False
+
+    sample_code = sample_raster(dem,icesat2_file,sampled_original_file)
+    df_sampled_original = pd.read_csv(sampled_original_file,header=None,names=['lon','lat','height_icesat2','time','height_dem'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float'})
+    df_sampled_coregistered,raster_shifted,raster_stats_dict = vertical_shift_raster(dem,df_sampled_original,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,new_dir=tmp_dir)
+    raster_shifted_base,raster_shifted_ext = os.path.splitext(os.path.basename(raster_shifted))
+    sampled_coregistered_file = f'{tmp_dir}{icesat2_base}_Sampled_{dem_base}_Coregistered{icesat2_ext}'
+    df_sampled_coregistered.to_csv(sampled_coregistered_file,header=None,index=False,sep=',',float_format='%.6f')
+    dh_coregistered = df_sampled_coregistered.height_icesat2 - df_sampled_coregistered.height_dem
+    rmse_coregistered = np.sqrt(np.sum(dh_coregistered**2)/len(dh_coregistered))
+    # print(f'RMSE of co-registered DEM: {rmse_coregistered:.2f} m')
+
+    x_plane,y_plane,dh_plane = compute_plane_correction(df_sampled_coregistered,raster_shifted)
+    if x_plane is not None:
+        write_code = raster_to_geotiff(x_plane,y_plane,dh_plane,src_dem_epsg,plane_correction_file_coarse)
+        resample_code = resample_raster(plane_correction_file_coarse,raster_shifted,plane_correction_file)
+        subprocess.run(f'rm {plane_correction_file_coarse}',shell=True)
+        plane_corrected_dem = f'{tmp_dir}{raster_shifted_base}_Plane_Corrected{raster_shifted_ext}'
+        plane_corrected_dem_base,plane_corrected_dem_ext = os.path.splitext(os.path.basename(plane_corrected_dem))
+        plane_correction_command = f'gdal_calc.py --quiet -A {raster_shifted} -B {plane_correction_file} --outfile={plane_corrected_dem} --calc="A+B" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
+        subprocess.run(plane_correction_command,shell=True)
+        sampled_plane_corrected_file = f'{tmp_dir}{icesat2_base}_Sampled_{plane_corrected_dem_base}{icesat2_ext}'
+        sample_code = sample_raster(plane_corrected_dem,sampled_coregistered_file,sampled_plane_corrected_file)
+        df_sampled_plane_corrected = pd.read_csv(sampled_plane_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem','height_dem_plane_corrected'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float','height_dem__plane_corrected':'float'})
+        dh_plane_corrected = df_sampled_plane_corrected.height_icesat2 - df_sampled_plane_corrected.height_dem_plane_corrected
+        rmse_plane_corrected = np.sqrt(np.sum(dh_plane_corrected**2)/len(dh_plane_corrected))
+        # print(f'RMSE of plane-corrected DEM: {rmse_plane_corrected:.2f} m')
+        raster_stats_dict['plane_improvement'] = True
+        if rmse_plane_corrected > rmse_coregistered:
+            # print('Plane correction did not improve RMSE. Keeping co-registered DEM.')
+            raster_stats_dict['plane_improvement'] = False
+            rmse_plane_corrected = rmse_coregistered
+            plane_corrected_dem = raster_shifted
+            df_sampled_plane_corrected = df_sampled_coregistered
+        if keep_flag == False:
+            if os.path.exists(sampled_plane_corrected_file):
+                subprocess.run(f'rm {sampled_plane_corrected_file}',shell=True)
+            if os.path.exists(plane_correction_file):
+                subprocess.run(f'rm {plane_correction_file}',shell=True)
+    else:
+        plane_corrected_dem = raster_shifted
+        plane_corrected_dem_base,plane_corrected_dem_ext = os.path.splitext(os.path.basename(plane_corrected_dem))
+        df_sampled_plane_corrected = df_sampled_coregistered
+
+    x_jitter,y_jitter,dh_jitter = compute_jitter_correction(df_sampled_plane_corrected,plane_corrected_dem)
+    if x_jitter is not None:
+        write_code = raster_to_geotiff(x_jitter,y_jitter,dh_jitter,src_dem_epsg,jitter_correction_file_coarse)
+        resample_code = resample_raster(jitter_correction_file_coarse,raster_shifted,jitter_correction_file)
+        subprocess.run(f'rm {jitter_correction_file_coarse}',shell=True)
+        jitter_corrected_dem = f'{tmp_dir}{plane_corrected_dem_base}_Jitter_Corrected{plane_corrected_dem_ext}'
+        jitter_corrected_dem = jitter_corrected_dem.replace('Plane_Corrected_Jitter_Corrected','Plane_Jitter_Corrected')
+        jitter_corrected_dem_base,jitter_corrected_dem_ext = os.path.splitext(os.path.basename(jitter_corrected_dem))
+        jitter_correction_command = f'gdal_calc.py --quiet -A {plane_corrected_dem} -B {jitter_correction_file} --outfile={jitter_corrected_dem} --calc="A+B" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
+        subprocess.run(jitter_correction_command,shell=True)
+        sampled_jitter_corrected_file = f'{tmp_dir}{icesat2_base}_Sampled_{jitter_corrected_dem_base}{icesat2_ext}'
+        sample_code = sample_raster(jitter_corrected_dem,sampled_coregistered_file,sampled_jitter_corrected_file)
+        df_sampled_jitter_corrected = pd.read_csv(sampled_jitter_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem','height_dem_jitter_corrected'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float','height_dem_jitter_corrected':'float'})
+        dh_jitter_corrected = df_sampled_jitter_corrected.height_icesat2 - df_sampled_jitter_corrected.height_dem_jitter_corrected
+        rmse_jitter_corrected = np.sqrt(np.sum(dh_jitter_corrected**2)/len(dh_jitter_corrected))
+        # print(f'RMSE of jitter-corrected DEM: {rmse_jitter_corrected:.2f} m')
+        raster_stats_dict['jitter_improvement'] = True
+        if rmse_jitter_corrected > rmse_plane_corrected:
+            # print('Jitter correction did not improve RMSE. Keeping plane-corrected DEM.')
+            raster_stats_dict['jitter_improvement'] = False
+        if keep_flag == False:
+            if os.path.exists(sampled_jitter_corrected_file):
+                subprocess.run(f'rm {sampled_jitter_corrected_file}',shell=True)
+            if os.path.exists(jitter_correction_file):
+                subprocess.run(f'rm {jitter_correction_file}',shell=True)
+    else:
+        jitter_corrected_dem = plane_corrected_dem
+    subprocess.run(f'mv {jitter_corrected_dem} {os.path.dirname(dem)}/',shell=True)
+
+    if print_flag == True:
+        print(f'Finished correcting {dem}.')
+        print(f'RMSE of original DEM: {raster_stats_dict["rmse_original"]:.2f} m')
+        print(f'RMSE of co-registered DEM: {raster_stats_dict["rmse_coregistered"]:.2f} m')
+        print(f'Coregistration converged in {raster_stats_dict["iterations"]} iterations.')
+        print(f'Retained {raster_stats_dict["N_points_after"]} of {raster_stats_dict["N_points_before"]} points ({100*raster_stats_dict["N_points_after"]/raster_stats_dict["N_points_before"]:.1f}%).')
+        if x_plane is None:
+            print(f'Plane correction was too small and was not applied.')
+        elif raster_stats_dict['plane_imrpovement'] == False:
+            print(f'Plane correction did not improve RMSE. Did not apply correction.')
+        else:
+            print(f'RMSE of plane-corrected DEM: {rmse_plane_corrected:.2f} m')
+        
+        if x_jitter is None:
+            print(f'Jitter correction failed or was too small and was not applied.')
+        elif raster_stats_dict['jitter_improvement'] == False:
+            print(f'Jitter correction did not improve RMSE. Did not apply correction.')
+        else:
+            print(f'RMSE of jitter-corrected DEM: {rmse_jitter_corrected:.2f} m')
+    if subset_flag == True:
+        subprocess.run(f'rm {icesat2_file}',shell=True)
+
+    if keep_flag == False:
+        if os.path.exists(sampled_original_file):
+            subprocess.run(f'rm {sampled_original_file}',shell=True)
+        if os.path.exists(sampled_coregistered_file):
+            subprocess.run(f'rm {sampled_coregistered_file}',shell=True)
+        if os.path.exists(raster_shifted):
+            subprocess.run(f'rm {raster_shifted}',shell=True)
+        if os.path.exists(plane_corrected_dem):
+            subprocess.run(f'rm {plane_corrected_dem}',shell=True)
+        if os.path.exists(jitter_corrected_dem):
+            subprocess.run(f'rm {jitter_corrected_dem}',shell=True)
+
+
+
+
 def main():
     warnings.simplefilter(action='ignore')
     config_file = 'dem_config.ini'
@@ -343,12 +501,13 @@ def main():
     parser.add_argument('--median',default=False,action='store_true')
     parser.add_argument('--sigma', nargs='?', type=int, default=2)
     parser.add_argument('--threshold', nargs='?', type=float, default=0.02)
-    parser.add_argument('--corrections_only',help='Corrections only, no co-registration?',default=False,action='store_true')
     parser.add_argument('--print',default=False,action='store_true')
     parser.add_argument('--keep_files',default=False,action='store_true')
+    parser.add_argument('--cpus',help='Number of CPUs to use',default=1,type=int)
     args = parser.parse_args()
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
+    N_photons_minimum = config.getint('CORRECTIONS_CONSTANTS','N_photons_minimum')
 
     dem_file = args.dem
     dem_list_file = args.dem_list
@@ -357,9 +516,9 @@ def main():
     median_mode = args.median
     n_sigma_filter = args.sigma
     vertical_shift_iterative_threshold = args.threshold
-    corrections_only_flag = args.corrections_only
     print_flag = args.print
     keep_flag = args.keep_files
+    N_cpus = args.cpus
 
     if dem_file is not None and dem_list_file is not None:
         print('Only doing files in list.')
@@ -383,126 +542,15 @@ def main():
         print('Please choose exactly one mode: mean or median.')
         sys.exit()
     
-    icesat2_orig_file = icesat2_file
     df_icesat2 = pd.read_csv(icesat2_file,header=None,names=['lon','lat','height_icesat2','time'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str'})
 
-    for dem in dem_array:
-        lon_icesat2 = np.asarray(df_icesat2.lon)
-        lat_icesat2 = np.asarray(df_icesat2.lat)
-        height_icesat2 = np.asarray(df_icesat2.height_icesat2)
-        time_icesat2 = np.asarray(df_icesat2.time)
-        print(f'Processing {dem}')
-        icesat2_base,icesat2_ext = os.path.splitext(os.path.basename(icesat2_file))
-        dem_base,dem_ext = os.path.splitext(os.path.basename(dem))
-        sampled_original_file = f'{tmp_dir}{icesat2_base}_Sampled_{dem_base}{icesat2_ext}'
-        plane_correction_file_coarse = f'{tmp_dir}{dem_base}_coarse_plane_correction{dem_ext}'
-        plane_correction_file = f'{tmp_dir}{dem_base}_plane_correction{dem_ext}'
-        jitter_correction_file_coarse = f'{tmp_dir}{dem_base}_coarse_jitter_correction{dem_ext}'
-        jitter_correction_file = f'{tmp_dir}{dem_base}_jitter_correction{dem_ext}'
-
-        src_dem = gdal.Open(dem,gdalconst.GA_Update)
-        src_dem_proj = src_dem.GetProjection()
-        src_dem_geotrans = src_dem.GetGeoTransform()
-        src_dem_epsg = osr.SpatialReference(wkt=src_dem_proj).GetAttrValue('AUTHORITY',1)
-        lon_min_dem,lon_max_dem,lat_min_dem,lat_max_dem = get_raster_extents(dem)
-
-        idx_lon = np.logical_and(lon_icesat2 >= lon_min_dem,lon_icesat2 <= lon_max_dem)
-        idx_lat = np.logical_and(lat_icesat2 >= lat_min_dem,lat_icesat2 <= lat_max_dem)
-        idx_lonlat = np.logical_and(idx_lon,idx_lat)
-        if np.sum(idx_lonlat) / len(idx_lonlat) < 0.01:
-            print('Not enough ICESat-2 coverage over this DEM. Skipping.')
-            continue
-        lon_icesat2 = lon_icesat2[idx_lonlat]
-        lat_icesat2 = lat_icesat2[idx_lonlat]
-        height_icesat2 = height_icesat2[idx_lonlat]
-        time_icesat2 = time_icesat2[idx_lonlat]
-        if np.sum(idx_lonlat)/len(idx_lonlat) < 0.9:
-            print('ICESat-2 file covers more than just the DEM.')
-            print('Subsetting into new file.')
-            icesat2_file = f'{tmp_dir}{os.path.splitext(os.path.basename(icesat2_file))[0]}_Subset_{os.path.splitext(os.path.basename(dem))[0]}{os.path.splitext(icesat2_file)[1]}'
-            np.savetxt(icesat2_file,np.c_[lon_icesat2,lat_icesat2,height_icesat2,time_icesat2.astype(object)],fmt='%f,%f,%f,%s',delimiter=',')
-            subset_flag = True
-        else:
-            subset_flag = False
-
-        sample_code = sample_raster(dem,icesat2_file,sampled_original_file)
-        df_sampled_original = pd.read_csv(sampled_original_file,header=None,names=['lon','lat','height_icesat2','time','height_dem'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float'})
-        df_sampled_coregistered,raster_shifted = vertical_shift_raster(dem,df_sampled_original,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,corrections_only_flag,print_flag,new_dir=tmp_dir)
-        raster_shifted_base,raster_shifted_ext = os.path.splitext(os.path.basename(raster_shifted))
-        sampled_coregistered_file = f'{tmp_dir}{icesat2_base}_Sampled_{dem_base}_Coregistered{icesat2_ext}'
-        df_sampled_coregistered.to_csv(sampled_coregistered_file,header=None,index=False,sep=',',float_format='%.6f')
-        dh_coregistered = df_sampled_coregistered.height_icesat2 - df_sampled_coregistered.height_dem
-        rmse_coregistered = np.sqrt(np.sum(dh_coregistered**2)/len(dh_coregistered))
-        print(f'RMSE of co-registered DEM: {rmse_coregistered:.2f} m')
-
-        x_plane,y_plane,dh_plane = compute_plane_correction(df_sampled_coregistered,raster_shifted)
-        if x_plane is not None:
-            write_code = raster_to_geotiff(x_plane,y_plane,dh_plane,src_dem_epsg,plane_correction_file_coarse)
-            resample_code = resample_raster(plane_correction_file_coarse,raster_shifted,plane_correction_file)
-            subprocess.run(f'rm {plane_correction_file_coarse}',shell=True)
-            plane_corrected_dem = f'{tmp_dir}{raster_shifted_base}_Plane_Corrected{raster_shifted_ext}'
-            plane_corrected_dem_base,plane_corrected_dem_ext = os.path.splitext(os.path.basename(plane_corrected_dem))
-            plane_correction_command = f'gdal_calc.py --quiet -A {raster_shifted} -B {plane_correction_file} --outfile={plane_corrected_dem} --calc="A+B" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
-            subprocess.run(plane_correction_command,shell=True)
-            sampled_plane_corrected_file = f'{tmp_dir}{icesat2_base}_Sampled_{plane_corrected_dem_base}{icesat2_ext}'
-            sample_code = sample_raster(plane_corrected_dem,sampled_coregistered_file,sampled_plane_corrected_file)
-            df_sampled_plane_corrected = pd.read_csv(sampled_plane_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem','height_dem_plane_corrected'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float','height_dem__plane_corrected':'float'})
-            dh_plane_corrected = df_sampled_plane_corrected.height_icesat2 - df_sampled_plane_corrected.height_dem_plane_corrected
-            rmse_plane_corrected = np.sqrt(np.sum(dh_plane_corrected**2)/len(dh_plane_corrected))
-            print(f'RMSE of plane-corrected DEM: {rmse_plane_corrected:.2f} m')
-            if rmse_plane_corrected > rmse_coregistered:
-                print('Plane correction did not improve RMSE. Keeping co-registered DEM.')
-                plane_corrected_dem = raster_shifted
-                df_sampled_plane_corrected = df_sampled_coregistered
-            if keep_flag == False:
-                if os.path.exists(sampled_plane_corrected_file):
-                    subprocess.run(f'rm {sampled_plane_corrected_file}',shell=True)
-                if os.path.exists(plane_correction_file):
-                    subprocess.run(f'rm {plane_correction_file}',shell=True)
-        else:
-            plane_corrected_dem = raster_shifted
-            df_sampled_plane_corrected = df_sampled_coregistered
-
-        x_jitter,y_jitter,dh_jitter = compute_jitter_correction(df_sampled_plane_corrected,plane_corrected_dem)
-        if x_jitter is not None:
-            write_code = raster_to_geotiff(x_jitter,y_jitter,dh_jitter,src_dem_epsg,jitter_correction_file_coarse)
-            resample_code = resample_raster(jitter_correction_file_coarse,raster_shifted,jitter_correction_file)
-            subprocess.run(f'rm {jitter_correction_file_coarse}',shell=True)
-            jitter_corrected_dem = f'{tmp_dir}{plane_corrected_dem_base}_Jitter_Corrected{plane_corrected_dem_ext}'
-            jitter_corrected_dem = jitter_corrected_dem.replace('Plane_Corrected_Jitter_Corrected','Plane_Jitter_Corrected')
-            jitter_corrected_dem_base,jitter_corrected_dem_ext = os.path.splitext(os.path.basename(jitter_corrected_dem))
-            jitter_correction_command = f'gdal_calc.py --quiet -A {plane_corrected_dem} -B {jitter_correction_file} --outfile={jitter_corrected_dem} --calc="A+B" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
-            subprocess.run(jitter_correction_command,shell=True)
-            sampled_jitter_corrected_file = f'{tmp_dir}{icesat2_base}_Sampled_{jitter_corrected_dem_base}{icesat2_ext}'
-            sample_code = sample_raster(jitter_corrected_dem,sampled_coregistered_file,sampled_jitter_corrected_file)
-            df_sampled_jitter_corrected = pd.read_csv(sampled_jitter_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem','height_dem_jitter_corrected'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float','height_dem_jitter_corrected':'float'})
-            dh_jitter_corrected = df_sampled_jitter_corrected.height_icesat2 - df_sampled_jitter_corrected.height_dem_jitter_corrected
-            rmse_jitter_corrected = np.sqrt(np.sum(dh_jitter_corrected**2)/len(dh_jitter_corrected))
-            print(f'RMSE of jitter-corrected DEM: {rmse_jitter_corrected:.2f} m')
-            if keep_flag == False:
-                if os.path.exists(sampled_jitter_corrected_file):
-                    subprocess.run(f'rm {sampled_jitter_corrected_file}',shell=True)
-                if os.path.exists(jitter_correction_file):
-                    subprocess.run(f'rm {jitter_correction_file}',shell=True)
-        else:
-            jitter_corrected_dem = plane_corrected_dem
-        subprocess.run(f'mv {jitter_corrected_dem} {os.path.dirname(dem)}/',shell=True)
-
-        if subset_flag == True:
-            subprocess.run(f'rm {icesat2_file}',shell=True)
-        icesat2_file = icesat2_orig_file
-
-        if keep_flag == False:
-            if os.path.exists(sampled_original_file):
-                subprocess.run(f'rm {sampled_original_file}',shell=True)
-            if os.path.exists(sampled_coregistered_file):
-                subprocess.run(f'rm {sampled_coregistered_file}',shell=True)
-            if os.path.exists(raster_shifted):
-                subprocess.run(f'rm {raster_shifted}',shell=True)
-            if os.path.exists(plane_corrected_dem):
-                subprocess.run(f'rm {plane_corrected_dem}',shell=True)
-            if os.path.exists(jitter_corrected_dem):
-                subprocess.run(f'rm {jitter_corrected_dem}',shell=True)
+    ir = itertools.repeat
+    p = multiprocessing.Pool(np.min((N_cpus,len(dem_array))))
+    p.starmap(parallel_corrections,zip(
+        dem_array,
+        ir(df_icesat2)
+        ))
+    p.close()
         
     
 if __name__ == "__main__":
