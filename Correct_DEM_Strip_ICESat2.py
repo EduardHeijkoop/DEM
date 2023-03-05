@@ -460,7 +460,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         print(f'Retained {raster_stats_dict["N_points_after"]} of {raster_stats_dict["N_points_before"]} points ({100*raster_stats_dict["N_points_after"]/raster_stats_dict["N_points_before"]:.1f}%).')
         if x_plane is None:
             print(f'Plane correction was too small and was not applied.')
-        elif raster_stats_dict['plane_imrpovement'] == False:
+        elif raster_stats_dict['plane_improvement'] == False:
             print(f'Plane correction did not improve RMSE. Did not apply correction.')
         else:
             print(f'RMSE of plane-corrected DEM: {rmse_plane_corrected:.2f} m')
