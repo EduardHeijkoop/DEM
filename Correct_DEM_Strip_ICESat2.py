@@ -363,7 +363,7 @@ def parallel_corrections(dem,df_icesat2,mean_median_mode,n_sigma_filter,vertical
     idx_lon = np.logical_and(lon_icesat2 >= lon_min_dem,lon_icesat2 <= lon_max_dem)
     idx_lat = np.logical_and(lat_icesat2 >= lat_min_dem,lat_icesat2 <= lat_max_dem)
     idx_lonlat = np.logical_and(idx_lon,idx_lat)
-    if np.sum(idx_lonlat) / len(idx_lonlat) < 0.01:
+    if np.sum(idx_lonlat) / len(idx_lonlat) >= N_coverage_minimum or np.sum(idx_lonlat) >= N_photons_minimum:
         print(f'Not enough ICESat-2 coverage over {dem}! Skipping.')
         return None
     lon_icesat2 = lon_icesat2[idx_lonlat]
@@ -504,9 +504,11 @@ def main():
     parser.add_argument('--print',default=False,action='store_true')
     parser.add_argument('--keep_files',default=False,action='store_true')
     parser.add_argument('--cpus',help='Number of CPUs to use',default=1,type=int)
+    parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
     args = parser.parse_args()
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
+    N_coverage_minimum = config.getfloat('CORRECTIONS_CONSTANTS','N_coverage_minimum')
     N_photons_minimum = config.getint('CORRECTIONS_CONSTANTS','N_photons_minimum')
 
     dem_file = args.dem
@@ -519,6 +521,12 @@ def main():
     print_flag = args.print
     keep_flag = args.keep_files
     N_cpus = args.cpus
+    machine_name = args.machine
+
+    if machine_name == 'b':
+        tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+    elif machine_name == 'local':
+        tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/EDUARD/','/home/heijkoop/Desktop/Projects/')
 
     if dem_file is not None and dem_list_file is not None:
         print('Only doing files in list.')
@@ -542,13 +550,15 @@ def main():
         print('Please choose exactly one mode: mean or median.')
         sys.exit()
     
+    print('Loading ICESat-2...')    
     df_icesat2 = pd.read_csv(icesat2_file,header=None,names=['lon','lat','height_icesat2','time'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str'})
 
     ir = itertools.repeat
     p = multiprocessing.Pool(np.min((N_cpus,len(dem_array))))
     p.starmap(parallel_corrections,zip(
         dem_array,
-        ir(df_icesat2)
+        ir(df_icesat2),ir(mean_median_mode),ir(n_sigma_filter),ir(vertical_shift_iterative_threshold),
+        ir(N_coverage_minimum),ir(N_photons_minimum),ir(tmp_dir),ir(keep_flag),ir(print_flag)
         ))
     p.close()
         
