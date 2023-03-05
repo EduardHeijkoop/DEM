@@ -345,9 +345,9 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     lat_icesat2 = np.asarray(df_icesat2.lat)
     height_icesat2 = np.asarray(df_icesat2.height_icesat2)
     time_icesat2 = np.asarray(df_icesat2.time)
-    print(f'Processing {dem}...')
     icesat2_base,icesat2_ext = os.path.splitext(os.path.basename(icesat2_file))
     dem_base,dem_ext = os.path.splitext(os.path.basename(dem))
+    print(f'Processing {dem_base}...')
     sampled_original_file = f'{tmp_dir}{icesat2_base}_Sampled_{dem_base}{icesat2_ext}'
     plane_correction_file_coarse = f'{tmp_dir}{dem_base}_coarse_plane_correction{dem_ext}'
     plane_correction_file = f'{tmp_dir}{dem_base}_plane_correction{dem_ext}'
@@ -364,7 +364,9 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     idx_lat = np.logical_and(lat_icesat2 >= lat_min_dem,lat_icesat2 <= lat_max_dem)
     idx_lonlat = np.logical_and(idx_lon,idx_lat)
     if np.sum(idx_lonlat) / len(idx_lonlat) >= N_coverage_minimum or np.sum(idx_lonlat) >= N_photons_minimum:
-        print(f'Not enough ICESat-2 coverage over {dem}! Skipping.')
+        print(f'Not enough ICESat-2 coverage over {dem_base}! Skipping.')
+        print(f'ICESat-2 coverage: {np.sum(idx_lonlat) / len(idx_lonlat)}')
+        print(f'ICESat-2 photons: {np.sum(idx_lonlat)}')
         return None
     lon_icesat2 = lon_icesat2[idx_lonlat]
     lat_icesat2 = lat_icesat2[idx_lonlat]
@@ -451,7 +453,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     subprocess.run(f'mv {jitter_corrected_dem} {os.path.dirname(dem)}/',shell=True)
 
     if print_flag == True:
-        print(f'Finished correcting {dem}.')
+        print(f'Finished correcting {dem_base}.')
         print(f'RMSE of original DEM: {raster_stats_dict["rmse_original"]:.2f} m')
         print(f'RMSE of co-registered DEM: {raster_stats_dict["rmse_coregistered"]:.2f} m')
         print(f'Coregistration converged in {raster_stats_dict["N_iterations"]} iterations.')
