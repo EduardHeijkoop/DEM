@@ -1,18 +1,17 @@
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Polygon,MultiPolygon
 import shapely
 from osgeo import gdal,gdalconst,osr
 from scipy import ndimage
 from scipy.sparse.csgraph import minimum_spanning_tree, depth_first_tree
 import glob
-import os,sys
-import argparse
+import os
 import subprocess
 import datetime
 import ctypes as c
-import warnings
+import multiprocessing
+import itertools
 
 def reinsert_nan(array_clean,array_nan):
     '''
@@ -260,7 +259,7 @@ def great_circle_distance(lon1,lat1,lon2,lat2,R=6378137.0):
     distance = R*dsigma
     return distance
 
-def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resample_method='bilinear',compress=True):
+def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resample_method='bilinear',compress=True,quiet_flag=False):
     '''
     src = what you want to resample
     match = resample to this one's resolution
@@ -291,10 +290,10 @@ def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resamp
         gdal.ReprojectImage(src,dst,src_proj,match_proj,gdalconst.GRA_CubicSpline)
     del dst # Flush
     if compress == True:
-        compress_raster(dst_filename,nodata)
+        compress_raster(dst_filename,nodata,quiet_flag)
     return None
 
-def compress_raster(filename,nodata=-9999):
+def compress_raster(filename,nodata=-9999,quiet_flag = False):
     '''
     Compress a raster using gdal_translate
     '''
@@ -304,6 +303,8 @@ def compress_raster(filename,nodata=-9999):
         compress_command = f'gdal_translate -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" -a_nodata {nodata} {filename} {tmp_filename}'
     else:
         compress_command = f'gdal_translate -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" {filename} {tmp_filename}'
+    if quiet_flag == True:
+        compress_command = compress_command.replace('gdal_translate','gdal_translate -q')
     move_command = f'mv {tmp_filename} {filename}'
     subprocess.run(compress_command,shell=True)
     subprocess.run(move_command,shell=True)
@@ -418,7 +419,8 @@ def landmask_dem(lon,lat,lon_coast,lat_coast,landmask_c_file,inside_flag):
     '''
     c_float_p = c.POINTER(c.c_float)
     landmask_so_file = landmask_c_file.replace('.c','.so') #the .so file is created
-    subprocess.run('cc -fPIC -shared -o ' + landmask_so_file + ' ' + landmask_c_file,shell=True)
+    if not os.path.exists(landmask_so_file):
+        subprocess.run('cc -fPIC -shared -o ' + landmask_so_file + ' ' + landmask_c_file,shell=True)
     landmask_lib = c.cdll.LoadLibrary(landmask_so_file)
     arrx = (c.c_float * len(lon_coast))(*lon_coast)
     arry = (c.c_float * len(lat_coast))(*lat_coast)
@@ -831,13 +833,14 @@ def find_mosaic(strip_shp_data,mst_array,strip_dates):
         current_gen = np.asarray([mosaic_ID_start])
         next_gen = np.empty([0,1],dtype=np.int16)
         done_list = current_gen
-        generation_count = 0
+        generation_count = -1
         ref_list = np.empty([0,1],dtype=int)
         src_list = np.empty([0,1],dtype=int)
         print(' ')
         print(f'Mosaic {i}:')
         print(f'Starting at: {mosaic_ID_start}')
         print(strip_dict[ID_start])
+        generation_dict = {}
         while ~path_check:
             generation_count = generation_count+1
             gen_ref_list = np.empty([0,1],dtype=int)
@@ -856,15 +859,16 @@ def find_mosaic(strip_shp_data,mst_array,strip_dates):
                     src_list = np.append(src_list,src_ID)
                     gen_ref_list = np.append(gen_ref_list,ref_ID)
                     gen_src_list = np.append(gen_src_list,src_ID)
+            generation_dict[generation_count] = {
+                'ref':gen_ref_list,
+                'src':gen_src_list
+            }
             if np.array_equal(np.sort(done_list),groups_dict[str(i)]['group']):
                 path_check = True
                 break
             current_gen = next_gen
             next_gen = np.empty([0,1],dtype=int)
-        mosaic_dict[str(i)] = {
-            'ref':ref_list,
-            'src':src_list
-        }
+        mosaic_dict[i] = generation_dict
     print('')
     return mosaic_dict,singles_dict
 
@@ -917,18 +921,102 @@ def populate_intersection(geom_intersection,gsw_main_sea_only_buffered,landmask_
         y = np.append(y,y_sampling_masked_intersection_gsw)
     return x,y
 
-def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict,mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH,MOSAIC_TILE_SIZE):
+def parallel_coregistration(ref_strip_ID,src_strip_ID,strip_shp_data,gsw,landmask_c_file,mosaic_dir,tmp_dir,horizontal_flag,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH):
+    ref_strip = strip_shp_data.strip[ref_strip_ID]
+    src_strip = strip_shp_data.strip[src_strip_ID]
+    ref_strip_sensor = ref_strip.split('/')[-1].split('_')[0]
+    src_strip_sensor = src_strip.split('/')[-1].split('_')[0]
+    src_seg = f'seg{src_strip.split("seg")[1].split("_")[0]}'
+    src_base = f'{mosaic_dir}{os.path.splitext(src_strip.split("/")[-1].split(src_seg)[0])[0]}{src_seg}'
+    src_ext = os.path.splitext(src_strip)[1]
+    src_file = glob.glob(f'{src_base}*{src_ext}')[0]
+
+    print(f'Linking {ref_strip_ID} ({ref_strip_sensor}) to {src_strip_ID} ({src_strip_sensor})...')
+    geom_intersection = strip_shp_data.geometry[src_strip_ID].intersection(strip_shp_data.geometry[ref_strip_ID])
+    x_masked_total,y_masked_total = populate_intersection(geom_intersection,gsw,landmask_c_file,X_SPACING,Y_SPACING)
+    strip_sampled_file = f'{mosaic_dir}Mosaic_sampled_{src_strip_ID}_for_coregistering_{ref_strip_ID}.txt'
+    np.savetxt(strip_sampled_file,np.c_[x_masked_total,y_masked_total],fmt='%.3f',delimiter=' ')
+    df_sampled = sample_two_rasters(src_file,ref_strip,strip_sampled_file,src_strip_ID,ref_strip_ID)
+    if horizontal_flag == True:
+        x_res = gdal.Open(src_strip).GetGeoTransform()[1]
+        y_res = -gdal.Open(src_strip).GetGeoTransform()[5]
+        x_shift,y_shift = evaluate_horizontal_shift(df_sampled,ref_strip,tmp_dir,x_res=x_res,y_res=y_res,x_offset_max=X_MAX_SEARCH,y_offset_max=Y_MAX_SEARCH,primary_ID=src_strip_ID,secondary_ID=ref_strip_ID)
+        if ~np.logical_and(x_shift==0,y_shift==0):
+            x_min,x_max,y_min,y_max = get_raster_extents(ref_strip,'local')
+            horizontal_shift_str = f'x_{x_shift:.2f}m_y_{y_shift:.2f}m'.replace('.','p').replace('-','neg')
+            if 'Shifted' in ref_strip:
+                new_ref_strip = f'{tmp_dir}{os.path.basename(ref_strip).replace("Shifted",f"Shifted_{horizontal_shift_str}")}'
+            else:
+                new_ref_strip = f'{tmp_dir}{os.path.splitext(os.path.basename(ref_strip))[0]}_Shifted_{horizontal_shift_str}.tif'
+            translate_command = f'gdal_translate -q -a_ullr {x_min + x_shift} {y_max + y_shift} {x_max + x_shift} {y_min + y_shift} -co "COMPRESS=LZW" -co "BIGTIFF=YES" {ref_strip} {new_ref_strip}'
+            subprocess.run(translate_command,shell=True)
+            df_sampled = sample_two_rasters(src_file,new_ref_strip,strip_sampled_file)
+            ref_strip_shifted,vertical_shift,rmse,ratio_pts = vertical_shift_raster(new_ref_strip,df_sampled,mosaic_dir)
+            subprocess.run(f'rm {new_ref_strip}',shell=True)
+        else:
+            ref_strip_shifted,vertical_shift,rmse,ratio_pts = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
+    else:
+        x_shift = 0
+        y_shift = 0
+        ref_strip_shifted,vertical_shift,rmse,ratio_pts = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
+    print(f'Results for {ref_strip_ID} ({ref_strip_sensor}) to {src_strip_ID} ({src_strip_sensor}):')
+    print(f'Retained {ratio_pts*100:.1f}% of points.')
+    print(f'Vertical shift: {vertical_shift:.2f} m')
+    print(f'RMSE: {rmse:.2f} m')
+    coreg_stats_file = f'{mosaic_dir}_Mosaic_Coreg_{ref_strip_ID}_to_{src_strip_ID}.txt'
+    coreg_stats = open(coreg_stats_file,'w')
+    coreg_stats.write(f'{ref_strip_ID},{src_strip_ID},{x_shift:.2f},{y_shift:.2f},{vertical_shift:.2f},{rmse:.2f}\n')
+    coreg_stats.close()
+
+
+def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict,mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH,MOSAIC_TILE_SIZE,N_cpus):
     '''
     Build the mosaic, given list of indices of strips to co-register to each other
     Co-registering ref to src, by sampling src and treating that as truth
     '''
-    ref_list = mosaic_dict['ref']
-    src_list = mosaic_dict['src']
-    copy_check = False
-    strip_list_coregistered = np.empty([0,1],dtype=str)
     mosaic_stats_file = mosaic_dir + output_name + f'_Mosaic_{mosaic_number}_{epsg_code}_Statistics.txt'
     mosaic_stats = open(mosaic_stats_file,'w')
     mosaic_stats.write('ref_strip_ID,src_strip_ID,x_shift,y_shift,z_shift,RMSE\n')
+    mosaic_stats.close()
+    strip_list_coregistered = np.empty([0,1],dtype=str)
+    ir = itertools.repeat
+    for i in range(len(mosaic_dict)):
+        if i == 0:
+            orig_id = mosaic_dict[i]['src'][0]
+            orig_strip = strip_shp_data.strip[orig_id]
+            orig_strip_new = f'{mosaic_dir}{os.path.basename(orig_strip)}'
+            subprocess.run(f'cp {orig_strip} {orig_strip_new}',shell=True)
+            strip_list_coregistered = np.append(strip_list_coregistered,orig_strip_new)
+        gen_ref_list = mosaic_dict[i]['ref']
+        gen_src_list = mosaic_dict[i]['src']
+
+        p = multiprocessing.Pool(np.min((len(gen_ref_list),N_cpus)))
+        p.starmap(parallel_coregistration,zip(
+            gen_ref_list,gen_src_list,
+            ir(strip_shp_data),ir(gsw_main_sea_only_buffered),ir(landmask_c_file),
+            ir(mosaic_dir),ir(tmp_dir),ir(horizontal_flag),
+            ir(X_SPACING),ir(Y_SPACING),ir(X_MAX_SEARCH),ir(Y_MAX_SEARCH)
+            ))
+        p.close()
+        for ref,src in zip(gen_ref_list,gen_src_list):
+            coreg_file = f'{mosaic_dir}_Mosaic_Coreg_{ref}_to_{src}.txt'
+            subprocess.run(f'cat {coreg_file} >> {mosaic_stats_file}',shell=True)
+            subprocess.run(f'rm {coreg_file}',shell=True)
+            ref_strip = strip_shp_data.strip[ref]
+            ref_seg = f'seg{ref_strip.split("seg")[1].split("_")[0]}'
+            ref_base = f'{mosaic_dir}{os.path.splitext(ref_strip.split("/")[-1].split(ref_seg)[0])[0]}{ref_seg}'
+            ref_ext = os.path.splitext(ref_strip)[1]
+            ref_file = glob.glob(f'{ref_base}*{ref_ext}')[0]
+            strip_list_coregistered = np.append(strip_list_coregistered,ref_file)
+            strip_sampled_file = f'{mosaic_dir}Mosaic_sampled_{src}_for_coregistering_{ref}.txt'
+            full_strip_sampled_file = f'{mosaic_dir}{output_name}_Mosaic_{mosaic_number}_{epsg_code}_sampled_{src}_for_coregistering_{ref}.txt'
+            subprocess.run(f'mv {strip_sampled_file} {full_strip_sampled_file}',shell=True)
+
+
+    '''
+    ref_list = mosaic_dict['ref']
+    src_list = mosaic_dict['src']
+    copy_check = False
     for i in range(len(ref_list)):
         ref_strip_ID = ref_list[i]
         src_strip_ID = src_list[i]
@@ -981,6 +1069,7 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
             strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
         mosaic_stats.write(f'{ref_strip_ID},{src_strip_ID},{x_shift:.2f},{y_shift:.2f},{vertical_shift:.2f},{rmse:.2f}\n')
     mosaic_stats.close()
+    '''
     print('')
     print('Mosaicing...')
     strip_list_coregistered_date = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list_coregistered])
@@ -1001,29 +1090,31 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
     print('')
     return merge_mosaic_output_file
 
-def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir,x_res=2.0,y_res=2.0,x_offset_max=8.0,y_offset_max=8.0):
+def evaluate_horizontal_shift(df_sampled,raster_secondary,tmp_dir,x_res=2.0,y_res=2.0,x_offset_max=8.0,y_offset_max=8.0,primary_ID='',secondary_ID=''):
     x_offset = np.arange(-1*x_offset_max,x_offset_max+x_res,x_res)
     y_offset = np.arange(-1*y_offset_max,y_offset_max+y_res,y_res)
     rmse_min = np.inf
+    x_opt = x_offset[0]
+    y_opt = y_offset[0]
     for x in x_offset:
         for y in y_offset:
             df_offset = df_sampled.copy()
             df_offset = df_offset.drop(columns='h_secondary')
-            output_file = f'{tmp_dir}offset_x_{x}_y_{y}.txt'.replace('-','neg').replace('.','p').replace('ptxt','.txt')
+            output_file = f'{tmp_dir}offset_x_{x}_y_{y}_{secondary_ID}_to_{primary_ID}.txt'.replace('-','neg').replace('.','p').replace('ptxt','.txt')
             df_offset['x'] = df_offset['x'] - x
             df_offset['y'] = df_offset['y'] - y
             df_offset.to_csv(output_file,columns=['x','y'],float_format='%.1f',sep=' ',index=False,header=False)
-            cat_command = f'cat {output_file} | gdallocationinfo -valonly -geoloc {raster_secondary} > {tmp_dir}tmp_sampled.txt'
+            cat_command = f'cat {output_file} | gdallocationinfo -valonly -geoloc {raster_secondary} > {tmp_dir}tmp_sampled_{secondary_ID}_to_{primary_ID}.txt'
             subprocess.run(cat_command,shell=True)
-            subprocess.run(f"sed -i 's/^$/-9999/g' {tmp_dir}tmp_sampled.txt",shell=True)
-            df_offset['h_secondary'] = np.loadtxt(f'{tmp_dir}tmp_sampled.txt')
+            subprocess.run(f"sed -i 's/^$/-9999/g' {tmp_dir}tmp_sampled_{secondary_ID}_to_{primary_ID}.txt",shell=True)
+            df_offset['h_secondary'] = np.loadtxt(f'{tmp_dir}tmp_sampled_{secondary_ID}_to_{primary_ID}.txt')
             df_offset = df_offset.dropna()
             idx_9999 = np.logical_or(df_offset['h_primary'] == -9999,df_offset['h_secondary'] == -9999)
             df_offset = df_offset[~idx_9999].reset_index(drop=True)
             vertical_shift,df_offset_filtered = calculate_shift(df_offset)
             dh = df_offset_filtered['h_primary'] - df_offset_filtered['h_secondary']
             rmse = np.sqrt(np.sum(dh**2)/len(dh))
-            subprocess.run(f'rm {output_file} {tmp_dir}tmp_sampled.txt',shell=True)
+            subprocess.run(f'rm {output_file} {tmp_dir}tmp_sampled_{secondary_ID}_to_{primary_ID}.txt',shell=True)
             if x == 0 and y == 0:
                 rmse_zero = rmse
             if rmse < rmse_min:
@@ -1050,24 +1141,24 @@ def copy_single_strips(strip_shp_data,singles_dict,mosaic_dir,output_name,epsg_c
     np.savetxt(singles_file,np.c_[singles_list,singles_list_orig],fmt='%s',delimiter=',')
     return singles_list
 
-def sample_two_rasters(raster_primary,raster_secondary, csv_path):
-    output_file = 'tmp_output.txt'
-    cat_primary_command = f"cat {csv_path} | gdallocationinfo -valonly -geoloc {raster_primary} > tmp_primary.txt"
-    cat_secondary_command = f"cat {csv_path} | gdallocationinfo -valonly -geoloc {raster_secondary} > tmp_secondary.txt"
+def sample_two_rasters(raster_primary,raster_secondary,csv_path,primary_ID='',secondary_ID=''):
+    output_file = f'tmp_output_{secondary_ID}_to_{primary_ID}.txt'
+    cat_primary_command = f"cat {csv_path} | gdallocationinfo -valonly -geoloc {raster_primary} > tmp_primary_{secondary_ID}_to_{primary_ID}.txt"
+    cat_secondary_command = f"cat {csv_path} | gdallocationinfo -valonly -geoloc {raster_secondary} > tmp_secondary_{secondary_ID}_to_{primary_ID}.txt"
     subprocess.run(cat_primary_command,shell=True)
     subprocess.run(cat_secondary_command,shell=True)
-    fill_nan_primary_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_primary.txt > tmp2_primary.txt"
-    fill_nan_secondary_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_secondary.txt > tmp2_secondary.txt"
+    fill_nan_primary_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_primary_{secondary_ID}_to_{primary_ID}.txt > tmp2_primary_{secondary_ID}_to_{primary_ID}.txt"
+    fill_nan_secondary_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_secondary_{secondary_ID}_to_{primary_ID}.txt > tmp2_secondary_{secondary_ID}_to_{primary_ID}.txt"
     subprocess.run(fill_nan_primary_command,shell=True)
     subprocess.run(fill_nan_secondary_command,shell=True)
-    paste_command = f"paste -d , {csv_path} tmp2_primary.txt tmp2_secondary.txt > {output_file}"
+    paste_command = f"paste -d , {csv_path} tmp2_primary_{secondary_ID}_to_{primary_ID}.txt tmp2_secondary_{secondary_ID}_to_{primary_ID}.txt > {output_file}"
     subprocess.run(paste_command,shell=True)
     subprocess.run(f"sed -i 's/ /,/g' {output_file}",shell=True)
     subprocess.run(f"sed -i '/-9999/d' {output_file}",shell=True)
     subprocess.run(f"sed -i '/NaN/d' {output_file}",shell=True)
     subprocess.run(f"sed -i '/nan/d' {output_file}",shell=True)
     df = pd.read_csv(output_file,header=None,names=['x','y','h_primary','h_secondary'],dtype={'x':'float','y':'float','h_primary':'float','h_secondary':'float'})
-    subprocess.run(f"rm tmp_primary.txt tmp2_primary.txt tmp_secondary.txt tmp2_secondary.txt {output_file}",shell=True)
+    subprocess.run(f"rm tmp_primary_{secondary_ID}_to_{primary_ID}.txt tmp2_primary_{secondary_ID}_to_{primary_ID}.txt tmp_secondary_{secondary_ID}_to_{primary_ID}.txt tmp2_secondary_{secondary_ID}_to_{primary_ID}.txt {output_file}",shell=True)
     return df
 
 def filter_outliers(dh,mean_median_mode='mean',n_sigma_filter=2):
@@ -1157,7 +1248,8 @@ def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='me
     shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
     subprocess.run(shift_command,shell=True)
     rmse = np.sqrt(np.sum((df_new.h_primary-df_new.h_secondary)**2)/len(df_new))
-    print(f'Retained {len(df_new)/len(df_sampled)*100:.1f}% of points.')
-    print(f'Vertical shift: {vertical_shift:.2f} m')
-    print(f'RMSE: {rmse:.2f} m')
-    return raster_shifted,vertical_shift,rmse
+    ratio_pts = len(df_new)/len(df_sampled)
+    # print(f'Retained {len(df_new)/len(df_sampled)*100:.1f}% of points.')
+    # print(f'Vertical shift: {vertical_shift:.2f} m')
+    # print(f'RMSE: {rmse:.2f} m')
+    return raster_shifted,vertical_shift,rmse,ratio_pts
