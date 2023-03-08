@@ -13,11 +13,12 @@ import scipy.optimize
 import xml.etree.ElementTree as ET
 import multiprocessing
 import itertools
+import getpass
 
 from scipy.interpolate import SmoothBivariateSpline,LSQBivariateSpline
 
 from dem_utils import deg2utm,get_raster_extents,resample_raster
-
+from dem_utils import get_strip_list,get_strip_extents
 
 def sample_raster(raster_path, csv_path, output_file,projection='wgs84'):
     raster_base = os.path.splitext(raster_path.split('/')[-1])[0]
@@ -340,7 +341,7 @@ def raster_to_geotiff(x,y,arr,epsg_code,output_file):
     dataset = None
     return None
 
-def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,N_coverage_minimum,N_photons_minimum,tmp_dir,keep_flag,print_flag):
+def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,N_coverage_minimum,N_photons_minimum,tmp_dir,keep_flag,print_flag,aster_dict):
     lon_icesat2 = np.asarray(df_icesat2.lon)
     lat_icesat2 = np.asarray(df_icesat2.lat)
     height_icesat2 = np.asarray(df_icesat2.height_icesat2)
@@ -359,6 +360,40 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     src_dem_geotrans = src_dem.GetGeoTransform()
     src_dem_epsg = osr.SpatialReference(wkt=src_dem_proj).GetAttrValue('AUTHORITY',1)
     lon_min_dem,lon_max_dem,lat_min_dem,lat_max_dem = get_raster_extents(dem)
+
+    a_priori_flag = aster_dict['a_priori_flag']
+
+    if a_priori_flag == True:
+        '''
+        clip ASTER file to DEM extents and rename it with dem_base
+        resample DEM to ASTER resolution
+        difference the two and apply threshold
+        '''
+        aster_wgs84_file = aster_dict['aster_wgs84_file']
+        faulty_pixel_height_threshold = aster_dict['diff_threshold']
+        faulty_pixel_pct_threshold = aster_dict['pct_threshold']
+        coastline_file = aster_dict['coastline_file']
+        aster_dir = os.path.dirname(aster_wgs84_file)
+        aster_base,aster_ext = os.path.splitext(os.path.basename(aster_wgs84_file))
+        aster_wgs84_clipped_file = f'{aster_dir}/{aster_base}_{dem_base}{aster_ext}'
+        aster_wgs84_clipped_coastline_file = f'{aster_dir}/{aster_base}_{dem_base}_clipped_coastline{aster_ext}'
+        dem_resampled = f'{tmp_dir}{dem_base}_resampled_ASTER{dem_ext}'
+        dem_resampled_coastline = f'{tmp_dir}{dem_base}_resampled_ASTER_clipped_coastline{dem_ext}'
+        aster_dem_threshold_file = f'{tmp_dir}{dem_base}_ASTER_diff_threshold{dem_ext}'
+        clip_lonlat_command = f'gdalwarp -q -te {lon_min_dem} {lat_min_dem} {lon_max_dem} {lat_max_dem} {aster_wgs84_file} {aster_wgs84_clipped_file}'
+        clip_aster_coastline_command = f'gdalwarp -q -cutline {coastline_file} {aster_wgs84_clipped_file} {aster_wgs84_clipped_coastline_file}'
+        clip_dem_coastline_command = f'gdalwarp -q -cutline {coastline_file} {dem_resampled} {dem_resampled_coastline}'
+        diff_threshold_command = f'gdal_calc.py -A {dem_resampled_coastline} -B {aster_wgs84_clipped_coastline_file} --outfile={aster_dem_threshold_file} --calc="A-B>{faulty_pixel_height_threshold}" --quiet'
+        subprocess.run(clip_lonlat_command,shell=True)
+        resample_raster(dem,aster_wgs84_clipped_file,dem_resampled)
+        subprocess.run(clip_aster_coastline_command,shell=True)
+        subprocess.run(clip_dem_coastline_command,shell=True)
+        subprocess.run(diff_threshold_command,shell=True)
+        src_diff_threshold = gdal.Open(aster_dem_threshold_file,gdalconst.GA_Update)
+        diff_threshold_array = np.array(src_diff_threshold.GetRasterBand(1).ReadAsArray())
+        if np.sum(diff_threshold_array) / diff_threshold_array.size > faulty_pixel_pct_threshold:
+            print(f'Too many outliers wrt ASTER! Skipping {dem_base}.')
+            return None
 
     idx_lon = np.logical_and(lon_icesat2 >= lon_min_dem,lon_icesat2 <= lon_max_dem)
     idx_lat = np.logical_and(lat_icesat2 >= lat_min_dem,lat_icesat2 <= lat_max_dem)
@@ -486,6 +521,54 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         if os.path.exists(jitter_corrected_dem):
             subprocess.run(f'rm {jitter_corrected_dem}',shell=True)
 
+def get_batch_lonlat_extents(strip_list):
+    lon_min_strips,lon_max_strips,lat_min_strips,lat_max_strips = 180,-180,90,-90
+    for strip in strip_list:
+        lon_min_single_strip,lon_max_single_strip,lat_min_single_strip,lat_max_single_strip = get_strip_extents(strip)
+        lon_min_strips = np.min((lon_min_strips,lon_min_single_strip))
+        lon_max_strips = np.max((lon_max_strips,lon_max_single_strip))
+        lat_min_strips = np.min((lat_min_strips,lat_min_single_strip))
+        lat_max_strips = np.max((lat_max_strips,lat_max_single_strip))
+    return lon_min_strips,lon_max_strips,lat_min_strips,lat_max_strips
+
+def get_aster_tiles(lon_min,lon_max,lat_min,lat_max):
+    ASTER_list = []
+    lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
+    lat_range = range(int(np.floor(lat_min)),int(np.floor(lat_max))+1)
+    for i in range(len(lon_range)):
+        for j in range(len(lat_range)):
+            if lon_range[i] >= 0:
+                lonLetter = 'E'
+            else:
+                lonLetter = 'W'
+            if lat_range[j] >= 0:
+                latLetter = 'N'
+            else:
+                latLetter = 'S'
+            lonCode = f"{int(np.abs(np.floor(lon_range[i]))):03d}"
+            latCode = f"{int(np.abs(np.floor(lat_range[j]))):02d}"
+            ASTER_id = f'ASTGTMV003_{latLetter}{latCode}{lonLetter}{lonCode}_dem.tif'
+            ASTER_list.append(ASTER_id)
+    return sorted(ASTER_list)
+
+def download_aster(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,tmp_dir,output_file):
+    tile_array = get_aster_tiles(lon_min,lon_max,lat_min,lat_max)
+    aster_earthdata_base = 'https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/ASTGTM.003/'
+    merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
+    for tile in tile_array:
+        dl_command = f'wget --user={username} --password={password} {aster_earthdata_base}{tile} --quiet'
+        subprocess.run(dl_command,shell=True,cwd=tmp_dir)
+        if os.path.isfile(f'{tmp_dir}{tile}'):
+            merge_command = f'{merge_command} {tmp_dir}{tile} ' 
+    subprocess.run(merge_command,shell=True,cwd=tmp_dir)
+    [subprocess.run(f'rm {tile}',shell=True,cwd=tmp_dir) for tile in tile_array if os.path.isfile(f'{tmp_dir}{tile}')]
+    warp_command = f'gdalwarp -q -te {lon_min} {lat_min} {lon_max} {lat_max} tmp_merged.tif tmp_merged_clipped.tif'
+    subprocess.run(warp_command,shell=True,cwd=tmp_dir)
+    subprocess.run(f'rm tmp_merged.tif',shell=True,cwd=tmp_dir)
+    resample_raster(egm96_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM96_resampled.tif',quiet_flag=True)
+    calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM96_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
+    subprocess.run(calc_command,shell=True,cwd=tmp_dir)
+    subprocess.run(f'rm tmp_merged_clipped.tif EGM96_resampled.tif',shell=True,cwd=tmp_dir)
 
 
 
@@ -496,9 +579,10 @@ def main():
     config.read(config_file)
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dem',help='Path to input DEM to correct.')
+    parser.add_argument('--location',default=None,help='Location of DEM(s) to correct.')
+    parser.add_argument('--dem',default=None,help='Path to input DEM to correct.')
     parser.add_argument('--dem_list',default=None,help='Path to input list of DEMs to correct.')
-    parser.add_argument('--icesat2',help='Path to ICESat-2 file used to correct DEM(s).')
+    parser.add_argument('--icesat2',default=None,help='Path to ICESat-2 file used to correct DEM(s).')
     parser.add_argument('--mean',default=False,action='store_true')
     parser.add_argument('--median',default=False,action='store_true')
     parser.add_argument('--sigma', nargs='?', type=int, default=2)
@@ -507,12 +591,16 @@ def main():
     parser.add_argument('--keep_files',default=False,action='store_true')
     parser.add_argument('--cpus',help='Number of CPUs to use',default=1,type=int)
     parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
+    parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
+    parser.add_argument('--a_priori',default=False,help='Filter with a priori DEM (ASTER)?',action='store_true')
+    parser.add_argument('--coastline',default=None,help='Coastline file to filter DEM & ASTER')
     args = parser.parse_args()
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     N_coverage_minimum = config.getfloat('CORRECTIONS_CONSTANTS','N_coverage_minimum')
     N_photons_minimum = config.getint('CORRECTIONS_CONSTANTS','N_photons_minimum')
 
+    loc_dir = args.location
     dem_file = args.dem
     dem_list_file = args.dem_list
     icesat2_file = args.icesat2
@@ -524,6 +612,9 @@ def main():
     keep_flag = args.keep_files
     N_cpus = args.cpus
     machine_name = args.machine
+    dir_structure = args.dir_structure
+    a_priori_flag = args.a_priori
+    coastline_file = args.coastline
 
     if machine_name == 'b':
         tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
@@ -533,15 +624,19 @@ def main():
     if dem_file is not None and dem_list_file is not None:
         print('Only doing files in list.')
     
-    if dem_file is None and dem_list_file is None:
-        print('Please provide either a single DEM or a list of DEMs.')
+    if loc_dir is None and dem_file is None and dem_list_file is None:
+        print('Please provide a location, a single DEM or a list of DEMs.')
         sys.exit()
     
     if dem_list_file is not None:
         df_list = pd.read_csv(dem_list_file,header=None,names=['dem_file'],dtype={'dem_file':'str'})
         dem_array = np.asarray(df_list.dem_file)
-    else:
+    elif dem_file is not None:
         dem_array = np.atleast_1d(dem_file)
+    elif loc_dir is not None:
+        if loc_dir[-1] != '/':
+            loc_dir = f'{loc_dir}/'
+        dem_array = get_strip_list(loc_dir,input_type=2,corrected_flag=False,dir_structure=dir_structure)
     
     if np.logical_xor(mean_mode,median_mode) == True:
         if mean_mode == True:
@@ -552,6 +647,47 @@ def main():
         print('Please choose exactly one mode: mean or median.')
         sys.exit()
     
+    if a_priori_flag == True:
+        username = config.get('GENERAL_CONSTANTS','username')
+        egm96_file = config.get('GENERAL_PATHS','EGM96_path')
+        faulty_pixel_height_threshold = config.getfloat('CORRECTIONS_CONSTANTS','faulty_pixel_height_threshold')
+        faulty_pixel_pct_threshold = config.getfloat('CORRECTIONS_CONSTANTS','faulty_pixel_pct_threshold')
+        if dem_list_file is not None:
+            loc_name = dem_list_file.split('/')[-1].lower().split('_strip_list')[0]
+            loc_name = '_'.join([''.join([l[i].capitalize() if i == 0 else l for i,l in enumerate(t)]) for t in loc_name.split('_')])
+        elif dem_file is not None:
+            loc_name = '_'.join(dem_file.split('/')[-1].split('_')[:4])
+        elif loc_dir is not None:
+            loc_name = loc_dir.split('/')[-2]
+        aster_wgs84_file = f'{tmp_dir}{loc_name}_ASTER_WGS84.tif'
+        
+        if machine_name == 'b':
+            egm96_file = egm96_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+        elif machine_name == 'local':
+            egm96_file = egm96_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/GEOID/')
+        pw = getpass.getpass()
+        lon_min,lon_max,lat_min,lat_max = get_batch_lonlat_extents(dem_array)
+        download_aster(lon_min,lon_max,lat_min,lat_max,username,pw,egm96_file,tmp_dir,aster_wgs84_file)
+        aster_dict = {'a_priori_flag':True,
+                      'aster_wgs84_file':aster_wgs84_file,
+                      'diff_threshold':faulty_pixel_height_threshold,
+                      'pct_threshold':faulty_pixel_pct_threshold,
+                      'coastline_file':coastline_file}
+    else:
+        aster_wgs84_file = None
+        aster_dict = {'a_priori_flag':False}
+    '''
+    Get lon/lat extents of dem_array
+    Use that to download ASTER DEM from NASA EarthData
+        wget --user={username} --password={pw} https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/ASTGTM.003/ASTGTMV003_N18E073_dem.tif
+        lonlat code corresponds to SouthWest corner of DEM
+        merge all tiles and correct to WGS84 heights with EGM96
+    Clip ASTER to WV DEM strip, and resample WV to ASTER resolution
+    Difference the two DEMs: WV - ASTER -> anything > 100 m dh is a bad point
+    Load up difference binary file and identify percentage of bad points
+    If larger than some threshold -> skip this DEM 
+    '''
+    
     print('Loading ICESat-2...')    
     df_icesat2 = pd.read_csv(icesat2_file,header=None,names=['lon','lat','height_icesat2','time'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str'})
     print('Loading done.')
@@ -561,7 +697,7 @@ def main():
     p.starmap(parallel_corrections,zip(
         dem_array,
         ir(df_icesat2),ir(icesat2_file),ir(mean_median_mode),ir(n_sigma_filter),ir(vertical_shift_iterative_threshold),
-        ir(N_coverage_minimum),ir(N_photons_minimum),ir(tmp_dir),ir(keep_flag),ir(print_flag)
+        ir(N_coverage_minimum),ir(N_photons_minimum),ir(tmp_dir),ir(keep_flag),ir(print_flag),ir(aster_dict)
         ))
     p.close()
         
