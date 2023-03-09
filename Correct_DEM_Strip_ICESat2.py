@@ -643,7 +643,7 @@ def main():
         sys.exit()
     
     if a_priori_flag == True:
-        username = config.get('GENERAL_CONSTANTS','username')
+        username = config.get('GENERAL_CONSTANTS','earthdata_username')
         egm96_file = config.get('GENERAL_PATHS','EGM96_path')
         faulty_pixel_height_threshold = config.getfloat('CORRECTIONS_CONSTANTS','faulty_pixel_height_threshold')
         faulty_pixel_pct_threshold = config.getfloat('CORRECTIONS_CONSTANTS','faulty_pixel_pct_threshold')
