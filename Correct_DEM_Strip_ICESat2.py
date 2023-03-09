@@ -364,11 +364,6 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     a_priori_flag = aster_dict['a_priori_flag']
 
     if a_priori_flag == True:
-        '''
-        clip ASTER file to DEM extents and rename it with dem_base
-        resample DEM to ASTER resolution
-        difference the two and apply threshold
-        '''
         aster_wgs84_file = aster_dict['aster_wgs84_file']
         faulty_pixel_height_threshold = aster_dict['diff_threshold']
         faulty_pixel_pct_threshold = aster_dict['pct_threshold']
@@ -383,16 +378,16 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         clip_lonlat_command = f'gdalwarp -q -te {lon_min_dem} {lat_min_dem} {lon_max_dem} {lat_max_dem} {aster_wgs84_file} {aster_wgs84_clipped_file}'
         clip_aster_coastline_command = f'gdalwarp -q -cutline {coastline_file} {aster_wgs84_clipped_file} {aster_wgs84_clipped_coastline_file}'
         clip_dem_coastline_command = f'gdalwarp -q -cutline {coastline_file} {dem_resampled} {dem_resampled_coastline}'
-        diff_threshold_command = f'gdal_calc.py -A {dem_resampled_coastline} -B {aster_wgs84_clipped_coastline_file} --outfile={aster_dem_threshold_file} --calc="A-B>{faulty_pixel_height_threshold}" --quiet'
+        diff_threshold_command = f'gdal_calc.py -A {dem_resampled_coastline} -B {aster_wgs84_clipped_coastline_file} --outfile={aster_dem_threshold_file} --calc="A-B>{faulty_pixel_height_threshold}" --quiet --NoDataValue -9999'
         subprocess.run(clip_lonlat_command,shell=True)
-        resample_raster(dem,aster_wgs84_clipped_file,dem_resampled)
+        resample_raster(dem,aster_wgs84_clipped_file,dem_resampled,quiet_flag=True)
         subprocess.run(clip_aster_coastline_command,shell=True)
         subprocess.run(clip_dem_coastline_command,shell=True)
         subprocess.run(diff_threshold_command,shell=True)
         src_diff_threshold = gdal.Open(aster_dem_threshold_file,gdalconst.GA_Update)
         diff_threshold_array = np.array(src_diff_threshold.GetRasterBand(1).ReadAsArray())
-        if np.sum(diff_threshold_array) / diff_threshold_array.size > faulty_pixel_pct_threshold:
-            print(f'Too many outliers wrt ASTER! Skipping {dem_base}.')
+        if np.sum(diff_threshold_array==1) / np.sum(np.logical_or(diff_threshold_array==0,diff_threshold_array==1)) > faulty_pixel_pct_threshold:
+            print(f'Too many outliers wrt ASTER, probably too cloudy. Skipping {dem_base}.')
             return None
 
     idx_lon = np.logical_and(lon_icesat2 >= lon_min_dem,lon_icesat2 <= lon_max_dem)

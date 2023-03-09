@@ -1075,7 +1075,7 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
     strip_list_coregistered_date = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list_coregistered])
     idx_date_coregistered_strip = np.argsort(-strip_list_coregistered_date)
     strip_list_coregistered_sorted = np.array(strip_list_coregistered)[idx_date_coregistered_strip.astype(int)]
-    strip_list_coregistered_sorted_file = f'{mosaic_dir}{output_name}_Mosaic_{mosaic_number}_{epsg_code}_Coregistered_Strips_Sorted_Date_{epsg_code}.txt'
+    strip_list_coregistered_sorted_file = f'{mosaic_dir}{output_name}_Mosaic_{mosaic_number}_{epsg_code}_Coregistered_Strips_Sorted_Date.txt'
     np.savetxt(strip_list_coregistered_sorted_file,np.c_[strip_list_coregistered_sorted],fmt='%s')
     mosaic_results_file = f'{mosaic_dir}{output_name}_Mosaic_{mosaic_number}_{epsg_code}_results.txt'
     mosaic_command = f'dem_mosaic --tap -l {strip_list_coregistered_sorted_file} --first --georef-tile-size {MOSAIC_TILE_SIZE} -o {mosaic_dir+output_name}_Mosaic_{mosaic_number}_{epsg_code} > {mosaic_results_file}'
