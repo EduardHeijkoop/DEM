@@ -270,13 +270,11 @@ def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resamp
     src_proj = src.GetProjection()
     src_geotrans = src.GetGeoTransform()
     src_epsg = osr.SpatialReference(wkt=src_proj).GetAttrValue('AUTHORITY',1)
-
     match_ds = gdal.Open(match_filename, gdalconst.GA_ReadOnly)
     match_proj = match_ds.GetProjection()
     match_geotrans = match_ds.GetGeoTransform()
     wide = match_ds.RasterXSize
     high = match_ds.RasterYSize
-
     dst = gdal.GetDriverByName('GTiff').Create(dst_filename,wide,high,1,gdalconst.GDT_Float32)
     dst.SetGeoTransform(match_geotrans)
     dst.SetProjection(match_proj)
@@ -963,7 +961,7 @@ def parallel_coregistration(ref_strip_ID,src_strip_ID,strip_shp_data,gsw,landmas
     print(f'Retained {ratio_pts*100:.1f}% of points.')
     print(f'Vertical shift: {vertical_shift:.2f} m')
     print(f'RMSE: {rmse:.2f} m')
-    coreg_stats_file = f'{mosaic_dir}_Mosaic_Coreg_{ref_strip_ID}_to_{src_strip_ID}.txt'
+    coreg_stats_file = f'{mosaic_dir}/Mosaic_Coreg_{ref_strip_ID}_to_{src_strip_ID}.txt'
     coreg_stats = open(coreg_stats_file,'w')
     coreg_stats.write(f'{ref_strip_ID},{src_strip_ID},{x_shift:.2f},{y_shift:.2f},{vertical_shift:.2f},{rmse:.2f}\n')
     coreg_stats.close()
@@ -999,7 +997,7 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
             ))
         p.close()
         for ref,src in zip(gen_ref_list,gen_src_list):
-            coreg_file = f'{mosaic_dir}_Mosaic_Coreg_{ref}_to_{src}.txt'
+            coreg_file = f'{mosaic_dir}/Mosaic_Coreg_{ref}_to_{src}.txt'
             subprocess.run(f'cat {coreg_file} >> {mosaic_stats_file}',shell=True)
             subprocess.run(f'rm {coreg_file}',shell=True)
             ref_strip = strip_shp_data.strip[ref]
@@ -1011,65 +1009,6 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
             strip_sampled_file = f'{mosaic_dir}Mosaic_sampled_{src}_for_coregistering_{ref}.txt'
             full_strip_sampled_file = f'{mosaic_dir}{output_name}_Mosaic_{mosaic_number}_{epsg_code}_sampled_{src}_for_coregistering_{ref}.txt'
             subprocess.run(f'mv {strip_sampled_file} {full_strip_sampled_file}',shell=True)
-
-
-    '''
-    ref_list = mosaic_dict['ref']
-    src_list = mosaic_dict['src']
-    copy_check = False
-    for i in range(len(ref_list)):
-        ref_strip_ID = ref_list[i]
-        src_strip_ID = src_list[i]
-        ref_strip = strip_shp_data.strip[ref_strip_ID]
-        src_strip = strip_shp_data.strip[src_strip_ID]
-        ref_strip_sensor = ref_strip.split('/')[-1].split('_')[0]
-        src_strip_sensor = src_strip.split('/')[-1].split('_')[0]
-        geom_intersection = strip_shp_data.geometry[src_strip_ID].intersection(strip_shp_data.geometry[ref_strip_ID])
-        x_masked_total,y_masked_total = populate_intersection(geom_intersection,gsw_main_sea_only_buffered,landmask_c_file,X_SPACING,Y_SPACING)
-        strip_sampled_file = mosaic_dir + output_name + f'_Mosaic_{mosaic_number}_{epsg_code}_sampled_{src_strip_ID}_for_coregistering_{ref_strip_ID}.txt'
-        if i in np.argwhere(src_list == src_list[0]):
-            if not copy_check:
-                subprocess.run(f'cp {src_strip} {mosaic_dir}',shell=True)
-                strip_list_coregistered = np.append(strip_list_coregistered,mosaic_dir + src_strip.split('/')[-1])
-                copy_check = True
-            src_file = mosaic_dir + src_strip.split('/')[-1]
-        else:
-            src_seg = f'seg{src_strip.split("seg")[1].split("_")[0]}'
-            src_base = f'{mosaic_dir}{os.path.splitext(src_strip.split("/")[-1].split(src_seg)[0])[0]}{src_seg}'
-            src_ext = os.path.splitext(src_strip)[1]
-            src_file = glob.glob(f'{src_base}*{src_ext}')[0]
-        np.savetxt(strip_sampled_file,np.c_[x_masked_total,y_masked_total],fmt='%.3f',delimiter=' ')
-        df_sampled = sample_two_rasters(src_file,ref_strip,strip_sampled_file)
-        print(f'Linking {ref_strip_ID} ({ref_strip_sensor}) to {src_strip_ID} ({src_strip_sensor})...')
-        if horizontal_flag == True:
-            x_res = gdal.Open(src_strip).GetGeoTransform()[1]
-            y_res = -gdal.Open(src_strip).GetGeoTransform()[5]
-            x_shift,y_shift = evaluate_horizontal_shift(df_sampled,ref_strip,tmp_dir,x_res=x_res,y_res=y_res,x_offset_max=X_MAX_SEARCH,y_offset_max=Y_MAX_SEARCH)
-            if ~np.logical_and(x_shift==0,y_shift==0):
-                x_min,x_max,y_min,y_max = get_raster_extents(ref_strip,'local')
-                horizontal_shift_str = f'x_{x_shift:.2f}m_y_{y_shift:.2f}m'.replace('.','p').replace('-','neg')
-                if 'Shifted' in ref_strip:
-                    new_ref_strip = f'{tmp_dir}{os.path.basename(ref_strip).replace("Shifted",f"Shifted_{horizontal_shift_str}")}'
-                else:
-                    new_ref_strip = f'{tmp_dir}{os.path.splitext(os.path.basename(ref_strip))[0]}_Shifted_{horizontal_shift_str}.tif'
-                translate_command = f'gdal_translate -q -a_ullr {x_min + x_shift} {y_max + y_shift} {x_max + x_shift} {y_min + y_shift} -co "COMPRESS=LZW" -co "BIGTIFF=YES" {ref_strip} {new_ref_strip}'
-                subprocess.run(translate_command,shell=True)
-                df_sampled = sample_two_rasters(src_file,new_ref_strip,strip_sampled_file)
-                # strip_shp_data.strip[ref_strip_ID] = new_ref_strip
-                ref_strip_shifted,vertical_shift,rmse = vertical_shift_raster(new_ref_strip,df_sampled,mosaic_dir)
-                strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
-                subprocess.run(f'rm {new_ref_strip}',shell=True)
-            else:
-                ref_strip_shifted,vertical_shift,rmse = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
-                strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
-        else:
-            x_shift = 0
-            y_shift = 0
-            ref_strip_shifted,vertical_shift,rmse = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
-            strip_list_coregistered = np.append(strip_list_coregistered,ref_strip_shifted)
-        mosaic_stats.write(f'{ref_strip_ID},{src_strip_ID},{x_shift:.2f},{y_shift:.2f},{vertical_shift:.2f},{rmse:.2f}\n')
-    mosaic_stats.close()
-    '''
     print('')
     print('Mosaicing...')
     strip_list_coregistered_date = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list_coregistered])
@@ -1253,3 +1192,126 @@ def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='me
     # print(f'Vertical shift: {vertical_shift:.2f} m')
     # print(f'RMSE: {rmse:.2f} m')
     return raster_shifted,vertical_shift,rmse,ratio_pts
+
+def get_aster_tiles(lon_min,lon_max,lat_min,lat_max):
+    ASTER_list = []
+    lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
+    lat_range = range(int(np.floor(lat_min)),int(np.floor(lat_max))+1)
+    for i in range(len(lon_range)):
+        for j in range(len(lat_range)):
+            if lon_range[i] >= 0:
+                lonLetter = 'E'
+            else:
+                lonLetter = 'W'
+            if lat_range[j] >= 0:
+                latLetter = 'N'
+            else:
+                latLetter = 'S'
+            lonCode = f"{int(np.abs(np.floor(lon_range[i]))):03d}"
+            latCode = f"{int(np.abs(np.floor(lat_range[j]))):02d}"
+            ASTER_id = f'ASTGTMV003_{latLetter}{latCode}{lonLetter}{lonCode}_dem.tif'
+            ASTER_list.append(ASTER_id)
+    return sorted(ASTER_list)
+
+def download_aster(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,tmp_dir,output_file):
+    tile_array = get_aster_tiles(lon_min,lon_max,lat_min,lat_max)
+    aster_earthdata_base = 'https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/ASTGTM.003/'
+    merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
+    for tile in tile_array:
+        dl_command = f'wget --user={username} --password={password} {aster_earthdata_base}{tile} --quiet'
+        subprocess.run(dl_command,shell=True,cwd=tmp_dir)
+        if os.path.isfile(f'{tmp_dir}{tile}'):
+            merge_command = f'{merge_command} {tmp_dir}{tile} ' 
+    subprocess.run(merge_command,shell=True,cwd=tmp_dir)
+    [subprocess.run(f'rm {tile}',shell=True,cwd=tmp_dir) for tile in tile_array if os.path.isfile(f'{tmp_dir}{tile}')]
+    warp_command = f'gdalwarp -q -te {lon_min} {lat_min} {lon_max} {lat_max} tmp_merged.tif tmp_merged_clipped.tif'
+    subprocess.run(warp_command,shell=True,cwd=tmp_dir)
+    subprocess.run(f'rm tmp_merged.tif',shell=True,cwd=tmp_dir)
+    resample_raster(egm96_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM96_resampled.tif',quiet_flag=True)
+    calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM96_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
+    subprocess.run(calc_command,shell=True,cwd=tmp_dir)
+    subprocess.run(f'rm tmp_merged_clipped.tif EGM96_resampled.tif',shell=True,cwd=tmp_dir)
+
+def get_copernicus_tiles(lon_min,lon_max,lat_min,lat_max):
+    COPERNICUS_list = []
+    lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
+    lat_range = range(int(np.floor(lat_min)),int(np.floor(lat_max))+1)
+    for i in range(len(lon_range)):
+        for j in range(len(lat_range)):
+            if lon_range[i] >= 0:
+                lonLetter = 'E'
+            else:
+                lonLetter = 'W'
+            if lat_range[j] >= 0:
+                latLetter = 'N'
+            else:
+                latLetter = 'S'
+            lonCode = f"{int(np.abs(np.floor(lon_range[i]))):03d}"
+            latCode = f"{int(np.abs(np.floor(lat_range[j]))):02d}"
+            COPERNICUS_id = f'Copernicus_DSM_COG_10_{latLetter}{latCode}_00_{lonLetter}{lonCode}_00_DEM/Copernicus_DSM_COG_10_{latLetter}{latCode}_00_{lonLetter}{lonCode}_00_DEM.tif'
+            COPERNICUS_list.append(COPERNICUS_id)
+    return sorted(COPERNICUS_list)
+
+def download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,output_file):
+    tile_array = get_copernicus_tiles(lon_min,lon_max,lat_min,lat_max)
+    copernicus_aws_base = 's3://copernicus-dem-30m/'
+    merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
+    for tile in tile_array:
+        dl_command = f'aws s3 cp --quiet --no-sign-request {copernicus_aws_base}{tile} .'
+        subprocess.run(dl_command,shell=True,cwd=tmp_dir)
+        if os.path.isfile(f'{tmp_dir}{tile.split("/")[-1]}'):
+            merge_command = f'{merge_command} {tmp_dir}{tile.split("/")[-1]} ' 
+    subprocess.run(merge_command,shell=True,cwd=tmp_dir)
+    [subprocess.run(f'rm {tile.split("/")[-1]}',shell=True,cwd=tmp_dir) for tile in tile_array if os.path.isfile(f'{tmp_dir}{tile.split("/")[-1]}')]
+    warp_command = f'gdalwarp -q -te {lon_min} {lat_min} {lon_max} {lat_max} tmp_merged.tif tmp_merged_clipped.tif'
+    subprocess.run(warp_command,shell=True,cwd=tmp_dir)
+    subprocess.run(f'rm tmp_merged.tif',shell=True,cwd=tmp_dir)
+    resample_raster(egm2008_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM2008_resampled.tif',quiet_flag=True)
+    calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM2008_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
+    subprocess.run(calc_command,shell=True,cwd=tmp_dir)
+    subprocess.run(f'rm tmp_merged_clipped.tif EGM2008_resampled.tif',shell=True,cwd=tmp_dir)
+
+def get_srtm_tiles(lon_min,lon_max,lat_min,lat_max):
+    SRTM_list = []
+    lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
+    lat_range = range(int(np.floor(lat_min)),int(np.floor(lat_max))+1)
+    for i in range(len(lon_range)):
+        for j in range(len(lat_range)):
+            if lon_range[i] >= 0:
+                lonLetter = 'E'
+            else:
+                lonLetter = 'W'
+            if lat_range[j] >= 0:
+                latLetter = 'N'
+            else:
+                latLetter = 'S'
+            lonCode = f"{int(np.abs(np.floor(lon_range[i]))):03d}"
+            latCode = f"{int(np.abs(np.floor(lat_range[j]))):02d}"
+            SRTM_id = f'{latLetter}{latCode}{lonLetter}{lonCode}.hgt'
+            SRTM_list.append(SRTM_id)
+    return sorted(SRTM_list)
+
+def download_srtm(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,tmp_dir,output_file):
+    tile_array = get_srtm_tiles(lon_min,lon_max,lat_min,lat_max)
+    srtm_usgs_base = 'https://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/2000.02.11/'
+    srtm_suffix = 'SRTMGL1'
+    merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
+    for tile in tile_array:
+        dl_command = f'wget --user {username} --password={password} {srtm_usgs_base}{os.path.splitext(tile)[0]}.{srtm_suffix}{os.path.splitext(tile)[1]}.zip --no-check-certificate --quiet'
+        unzip_command = f'unzip -qq {os.path.splitext(tile)[0]}.{srtm_suffix}{os.path.splitext(tile)[1]}.zip'
+        subprocess.run(dl_command,shell=True,cwd=tmp_dir)
+        subprocess.run(unzip_command,shell=True,cwd=tmp_dir)
+        if os.path.isfile(f'{tmp_dir}{tile}'):
+            merge_command = f'{merge_command} {tmp_dir}{tile} ' 
+            subprocess.run(f'rm {os.path.splitext(tile)[0]}.{srtm_suffix}{os.path.splitext(tile)[1]}.zip',shell=True,cwd=tmp_dir)
+    subprocess.run(merge_command,shell=True,cwd=tmp_dir)
+    [subprocess.run(f'rm {tile}',shell=True,cwd=tmp_dir) for tile in tile_array if os.path.isfile(f'{tmp_dir}{tile}')]
+    warp_command = f'gdalwarp -q -te {lon_min} {lat_min} {lon_max} {lat_max} tmp_merged.tif tmp_merged_clipped.tif'
+    subprocess.run(warp_command,shell=True,cwd=tmp_dir)
+    subprocess.run(f'rm tmp_merged.tif',shell=True,cwd=tmp_dir)
+    resample_raster(egm96_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM96_resampled.tif',quiet_flag=True)
+    calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM96_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
+    subprocess.run(calc_command,shell=True,cwd=tmp_dir)
+    subprocess.run(f'rm tmp_merged_clipped.tif EGM96_resampled.tif',shell=True,cwd=tmp_dir)
+
+
