@@ -3,84 +3,17 @@ import subprocess
 import os
 from osgeo import gdal,gdalconst,osr
 
-def get_aster_tiles(lon_min,lon_max,lat_min,lat_max):
-    ASTER_list = []
-    lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
-    lat_range = range(int(np.floor(lat_min)),int(np.floor(lat_max))+1)
-    for i in range(len(lon_range)):
-        for j in range(len(lat_range)):
-            if lon_range[i] >= 0:
-                lonLetter = 'E'
-            else:
-                lonLetter = 'W'
-            if lat_range[j] >= 0:
-                latLetter = 'N'
-            else:
-                latLetter = 'S'
-            lonCode = f"{int(np.abs(np.floor(lon_range[i]))):03d}"
-            latCode = f"{int(np.abs(np.floor(lat_range[j]))):02d}"
-            ASTER_id = f'ASTGTMV003_{latLetter}{latCode}{lonLetter}{lonCode}_dem.tif'
-            ASTER_list.append(ASTER_id)
-    return sorted(ASTER_list)
-
-def download_aster(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,tmp_dir,output_file):
-    tile_array = get_aster_tiles(lon_min,lon_max,lat_min,lat_max)
-    aster_earthdata_base = 'https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/ASTGTM.003/'
-    merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
-    for tile in tile_array:
-        dl_command = f'wget --user={username} --password={password} {aster_earthdata_base}{tile} --quiet'
-        subprocess.run(dl_command,shell=True,cwd=tmp_dir)
-        if os.path.isfile(f'{tmp_dir}{tile}'):
-            merge_command = f'{merge_command} {tmp_dir}{tile} ' 
-    subprocess.run(merge_command,shell=True,cwd=tmp_dir)
-    [subprocess.run(f'rm {tile}',shell=True,cwd=tmp_dir) for tile in tile_array if os.path.isfile(f'{tmp_dir}{tile}')]
-    warp_command = f'gdalwarp -q -te {lon_min} {lat_min} {lon_max} {lat_max} tmp_merged.tif tmp_merged_clipped.tif'
-    subprocess.run(warp_command,shell=True,cwd=tmp_dir)
-    subprocess.run(f'rm tmp_merged.tif',shell=True,cwd=tmp_dir)
-    resample_raster(egm96_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM96_resampled.tif',quiet_flag=True)
-    calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM96_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
-    subprocess.run(calc_command,shell=True,cwd=tmp_dir)
-    subprocess.run(f'rm tmp_merged_clipped.tif EGM96_resampled.tif',shell=True,cwd=tmp_dir)
-
-def get_copernicus_tiles(lon_min,lon_max,lat_min,lat_max):
-    COPERNICUS_list = []
-    lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
-    lat_range = range(int(np.floor(lat_min)),int(np.floor(lat_max))+1)
-    for i in range(len(lon_range)):
-        for j in range(len(lat_range)):
-            if lon_range[i] >= 0:
-                lonLetter = 'E'
-            else:
-                lonLetter = 'W'
-            if lat_range[j] >= 0:
-                latLetter = 'N'
-            else:
-                latLetter = 'S'
-            lonCode = f"{int(np.abs(np.floor(lon_range[i]))):03d}"
-            latCode = f"{int(np.abs(np.floor(lat_range[j]))):02d}"
-            COPERNICUS_id = f'Copernicus_DSM_COG_10_{latLetter}{latCode}_00_{lonLetter}{lonCode}_00_DEM/Copernicus_DSM_COG_10_{latLetter}{latCode}_00_{lonLetter}{lonCode}_00_DEM.tif'
-            COPERNICUS_list.append(COPERNICUS_id)
-    return sorted(COPERNICUS_list)
-
-def download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,output_file):
-    tile_array = get_copernicus_tiles(lon_min,lon_max,lat_min,lat_max)
-    copernicus_aws_base = 's3://copernicus-dem-30m/'
-    merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
-    for tile in tile_array:
-        dl_command = f'aws s3 cp --quiet --no-sign-request {copernicus_aws_base}{tile} .'
-        subprocess.run(dl_command,shell=True,cwd=tmp_dir)
-        if os.path.isfile(f'{tmp_dir}{tile.split("/")[-1]}'):
-            merge_command = f'{merge_command} {tmp_dir}{tile.split("/")[-1]} ' 
-    subprocess.run(merge_command,shell=True,cwd=tmp_dir)
-    [subprocess.run(f'rm {tile.split("/")[-1]}',shell=True,cwd=tmp_dir) for tile in tile_array if os.path.isfile(f'{tmp_dir}{tile.split("/")[-1]}')]
-    warp_command = f'gdalwarp -q -te {lon_min} {lat_min} {lon_max} {lat_max} tmp_merged.tif tmp_merged_clipped.tif'
-    subprocess.run(warp_command,shell=True,cwd=tmp_dir)
-    subprocess.run(f'rm tmp_merged.tif',shell=True,cwd=tmp_dir)
-    resample_raster(egm2008_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM2008_resampled.tif',quiet_flag=True)
-    calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM2008_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
-    subprocess.run(calc_command,shell=True,cwd=tmp_dir)
-    subprocess.run(f'rm tmp_merged_clipped.tif EGM2008_resampled.tif',shell=True,cwd=tmp_dir)
-
+'''
+Given a longitude and latitude extent, download global DEM tiles from:
+    -SRTM (30 m)
+    -ASTER (30 m)
+    -Copernicus (30 m)
+Optional correction to WGS 84 ellipsoidal heights if EGM96 (SRTM & ASTER) or EGM2008 (Copernicus) is provided
+Requirements:
+    -GDAL CLI installed (gdal_merge, gdal_calc and gdal_translate)
+    -For SRTM and ASTER a NASA EarthData account is required
+    -For Copernicus the AWS command line tool is required
+'''
 def get_srtm_tiles(lon_min,lon_max,lat_min,lat_max):
     SRTM_list = []
     lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
@@ -119,10 +52,96 @@ def download_srtm(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,t
     warp_command = f'gdalwarp -q -te {lon_min} {lat_min} {lon_max} {lat_max} tmp_merged.tif tmp_merged_clipped.tif'
     subprocess.run(warp_command,shell=True,cwd=tmp_dir)
     subprocess.run(f'rm tmp_merged.tif',shell=True,cwd=tmp_dir)
-    resample_raster(egm96_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM96_resampled.tif',quiet_flag=True)
-    calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM96_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
-    subprocess.run(calc_command,shell=True,cwd=tmp_dir)
-    subprocess.run(f'rm tmp_merged_clipped.tif EGM96_resampled.tif',shell=True,cwd=tmp_dir)
+    if egm96_file is not None:
+        resample_raster(egm96_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM96_resampled.tif',quiet_flag=True)
+        calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM96_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
+        subprocess.run(calc_command,shell=True,cwd=tmp_dir)
+        subprocess.run(f'rm tmp_merged_clipped.tif EGM96_resampled.tif',shell=True,cwd=tmp_dir)
+    else:
+        subprocess.run(f'mv tmp_merged_clipped.tif {output_file}',shell=True,cwd=tmp_dir)
+
+def get_aster_tiles(lon_min,lon_max,lat_min,lat_max):
+    ASTER_list = []
+    lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
+    lat_range = range(int(np.floor(lat_min)),int(np.floor(lat_max))+1)
+    for i in range(len(lon_range)):
+        for j in range(len(lat_range)):
+            if lon_range[i] >= 0:
+                lonLetter = 'E'
+            else:
+                lonLetter = 'W'
+            if lat_range[j] >= 0:
+                latLetter = 'N'
+            else:
+                latLetter = 'S'
+            lonCode = f"{int(np.abs(np.floor(lon_range[i]))):03d}"
+            latCode = f"{int(np.abs(np.floor(lat_range[j]))):02d}"
+            ASTER_id = f'ASTGTMV003_{latLetter}{latCode}{lonLetter}{lonCode}_dem.tif'
+            ASTER_list.append(ASTER_id)
+    return sorted(ASTER_list)
+
+def download_aster(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,tmp_dir,output_file):
+    tile_array = get_aster_tiles(lon_min,lon_max,lat_min,lat_max)
+    aster_earthdata_base = 'https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/ASTGTM.003/'
+    merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
+    for tile in tile_array:
+        dl_command = f'wget --user={username} --password={password} {aster_earthdata_base}{tile} --quiet'
+        subprocess.run(dl_command,shell=True,cwd=tmp_dir)
+        if os.path.isfile(f'{tmp_dir}{tile}'):
+            merge_command = f'{merge_command} {tmp_dir}{tile} ' 
+    subprocess.run(merge_command,shell=True,cwd=tmp_dir)
+    [subprocess.run(f'rm {tile}',shell=True,cwd=tmp_dir) for tile in tile_array if os.path.isfile(f'{tmp_dir}{tile}')]
+    warp_command = f'gdalwarp -q -te {lon_min} {lat_min} {lon_max} {lat_max} tmp_merged.tif tmp_merged_clipped.tif'
+    subprocess.run(warp_command,shell=True,cwd=tmp_dir)
+    subprocess.run(f'rm tmp_merged.tif',shell=True,cwd=tmp_dir)
+    if egm96_file is not None:
+        resample_raster(egm96_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM96_resampled.tif',quiet_flag=True)
+        calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM96_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
+        subprocess.run(calc_command,shell=True,cwd=tmp_dir)
+        subprocess.run(f'rm tmp_merged_clipped.tif EGM96_resampled.tif',shell=True,cwd=tmp_dir)
+    else:
+        subprocess.run(f'mv tmp_merged_clipped.tif {output_file}',shell=True,cwd=tmp_dir)
+def get_copernicus_tiles(lon_min,lon_max,lat_min,lat_max):
+    COPERNICUS_list = []
+    lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
+    lat_range = range(int(np.floor(lat_min)),int(np.floor(lat_max))+1)
+    for i in range(len(lon_range)):
+        for j in range(len(lat_range)):
+            if lon_range[i] >= 0:
+                lonLetter = 'E'
+            else:
+                lonLetter = 'W'
+            if lat_range[j] >= 0:
+                latLetter = 'N'
+            else:
+                latLetter = 'S'
+            lonCode = f"{int(np.abs(np.floor(lon_range[i]))):03d}"
+            latCode = f"{int(np.abs(np.floor(lat_range[j]))):02d}"
+            COPERNICUS_id = f'Copernicus_DSM_COG_10_{latLetter}{latCode}_00_{lonLetter}{lonCode}_00_DEM/Copernicus_DSM_COG_10_{latLetter}{latCode}_00_{lonLetter}{lonCode}_00_DEM.tif'
+            COPERNICUS_list.append(COPERNICUS_id)
+    return sorted(COPERNICUS_list)
+
+def download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,output_file):
+    tile_array = get_copernicus_tiles(lon_min,lon_max,lat_min,lat_max)
+    copernicus_aws_base = 's3://copernicus-dem-30m/'
+    merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
+    for tile in tile_array:
+        dl_command = f'aws s3 cp --quiet --no-sign-request {copernicus_aws_base}{tile} .'
+        subprocess.run(dl_command,shell=True,cwd=tmp_dir)
+        if os.path.isfile(f'{tmp_dir}{tile.split("/")[-1]}'):
+            merge_command = f'{merge_command} {tmp_dir}{tile.split("/")[-1]} ' 
+    subprocess.run(merge_command,shell=True,cwd=tmp_dir)
+    [subprocess.run(f'rm {tile.split("/")[-1]}',shell=True,cwd=tmp_dir) for tile in tile_array if os.path.isfile(f'{tmp_dir}{tile.split("/")[-1]}')]
+    warp_command = f'gdalwarp -q -te {lon_min} {lat_min} {lon_max} {lat_max} tmp_merged.tif tmp_merged_clipped.tif'
+    subprocess.run(warp_command,shell=True,cwd=tmp_dir)
+    subprocess.run(f'rm tmp_merged.tif',shell=True,cwd=tmp_dir)
+    if egm2008_file is not None:
+        resample_raster(egm2008_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM2008_resampled.tif',quiet_flag=True)
+        calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM2008_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
+        subprocess.run(calc_command,shell=True,cwd=tmp_dir)
+        subprocess.run(f'rm tmp_merged_clipped.tif EGM2008_resampled.tif',shell=True,cwd=tmp_dir)
+    else:
+        subprocess.run(f'mv tmp_merged_clipped.tif {output_file}',shell=True,cwd=tmp_dir)
 
 def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resample_method='bilinear',compress=True,quiet_flag=False):
     '''
