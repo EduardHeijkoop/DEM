@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from osgeo import gdal,gdalconst,osr
 import argparse
-import argparse
 import subprocess
 import matplotlib.pyplot as plt
 import warnings
@@ -17,22 +16,9 @@ import getpass
 
 from scipy.interpolate import SmoothBivariateSpline,LSQBivariateSpline
 
-from dem_utils import deg2utm,get_raster_extents,resample_raster
+from dem_utils import deg2utm,get_raster_extents,resample_raster,sample_raster
 from dem_utils import get_strip_list,get_strip_extents
-
-def sample_raster(raster_path, csv_path, output_file,projection='wgs84'):
-    raster_base = os.path.splitext(raster_path.split('/')[-1])[0]
-    cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -{projection} {raster_path} > tmp_{raster_base}.txt"
-    subprocess.run(cat_command,shell=True)
-    fill_nan_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_{raster_base}.txt > tmp2_{raster_base}.txt"
-    subprocess.run(fill_nan_command,shell=True)
-    paste_command = f"paste -d , {csv_path} tmp2_{raster_base}.txt > {output_file}"
-    subprocess.run(paste_command,shell=True)
-    subprocess.run(f"sed -i '/-9999/d' {output_file}",shell=True)
-    subprocess.run(f"sed -i '/NaN/d' {output_file}",shell=True)
-    subprocess.run(f"sed -i '/nan/d' {output_file}",shell=True)
-    subprocess.run(f"rm tmp_{raster_base}.txt tmp2_{raster_base}.txt",shell=True)
-    return None
+from Global_DEMs import download_copernicus
 
 def filter_outliers(dh,mean_median_mode='mean',n_sigma_filter=2):
     dh_mean = np.nanmean(dh)
@@ -341,7 +327,7 @@ def raster_to_geotiff(x,y,arr,epsg_code,output_file):
     dataset = None
     return None
 
-def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,N_coverage_minimum,N_photons_minimum,tmp_dir,keep_flag,print_flag,aster_dict):
+def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,N_coverage_minimum,N_photons_minimum,tmp_dir,keep_flag,print_flag,copernicus_dict):
     lon_icesat2 = np.asarray(df_icesat2.lon)
     lat_icesat2 = np.asarray(df_icesat2.lat)
     height_icesat2 = np.asarray(df_icesat2.height_icesat2)
@@ -361,33 +347,33 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     src_dem_epsg = osr.SpatialReference(wkt=src_dem_proj).GetAttrValue('AUTHORITY',1)
     lon_min_dem,lon_max_dem,lat_min_dem,lat_max_dem = get_raster_extents(dem)
 
-    a_priori_flag = aster_dict['a_priori_flag']
+    a_priori_flag = copernicus_dict['a_priori_flag']
 
     if a_priori_flag == True:
-        aster_wgs84_file = aster_dict['aster_wgs84_file']
-        faulty_pixel_height_threshold = aster_dict['diff_threshold']
-        faulty_pixel_pct_threshold = aster_dict['pct_threshold']
-        coastline_file = aster_dict['coastline_file']
-        aster_dir = os.path.dirname(aster_wgs84_file)
-        aster_base,aster_ext = os.path.splitext(os.path.basename(aster_wgs84_file))
-        aster_wgs84_clipped_file = f'{aster_dir}/{aster_base}_{dem_base}{aster_ext}'
-        aster_wgs84_clipped_coastline_file = f'{aster_dir}/{aster_base}_{dem_base}_clipped_coastline{aster_ext}'
-        dem_resampled = f'{tmp_dir}{dem_base}_resampled_ASTER{dem_ext}'
-        dem_resampled_coastline = f'{tmp_dir}{dem_base}_resampled_ASTER_clipped_coastline{dem_ext}'
-        aster_dem_threshold_file = f'{tmp_dir}{dem_base}_ASTER_diff_threshold{dem_ext}'
-        clip_lonlat_command = f'gdalwarp -q -te {lon_min_dem} {lat_min_dem} {lon_max_dem} {lat_max_dem} {aster_wgs84_file} {aster_wgs84_clipped_file}'
-        clip_aster_coastline_command = f'gdalwarp -q -cutline {coastline_file} {aster_wgs84_clipped_file} {aster_wgs84_clipped_coastline_file}'
+        copernicus_wgs84_file = copernicus_dict['copernicus_wgs84_file']
+        faulty_pixel_height_threshold = copernicus_dict['diff_threshold']
+        faulty_pixel_pct_threshold = copernicus_dict['pct_threshold']
+        coastline_file = copernicus_dict['coastline_file']
+        copernicus_dir = os.path.dirname(copernicus_wgs84_file)
+        copernicus_base,copernicus_ext = os.path.splitext(os.path.basename(copernicus_wgs84_file))
+        copernicus_wgs84_clipped_file = f'{copernicus_dir}/{copernicus_base}_{dem_base}{copernicus_ext}'
+        copernicus_wgs84_clipped_coastline_file = f'{copernicus_dir}/{copernicus_base}_{dem_base}_clipped_coastline{copernicus_ext}'
+        dem_resampled = f'{tmp_dir}{dem_base}_resampled_COPERNICUS{dem_ext}'
+        dem_resampled_coastline = f'{tmp_dir}{dem_base}_resampled_COPERNICUS_clipped_coastline{dem_ext}'
+        copernicus_dem_threshold_file = f'{tmp_dir}{dem_base}_COPERNICUS_diff_threshold{dem_ext}'
+        clip_lonlat_command = f'gdalwarp -q -te {lon_min_dem} {lat_min_dem} {lon_max_dem} {lat_max_dem} {copernicus_wgs84_file} {copernicus_wgs84_clipped_file}'
+        clip_copernicus_coastline_command = f'gdalwarp -q -cutline {coastline_file} {copernicus_wgs84_clipped_file} {copernicus_wgs84_clipped_coastline_file}'
         clip_dem_coastline_command = f'gdalwarp -q -cutline {coastline_file} {dem_resampled} {dem_resampled_coastline}'
-        diff_threshold_command = f'gdal_calc.py -A {dem_resampled_coastline} -B {aster_wgs84_clipped_coastline_file} --outfile={aster_dem_threshold_file} --calc="A-B>{faulty_pixel_height_threshold}" --quiet --NoDataValue -9999'
+        diff_threshold_command = f'gdal_calc.py -A {dem_resampled_coastline} -B {copernicus_wgs84_clipped_coastline_file} --outfile={copernicus_dem_threshold_file} --calc="A-B>{faulty_pixel_height_threshold}" --quiet --NoDataValue -9999'
         subprocess.run(clip_lonlat_command,shell=True)
-        resample_raster(dem,aster_wgs84_clipped_file,dem_resampled,quiet_flag=True)
-        subprocess.run(clip_aster_coastline_command,shell=True)
+        resample_raster(dem,copernicus_wgs84_clipped_file,dem_resampled,quiet_flag=True)
+        subprocess.run(clip_copernicus_coastline_command,shell=True)
         subprocess.run(clip_dem_coastline_command,shell=True)
         subprocess.run(diff_threshold_command,shell=True)
-        src_diff_threshold = gdal.Open(aster_dem_threshold_file,gdalconst.GA_Update)
+        src_diff_threshold = gdal.Open(copernicus_dem_threshold_file,gdalconst.GA_Update)
         diff_threshold_array = np.array(src_diff_threshold.GetRasterBand(1).ReadAsArray())
         if np.sum(diff_threshold_array==1) / np.sum(np.logical_or(diff_threshold_array==0,diff_threshold_array==1)) > faulty_pixel_pct_threshold:
-            print(f'Too many outliers wrt ASTER, probably too cloudy. Skipping {dem_base}.')
+            print(f'Too many outliers wrt Copernicus DEM, probably too cloudy. Skipping {dem_base}.')
             return None
 
     idx_lon = np.logical_and(lon_icesat2 >= lon_min_dem,lon_icesat2 <= lon_max_dem)
@@ -526,46 +512,6 @@ def get_batch_lonlat_extents(strip_list):
         lat_max_strips = np.max((lat_max_strips,lat_max_single_strip))
     return lon_min_strips,lon_max_strips,lat_min_strips,lat_max_strips
 
-def get_aster_tiles(lon_min,lon_max,lat_min,lat_max):
-    ASTER_list = []
-    lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
-    lat_range = range(int(np.floor(lat_min)),int(np.floor(lat_max))+1)
-    for i in range(len(lon_range)):
-        for j in range(len(lat_range)):
-            if lon_range[i] >= 0:
-                lonLetter = 'E'
-            else:
-                lonLetter = 'W'
-            if lat_range[j] >= 0:
-                latLetter = 'N'
-            else:
-                latLetter = 'S'
-            lonCode = f"{int(np.abs(np.floor(lon_range[i]))):03d}"
-            latCode = f"{int(np.abs(np.floor(lat_range[j]))):02d}"
-            ASTER_id = f'ASTGTMV003_{latLetter}{latCode}{lonLetter}{lonCode}_dem.tif'
-            ASTER_list.append(ASTER_id)
-    return sorted(ASTER_list)
-
-def download_aster(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,tmp_dir,output_file):
-    tile_array = get_aster_tiles(lon_min,lon_max,lat_min,lat_max)
-    aster_earthdata_base = 'https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/ASTGTM.003/'
-    merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
-    for tile in tile_array:
-        dl_command = f'wget --user={username} --password={password} {aster_earthdata_base}{tile} --quiet'
-        subprocess.run(dl_command,shell=True,cwd=tmp_dir)
-        if os.path.isfile(f'{tmp_dir}{tile}'):
-            merge_command = f'{merge_command} {tmp_dir}{tile} ' 
-    subprocess.run(merge_command,shell=True,cwd=tmp_dir)
-    [subprocess.run(f'rm {tile}',shell=True,cwd=tmp_dir) for tile in tile_array if os.path.isfile(f'{tmp_dir}{tile}')]
-    warp_command = f'gdalwarp -q -te {lon_min} {lat_min} {lon_max} {lat_max} tmp_merged.tif tmp_merged_clipped.tif'
-    subprocess.run(warp_command,shell=True,cwd=tmp_dir)
-    subprocess.run(f'rm tmp_merged.tif',shell=True,cwd=tmp_dir)
-    resample_raster(egm96_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM96_resampled.tif',quiet_flag=True)
-    calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM96_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
-    subprocess.run(calc_command,shell=True,cwd=tmp_dir)
-    subprocess.run(f'rm tmp_merged_clipped.tif EGM96_resampled.tif',shell=True,cwd=tmp_dir)
-
-
 
 def main():
     warnings.simplefilter(action='ignore')
@@ -587,8 +533,8 @@ def main():
     parser.add_argument('--cpus',help='Number of CPUs to use',default=1,type=int)
     parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
-    parser.add_argument('--a_priori',default=False,help='Filter with a priori DEM (ASTER)?',action='store_true')
-    parser.add_argument('--coastline',default=None,help='Coastline file to filter DEM & ASTER')
+    parser.add_argument('--a_priori',default=False,help='Filter with a priori DEM (COPERNICUS)?',action='store_true')
+    parser.add_argument('--coastline',default=None,help='Coastline file to filter DEM & COPERNICUS')
     args = parser.parse_args()
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
@@ -644,7 +590,7 @@ def main():
     
     if a_priori_flag == True:
         username = config.get('GENERAL_CONSTANTS','earthdata_username')
-        egm96_file = config.get('GENERAL_PATHS','EGM96_path')
+        egm2008_file = config.get('GENERAL_PATHS','EGM2008_path')
         faulty_pixel_height_threshold = config.getfloat('CORRECTIONS_CONSTANTS','faulty_pixel_height_threshold')
         faulty_pixel_pct_threshold = config.getfloat('CORRECTIONS_CONSTANTS','faulty_pixel_pct_threshold')
         if dem_list_file is not None:
@@ -654,7 +600,7 @@ def main():
             loc_name = '_'.join(dem_file.split('/')[-1].split('_')[:4])
         elif loc_dir is not None:
             loc_name = loc_dir.split('/')[-2]
-        aster_wgs84_file = f'{tmp_dir}{loc_name}_ASTER_WGS84.tif'
+        copernicus_wgs84_file = f'{tmp_dir}{loc_name}_COPERNICUS_WGS84.tif'
         
         if machine_name == 'b':
             egm96_file = egm96_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
@@ -662,25 +608,21 @@ def main():
             egm96_file = egm96_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/GEOID/')
         pw = getpass.getpass()
         lon_min,lon_max,lat_min,lat_max = get_batch_lonlat_extents(dem_array)
-        download_aster(lon_min,lon_max,lat_min,lat_max,username,pw,egm96_file,tmp_dir,aster_wgs84_file)
-        aster_dict = {'a_priori_flag':True,
-                      'aster_wgs84_file':aster_wgs84_file,
+        download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,copernicus_wgs84_file)
+        copernicus_dict = {'a_priori_flag':True,
+                      'copernicus_wgs84_file':copernicus_wgs84_file,
                       'diff_threshold':faulty_pixel_height_threshold,
                       'pct_threshold':faulty_pixel_pct_threshold,
                       'coastline_file':coastline_file}
     else:
-        aster_wgs84_file = None
-        aster_dict = {'a_priori_flag':False}
+        copernicus_wgs84_file = None
+        copernicus_dict = {'a_priori_flag':False}
     '''
-    Get lon/lat extents of dem_array
-    Use that to download ASTER DEM from NASA EarthData
-        wget --user={username} --password={pw} https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/ASTGTM.003/ASTGTMV003_N18E073_dem.tif
-        lonlat code corresponds to SouthWest corner of DEM
-        merge all tiles and correct to WGS84 heights with EGM96
-    Clip ASTER to WV DEM strip, and resample WV to ASTER resolution
-    Difference the two DEMs: WV - ASTER -> anything > 100 m dh is a bad point
-    Load up difference binary file and identify percentage of bad points
-    If larger than some threshold -> skip this DEM 
+    Change EPSG of icesat-2 to match dem. If EPSG==326XX or 327XX, then use deg2utm, otherwise use:
+        pd = df.read_csv()
+        gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.lon, df.lat),crs='EPSG:4326')
+        gdf_3413 = gdf.to_crs('EPSG:3413') #3413 as an example
+        df_3413 = pd.DataFrame({'x':gdf_3413.geometry.x,'y':gdf_3413.geometry.y,'height':df.height,'time':df.time})
     '''
     
     print('Loading ICESat-2...')    
@@ -692,7 +634,7 @@ def main():
     p.starmap(parallel_corrections,zip(
         dem_array,
         ir(df_icesat2),ir(icesat2_file),ir(mean_median_mode),ir(n_sigma_filter),ir(vertical_shift_iterative_threshold),
-        ir(N_coverage_minimum),ir(N_photons_minimum),ir(tmp_dir),ir(keep_flag),ir(print_flag),ir(aster_dict)
+        ir(N_coverage_minimum),ir(N_photons_minimum),ir(tmp_dir),ir(keep_flag),ir(print_flag),ir(copernicus_dict)
         ))
     p.close()
         
