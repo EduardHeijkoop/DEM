@@ -271,6 +271,9 @@ def r_squared(x1,x2):
         return None
     return 1 - np.sum((x1-x2)**2)/np.sum((x1-np.mean(x1))**2)
 
+def mean_absolute_deviation(x):
+    return np.mean(np.abs(x-np.mean(x)))
+
 def sample_raster(raster_path, csv_path, output_file,nodata='-9999'):
     raster_base = os.path.splitext(raster_path.split('/')[-1])[0]
     cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -wgs84 {raster_path} > tmp_{raster_base}.txt"
