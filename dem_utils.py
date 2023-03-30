@@ -259,6 +259,18 @@ def great_circle_distance(lon1,lat1,lon2,lat2,R=6378137.0):
     distance = R*dsigma
     return distance
 
+def rmse(x1,x2):
+    if len(x1) != len(x2):
+        print('Error: vectors must be same length')
+        return None
+    return np.sqrt(np.sum((x1-x2)**2/len(x1)))
+
+def r_squared(x1,x2):
+    if len(x1) != len(x2):
+        print('Error: vectors must be same length')
+        return None
+    return 1 - np.sum((x1-x2)**2)/np.sum((x1-np.mean(x1))**2)
+
 def sample_raster(raster_path, csv_path, output_file,nodata='-9999'):
     raster_base = os.path.splitext(raster_path.split('/')[-1])[0]
     cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -wgs84 {raster_path} > tmp_{raster_base}.txt"
