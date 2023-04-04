@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 from osgeo import gdal,gdalconst,osr
 import argparse
 import subprocess
@@ -140,13 +141,12 @@ def compute_plane_correction(df_sampled,dem_file):
     '''
     Checks if DEM has plane effect in it and corrects for it, using ICESat-2 as truth
     '''
-    lon_icesat2 = np.asarray(df_sampled.lon)
-    lat_icesat2 = np.asarray(df_sampled.lat)
+    x_icesat2 = np.asarray(df_sampled.x_local)
+    y_icesat2 = np.asarray(df_sampled.y_local)
     height_icesat2 = np.asarray(df_sampled.height_icesat2)
     time_icesat2 = np.asarray(df_sampled.time)
     height_dem = np.asarray(df_sampled.height_dem)
     dh = height_icesat2 - height_dem
-    x_icesat2,y_icesat2,zone_icesat2 = deg2utm(lon_icesat2,lat_icesat2)
     try:
         params_plane,params_covariance_plane = scipy.optimize.curve_fit(fit_plane,np.stack((x_icesat2,y_icesat2),axis=1),dh)
     except ValueError:
@@ -181,13 +181,12 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
     '''
     Checks if DEM has jitter effect in it and corrects for it, using ICESat-2 as truth
     '''
-    lon_icesat2 = np.asarray(df_sampled.lon)
-    lat_icesat2 = np.asarray(df_sampled.lat)
+    x_icesat2 = np.asarray(df_sampled.x_local)
+    y_icesat2 = np.asarray(df_sampled.y_local)
     height_icesat2 = np.asarray(df_sampled.height_icesat2)
     time_icesat2 = np.asarray(df_sampled.time)
     height_dem = np.asarray(df_sampled.height_dem)
     dh = height_icesat2 - height_dem
-    x_icesat2,y_icesat2,zone_icesat2 = deg2utm(lon_icesat2,lat_icesat2)
     x_segments = np.linspace(np.min(x_icesat2),np.max(x_icesat2),N_segments_x+1)
     y_segments = np.linspace(np.min(y_icesat2),np.max(y_icesat2),N_segments_y)
     src_dem = gdal.Open(dem_file,gdalconst.GA_Update)
@@ -399,6 +398,15 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
 
     sample_code = sample_raster(dem,icesat2_file,sampled_original_file)
     df_sampled_original = pd.read_csv(sampled_original_file,header=None,names=['lon','lat','height_icesat2','time','height_dem'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float'})
+    if (src_dem_epsg[:3] == '326' or src_dem_epsg[:3] == '327') and len(src_dem_epsg) == 5:
+        x_sampled_original,y_sampled_original,zone_sampled_original = deg2utm(df_sampled_original.lon,df_sampled_original.lat)
+    else:
+        gdf = gpd.GeoDataFrame(df_sampled_original,geometry=gpd.points_from_xy(df_sampled_original.lon,df_sampled_original.lat),crs='EPSG:4326')
+        gdf_local = gdf.to_crs(f'EPSG:{src_dem_epsg}')
+        x_sampled_original = gdf_local.geometry.x
+        y_sampled_original = gdf_local.geometry.y
+    df_sampled_original['x_local'] = x_sampled_original
+    df_sampled_original['y_local'] = y_sampled_original
     df_sampled_coregistered,raster_shifted,raster_stats_dict = vertical_shift_raster(dem,df_sampled_original,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,new_dir=tmp_dir)
     raster_shifted_base,raster_shifted_ext = os.path.splitext(os.path.basename(raster_shifted))
     sampled_coregistered_file = f'{tmp_dir}{icesat2_base}_Sampled_{dem_base}_Coregistered{icesat2_ext}'
