@@ -458,6 +458,35 @@ def landmask_dem(lon,lat,lon_coast,lat_coast,landmask_c_file,inside_flag):
     landmask = landmask == inside_flag #just to be consistent and return Boolean array
     return landmask
 
+def parallel_landmask(lon_pts,lat_pts,lon_boundary,lat_boundary,landmask_c_file,inside_flag,N_cpus):
+    '''
+    Given lon/lat of points, and lon/lat of coast (or any other boundary),
+    finds points inside the polygon. Boundary must be in the form of separate lon and lat arrays,
+    with polygons separated by NaNs
+    '''
+    landmask_so_file = landmask_c_file.replace('.c','.so') #the .so file is created
+    if not os.path.exists(landmask_so_file):
+        subprocess.run('cc -fPIC -shared -o ' + landmask_so_file + ' ' + landmask_c_file,shell=True)
+    landmask_lib = c.cdll.LoadLibrary(landmask_so_file)
+    lon_split = np.array_split(lon_pts,N_cpus)
+    lat_split = np.array_split(lat_pts,N_cpus)
+    ir = itertools.repeat
+    p = multiprocessing.Pool(N_cpus)
+    landmask = p.starmap(parallel_pnpoly,zip(lon_split,lat_split,ir(lon_boundary),ir(lat_boundary),ir(landmask_so_file)))
+    p.close()
+    landmask = landmask == inside_flag
+    return landmask
+
+def parallel_pnpoly(lon_pts,lat_pts,lon_boundary,lat_boundary,landmask_so_file):
+    landmask_lib = c.cdll.LoadLibrary(landmask_so_file)
+    arrx = (c.c_float * len(lon_boundary))(*lon_boundary)
+    arry = (c.c_float * len(lat_boundary))(*lat_boundary)
+    arrx_input = (c.c_float * len(lon_pts))(*lon_pts)
+    arry_input = (c.c_float * len(lat_pts))(*lat_pts)
+    landmask = np.zeros(len(lon_pts),dtype=c.c_int)
+    landmask_lib.pnpoly(c.c_int(len(lon_boundary)),c.c_int(len(lon_pts)),arrx,arry,arrx_input,arry_input,c.c_void_p(landmask.ctypes.data))
+    return landmask
+
 def get_strip_list(loc_dir,input_type,corrected_flag,dir_structure):
     '''
     Different input types:
