@@ -275,19 +275,23 @@ def mean_absolute_deviation(x):
     return np.mean(np.abs(x-np.mean(x)))
 
 def sample_raster(raster_path, csv_path, output_file,nodata='-9999',header=None):
+    output_dir = os.path.dirname(output_file)
     raster_base = os.path.splitext(raster_path.split('/')[-1])[0]
-    cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -wgs84 {raster_path} > tmp_{raster_base}.txt"
-    subprocess.run(cat_command,shell=True)
-    fill_nan_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_{raster_base}.txt > tmp2_{raster_base}.txt"
-    subprocess.run(fill_nan_command,shell=True)
     if header is not None:
-        subprocess.run(f"sed -i '1i {header}' tmp2_{raster_base}.txt",shell=True)
+        cat_command = f"tail -n+2 {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -wgs84 {raster_path} > tmp_{raster_base}.txt"
+    else:
+        cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -wgs84 {raster_path} > tmp_{raster_base}.txt"
+    subprocess.run(cat_command,shell=True,cwd=output_dir)
+    fill_nan_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_{raster_base}.txt > tmp2_{raster_base}.txt"
+    subprocess.run(fill_nan_command,shell=True,cwd=output_dir)
+    if header is not None:
+        subprocess.run(f"sed -i '1i {header}' tmp2_{raster_base}.txt",shell=True,cwd=output_dir)
     paste_command = f"paste -d , {csv_path} tmp2_{raster_base}.txt > {output_file}"
-    subprocess.run(paste_command,shell=True)
-    subprocess.run(f"sed -i '/{nodata}/d' {output_file}",shell=True)
-    subprocess.run(f"sed -i '/NaN/d' {output_file}",shell=True)
-    subprocess.run(f"sed -i '/nan/d' {output_file}",shell=True)
-    subprocess.run(f"rm tmp_{raster_base}.txt tmp2_{raster_base}.txt",shell=True)
+    subprocess.run(paste_command,shell=True,cwd=output_dir)
+    subprocess.run(f"sed -i '/{nodata}/d' {output_file}",shell=True,cwd=output_dir)
+    subprocess.run(f"sed -i '/NaN/d' {output_file}",shell=True,cwd=output_dir)
+    subprocess.run(f"sed -i '/nan/d' {output_file}",shell=True,cwd=output_dir)
+    subprocess.run(f"rm tmp_{raster_base}.txt tmp2_{raster_base}.txt",shell=True,cwd=output_dir)
     return None
 
 def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resample_method='bilinear',compress=True,quiet_flag=False):
