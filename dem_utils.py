@@ -280,14 +280,14 @@ def sample_raster(raster_path, csv_path, output_file,nodata='-9999',header=None)
     subprocess.run(cat_command,shell=True)
     fill_nan_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_{raster_base}.txt > tmp2_{raster_base}.txt"
     subprocess.run(fill_nan_command,shell=True)
+    if header is not None:
+        subprocess.run(f"sed -i '1i {header}' tmp2_{raster_base}.txt",shell=True)
     paste_command = f"paste -d , {csv_path} tmp2_{raster_base}.txt > {output_file}"
     subprocess.run(paste_command,shell=True)
     subprocess.run(f"sed -i '/{nodata}/d' {output_file}",shell=True)
     subprocess.run(f"sed -i '/NaN/d' {output_file}",shell=True)
     subprocess.run(f"sed -i '/nan/d' {output_file}",shell=True)
     subprocess.run(f"rm tmp_{raster_base}.txt tmp2_{raster_base}.txt",shell=True)
-    if header is not None:
-        subprocess.run(f"sed -i '1i {header}' {output_file}",shell=True)
     return None
 
 def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resample_method='bilinear',compress=True,quiet_flag=False):
