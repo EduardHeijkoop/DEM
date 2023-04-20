@@ -474,6 +474,7 @@ def parallel_landmask(lon_pts,lat_pts,lon_boundary,lat_boundary,landmask_c_file,
     p = multiprocessing.Pool(N_cpus)
     landmask = p.starmap(parallel_pnpoly,zip(lon_split,lat_split,ir(lon_boundary),ir(lat_boundary),ir(landmask_so_file)))
     p.close()
+    landmask = np.concatenate(landmask)
     landmask = landmask == inside_flag
     return landmask
 
