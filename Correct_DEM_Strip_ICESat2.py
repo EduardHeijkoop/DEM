@@ -37,21 +37,21 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
     cumulative_shift = 0
     original_len = len(df_sampled)
     height_icesat2_original = np.asarray(df_sampled.height_icesat2)
-    height_dem_original = np.asarray(df_sampled.height_dem)
-    dh_original = height_icesat2_original - height_dem_original
+    height_dsm_original = np.asarray(df_sampled.height_dsm)
+    dh_original = height_icesat2_original - height_dsm_original
     rmse_original = np.sqrt(np.sum(dh_original**2)/len(dh_original))
     while True:
         count = count + 1
         height_icesat2 = np.asarray(df_sampled.height_icesat2)
-        height_dem = np.asarray(df_sampled.height_dem)
-        dh = height_icesat2 - height_dem
+        height_dsm = np.asarray(df_sampled.height_dsm)
+        dh = height_icesat2 - height_dsm
         dh_filter = filter_outliers(dh,mean_median_mode,n_sigma_filter)
         if mean_median_mode == 'mean':
             incremental_shift = np.mean(dh[dh_filter])
         elif mean_median_mode == 'median':
             incremental_shift = np.median(dh[dh_filter])
         df_sampled = df_sampled[dh_filter].reset_index(drop=True)
-        df_sampled.height_dem = df_sampled.height_dem + incremental_shift
+        df_sampled.height_dsm = df_sampled.height_dsm + incremental_shift
         cumulative_shift = cumulative_shift + incremental_shift
         # if printing == True:
             # print(f'Iteration        : {count}')
@@ -61,8 +61,8 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
         if count == 15:
             break
     height_icesat2_filtered = np.asarray(df_sampled.height_icesat2)
-    height_dem_filtered = np.asarray(df_sampled.height_dem)
-    dh_filtered = height_icesat2_filtered - height_dem_filtered
+    height_dsm_filtered = np.asarray(df_sampled.height_dsm)
+    dh_filtered = height_icesat2_filtered - height_dsm_filtered
     rmse_filtered = np.sqrt(np.sum(dh_filtered**2)/len(dh_filtered))
     stats_dict = {
         'N_iterations':count,
@@ -145,8 +145,8 @@ def compute_plane_correction(df_sampled,dem_file):
     y_icesat2 = np.asarray(df_sampled.y_local)
     height_icesat2 = np.asarray(df_sampled.height_icesat2)
     time_icesat2 = np.asarray(df_sampled.time)
-    height_dem = np.asarray(df_sampled.height_dem)
-    dh = height_icesat2 - height_dem
+    height_dsm = np.asarray(df_sampled.height_dsm)
+    dh = height_icesat2 - height_dsm
     try:
         params_plane,params_covariance_plane = scipy.optimize.curve_fit(fit_plane,np.stack((x_icesat2,y_icesat2),axis=1),dh)
     except ValueError:
@@ -185,8 +185,8 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
     y_icesat2 = np.asarray(df_sampled.y_local)
     height_icesat2 = np.asarray(df_sampled.height_icesat2)
     time_icesat2 = np.asarray(df_sampled.time)
-    height_dem = np.asarray(df_sampled.height_dem)
-    dh = height_icesat2 - height_dem
+    height_dsm = np.asarray(df_sampled.height_dsm)
+    dh = height_icesat2 - height_dsm
     x_segments = np.linspace(np.min(x_icesat2),np.max(x_icesat2),N_segments_x+1)
     y_segments = np.linspace(np.min(y_icesat2),np.max(y_icesat2),N_segments_y)
     src_dem = gdal.Open(dem_file,gdalconst.GA_Update)
@@ -391,13 +391,13 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         # print('ICESat-2 file covers more than just the DEM.')
         # print('Subsetting into new file.')
         icesat2_file = f'{tmp_dir}{os.path.splitext(os.path.basename(icesat2_file))[0]}_Subset_{os.path.splitext(os.path.basename(dem))[0]}{os.path.splitext(icesat2_file)[1]}'
-        np.savetxt(icesat2_file,np.c_[lon_icesat2,lat_icesat2,height_icesat2,time_icesat2.astype(object)],fmt='%f,%f,%f,%s',delimiter=',')
+        df_icesat2[idx_lonlat].to_csv(icesat2_file,index=False,float_format='%.6f',delimter=',')
         subset_flag = True
     else:
         subset_flag = False
 
-    sample_code = sample_raster(dem,icesat2_file,sampled_original_file)
-    df_sampled_original = pd.read_csv(sampled_original_file,header=None,names=['lon','lat','height_icesat2','time','height_dem'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float'})
+    sample_code = sample_raster(dem,icesat2_file,sampled_original_file,header='height_dsm')
+    df_sampled_original = pd.read_csv(sampled_original_file)
     if (src_dem_epsg[:3] == '326' or src_dem_epsg[:3] == '327') and len(src_dem_epsg) == 5:
         x_sampled_original,y_sampled_original,zone_sampled_original = deg2utm(df_sampled_original.lon,df_sampled_original.lat)
     else:
@@ -410,8 +410,8 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     df_sampled_coregistered,raster_shifted,raster_stats_dict = vertical_shift_raster(dem,df_sampled_original,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,new_dir=tmp_dir)
     raster_shifted_base,raster_shifted_ext = os.path.splitext(os.path.basename(raster_shifted))
     sampled_coregistered_file = f'{tmp_dir}{icesat2_base}_Sampled_{dem_base}_Coregistered{icesat2_ext}'
-    df_sampled_coregistered.to_csv(sampled_coregistered_file,header=None,index=False,sep=',',float_format='%.6f')
-    dh_coregistered = df_sampled_coregistered.height_icesat2 - df_sampled_coregistered.height_dem
+    df_sampled_coregistered.to_csv(sampled_coregistered_file,index=False,sep=',',float_format='%.6f')
+    dh_coregistered = df_sampled_coregistered.height_icesat2 - df_sampled_coregistered.height_dsm
     rmse_coregistered = np.sqrt(np.sum(dh_coregistered**2)/len(dh_coregistered))
     # print(f'RMSE of co-registered DEM: {rmse_coregistered:.2f} m')
 
@@ -425,9 +425,9 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         plane_correction_command = f'gdal_calc.py --quiet -A {raster_shifted} -B {plane_correction_file} --outfile={plane_corrected_dem} --calc="A+B" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
         subprocess.run(plane_correction_command,shell=True)
         sampled_plane_corrected_file = f'{tmp_dir}{icesat2_base}_Sampled_{plane_corrected_dem_base}{icesat2_ext}'
-        sample_code = sample_raster(plane_corrected_dem,sampled_coregistered_file,sampled_plane_corrected_file)
-        df_sampled_plane_corrected = pd.read_csv(sampled_plane_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem','height_dem_plane_corrected'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float','height_dem__plane_corrected':'float'})
-        dh_plane_corrected = df_sampled_plane_corrected.height_icesat2 - df_sampled_plane_corrected.height_dem_plane_corrected
+        sample_code = sample_raster(plane_corrected_dem,sampled_coregistered_file,sampled_plane_corrected_file,header='height_dsm_plane_corrected')
+        df_sampled_plane_corrected = pd.read_csv(sampled_plane_corrected_file)
+        dh_plane_corrected = df_sampled_plane_corrected.height_icesat2 - df_sampled_plane_corrected.height_dsm_plane_corrected
         rmse_plane_corrected = np.sqrt(np.sum(dh_plane_corrected**2)/len(dh_plane_corrected))
         # print(f'RMSE of plane-corrected DEM: {rmse_plane_corrected:.2f} m')
         raster_stats_dict['plane_improvement'] = True
@@ -458,9 +458,9 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         jitter_correction_command = f'gdal_calc.py --quiet -A {plane_corrected_dem} -B {jitter_correction_file} --outfile={jitter_corrected_dem} --calc="A+B" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
         subprocess.run(jitter_correction_command,shell=True)
         sampled_jitter_corrected_file = f'{tmp_dir}{icesat2_base}_Sampled_{jitter_corrected_dem_base}{icesat2_ext}'
-        sample_code = sample_raster(jitter_corrected_dem,sampled_coregistered_file,sampled_jitter_corrected_file)
-        df_sampled_jitter_corrected = pd.read_csv(sampled_jitter_corrected_file,header=None,names=['lon','lat','height_icesat2','time','height_dem','height_dem_jitter_corrected'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str','height_dem':'float','height_dem_jitter_corrected':'float'})
-        dh_jitter_corrected = df_sampled_jitter_corrected.height_icesat2 - df_sampled_jitter_corrected.height_dem_jitter_corrected
+        sample_code = sample_raster(jitter_corrected_dem,sampled_coregistered_file,sampled_jitter_corrected_file,header='height_dsm_jitter_corrected')
+        df_sampled_jitter_corrected = pd.read_csv(sampled_jitter_corrected_file)
+        dh_jitter_corrected = df_sampled_jitter_corrected.height_icesat2 - df_sampled_jitter_corrected.height_dsm_jitter_corrected
         rmse_jitter_corrected = np.sqrt(np.sum(dh_jitter_corrected**2)/len(dh_jitter_corrected))
         # print(f'RMSE of jitter-corrected DEM: {rmse_jitter_corrected:.2f} m')
         raster_stats_dict['jitter_improvement'] = True
@@ -634,7 +634,7 @@ def main():
     '''
     
     print('Loading ICESat-2...')    
-    df_icesat2 = pd.read_csv(icesat2_file,header=None,names=['lon','lat','height_icesat2','time'],dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str'})
+    df_icesat2 = pd.read_csv(icesat2_file,dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str'})
     print('Loading done.')
 
     ir = itertools.repeat

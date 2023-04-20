@@ -274,7 +274,7 @@ def r_squared(x1,x2):
 def mean_absolute_deviation(x):
     return np.mean(np.abs(x-np.mean(x)))
 
-def sample_raster(raster_path, csv_path, output_file,nodata='-9999'):
+def sample_raster(raster_path, csv_path, output_file,nodata='-9999',header=None):
     raster_base = os.path.splitext(raster_path.split('/')[-1])[0]
     cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -wgs84 {raster_path} > tmp_{raster_base}.txt"
     subprocess.run(cat_command,shell=True)
@@ -286,6 +286,8 @@ def sample_raster(raster_path, csv_path, output_file,nodata='-9999'):
     subprocess.run(f"sed -i '/NaN/d' {output_file}",shell=True)
     subprocess.run(f"sed -i '/nan/d' {output_file}",shell=True)
     subprocess.run(f"rm tmp_{raster_base}.txt tmp2_{raster_base}.txt",shell=True)
+    if header is not None:
+        subprocess.run(f"sed -i '1i {header}' {output_file}",shell=True)
     return None
 
 def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resample_method='bilinear',compress=True,quiet_flag=False):
