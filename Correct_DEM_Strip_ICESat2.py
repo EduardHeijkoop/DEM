@@ -391,7 +391,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         # print('ICESat-2 file covers more than just the DEM.')
         # print('Subsetting into new file.')
         icesat2_file = f'{tmp_dir}{os.path.splitext(os.path.basename(icesat2_file))[0]}_Subset_{os.path.splitext(os.path.basename(dem))[0]}{os.path.splitext(icesat2_file)[1]}'
-        df_icesat2[idx_lonlat].to_csv(icesat2_file,index=False,float_format='%.6f',delimter=',')
+        df_icesat2[idx_lonlat].to_csv(icesat2_file,index=False,float_format='%.6f',sep=',')
         subset_flag = True
     else:
         subset_flag = False
@@ -634,7 +634,7 @@ def main():
     '''
     
     print('Loading ICESat-2...')    
-    df_icesat2 = pd.read_csv(icesat2_file,dtype={'lon':'float','lat':'float','height_icesat2':'float','time':'str'})
+    df_icesat2 = pd.read_csv(icesat2_file)
     print('Loading done.')
 
     ir = itertools.repeat
