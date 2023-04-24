@@ -274,13 +274,13 @@ def r_squared(x1,x2):
 def mean_absolute_deviation(x):
     return np.mean(np.abs(x-np.mean(x)))
 
-def sample_raster(raster_path, csv_path, output_file,nodata='-9999',header=None):
+def sample_raster(raster_path, csv_path, output_file,nodata='-9999',header=None,proj='wgs84'):
     output_dir = os.path.dirname(output_file)
     raster_base = os.path.splitext(raster_path.split('/')[-1])[0]
     if header is not None:
-        cat_command = f"tail -n+2 {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -wgs84 {raster_path} > tmp_{raster_base}.txt"
+        cat_command = f"tail -n+2 {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -{proj} {raster_path} > tmp_{raster_base}.txt"
     else:
-        cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -wgs84 {raster_path} > tmp_{raster_base}.txt"
+        cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -{proj} {raster_path} > tmp_{raster_base}.txt"
     subprocess.run(cat_command,shell=True,cwd=output_dir)
     fill_nan_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_{raster_base}.txt > tmp2_{raster_base}.txt"
     subprocess.run(fill_nan_command,shell=True,cwd=output_dir)
