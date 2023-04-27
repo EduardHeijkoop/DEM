@@ -993,7 +993,6 @@ def parallel_coregistration(ref_strip_ID,src_strip_ID,strip_shp_data,gsw,landmas
     src_base = f'{mosaic_dir}{os.path.splitext(src_strip.split("/")[-1].split(src_seg)[0])[0]}{src_seg}'
     src_ext = os.path.splitext(src_strip)[1]
     src_file = glob.glob(f'{src_base}*{src_ext}')[0]
-
     print(f'Linking {ref_strip_ID} ({ref_strip_sensor}) to {src_strip_ID} ({src_strip_sensor})...')
     geom_intersection = strip_shp_data.geometry[src_strip_ID].intersection(strip_shp_data.geometry[ref_strip_ID])
     x_masked_total,y_masked_total = populate_intersection(geom_intersection,gsw,landmask_c_file,X_SPACING,Y_SPACING)
@@ -1176,7 +1175,8 @@ def filter_outliers(dh,mean_median_mode='mean',n_sigma_filter=2):
     dh_filter = np.abs(dh-dh_mean_filter) < n_sigma_filter*dh_std
     return dh_filter
 
-def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.02,printing=False):
+def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.02,printing=False,primary='h_primary',secondary='h_secondary'):
+    df_sampled = df_sampled.rename(columns={primary:'h_primary',secondary:'h_secondary'})
     count = 0
     cumulative_shift = 0
     original_len = len(df_sampled)
@@ -1219,10 +1219,10 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
     return cumulative_shift,df_sampled
 
 
-def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.02):
+def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.02,primary='h_primary',secondary='h_secondary'):
     src = gdal.Open(raster_path,gdalconst.GA_ReadOnly)
     raster_nodata = src.GetRasterBand(1).GetNoDataValue()
-    vertical_shift,df_new = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold)
+    vertical_shift,df_new = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,primary=primary,secondary=secondary)
     raster_base,raster_ext = os.path.splitext(raster_path.split('/')[-1])
     if 'Shifted' in raster_base:
         if 'Shifted_x' in raster_base:
