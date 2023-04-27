@@ -1013,14 +1013,14 @@ def parallel_coregistration(ref_strip_ID,src_strip_ID,strip_shp_data,gsw,landmas
             translate_command = f'gdal_translate -q -a_ullr {x_min + x_shift} {y_max + y_shift} {x_max + x_shift} {y_min + y_shift} -co "COMPRESS=LZW" -co "BIGTIFF=YES" {ref_strip} {new_ref_strip}'
             subprocess.run(translate_command,shell=True)
             df_sampled = sample_two_rasters(src_file,new_ref_strip,strip_sampled_file)
-            ref_strip_shifted,vertical_shift,rmse,ratio_pts = vertical_shift_raster(new_ref_strip,df_sampled,mosaic_dir)
+            ref_strip_shifted,vertical_shift,rmse,ratio_pts,df_sampled_new = vertical_shift_raster(new_ref_strip,df_sampled,mosaic_dir)
             subprocess.run(f'rm {new_ref_strip}',shell=True)
         else:
-            ref_strip_shifted,vertical_shift,rmse,ratio_pts = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
+            ref_strip_shifted,vertical_shift,rmse,ratio_pts,df_sampled_new = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
     else:
         x_shift = 0
         y_shift = 0
-        ref_strip_shifted,vertical_shift,rmse,ratio_pts = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
+        ref_strip_shifted,vertical_shift,rmse,ratio_pts,df_sampled_new = vertical_shift_raster(ref_strip,df_sampled,mosaic_dir)
     print(f'Results for {ref_strip_ID} ({ref_strip_sensor}) to {src_strip_ID} ({src_strip_sensor}):')
     print(f'Retained {ratio_pts*100:.1f}% of points.')
     print(f'Vertical shift: {vertical_shift:.2f} m')
@@ -1219,7 +1219,7 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
     return cumulative_shift,df_sampled
 
 
-def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.02,primary='h_primary',secondary='h_secondary'):
+def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.02,primary='h_primary',secondary='h_secondary',return_df=False):
     src = gdal.Open(raster_path,gdalconst.GA_ReadOnly)
     raster_nodata = src.GetRasterBand(1).GetNoDataValue()
     vertical_shift,df_new = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,primary=primary,secondary=secondary)
@@ -1256,7 +1256,10 @@ def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='me
     # print(f'Retained {len(df_new)/len(df_sampled)*100:.1f}% of points.')
     # print(f'Vertical shift: {vertical_shift:.2f} m')
     # print(f'RMSE: {rmse:.2f} m')
-    return raster_shifted,vertical_shift,rmse,ratio_pts
+    if return_df == True:
+        return raster_shifted,vertical_shift,rmse,ratio_pts,df_new
+    else:
+        return raster_shifted,vertical_shift,rmse,ratio_pts,None
 
 
 
