@@ -494,6 +494,24 @@ def parallel_pnpoly(lon_pts,lat_pts,lon_boundary,lat_boundary,landmask_so_file):
     landmask_lib.pnpoly(c.c_int(len(lon_boundary)),c.c_int(len(lon_pts)),arrx,arry,arrx_input,arry_input,c.c_void_p(landmask.ctypes.data))
     return landmask
 
+def mask_csv_file(csv_file,shp_file,landmask_c_file,inside_flag=1,parallel_flag=True,N_cpus=1):
+    '''
+    Given an input CSV file and a shapefile, masks the points in/outside the shapefile.
+    '''
+    df = pd.read_csv(csv_file)
+    csv_file_masked = f'{os.path.splitext(csv_file)[0]}_masked.{os.path.splitext(csv_file)[1]}'
+    lon = np.asarray(df.lon)
+    lat = np.asarray(df.lat)
+    gdf = gpd.read_file(shp_file)
+    lon_boundary,lat_boundary = get_lonlat_gdf(gdf)
+    if parallel_flag == True:
+        landmask = parallel_landmask(lon,lat,lon_boundary,lat_boundary,landmask_c_file,inside_flag,N_cpus)
+    else:
+        landmask = landmask_dem(lon,lat,lon_boundary,lat_boundary,landmask_c_file,inside_flag)
+    df_masked = df[landmask].reset_index(drop=True)
+    df_masked.to_csv(csv_file,index=False,float_format='%.6f')
+    return df_masked
+
 def get_strip_list(loc_dir,input_type,corrected_flag,dir_structure):
     '''
     Different input types:
