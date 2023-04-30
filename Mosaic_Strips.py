@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
     parser.add_argument('--corrected',default=False,help='Find corrected strips instead?',action='store_true')
     parser.add_argument('--all_strips',default=False,help='Mosaic all strips in directory? (No geometry filtering.)',action='store_true')
+    parser.add_argument('--gsw',defaul=None,help='Path to GSW shapefile')
     parser.add_argument('--no_gsw',default=False,help='Skip GSW filter?',action='store_true')
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
     parser.add_argument('--cpus',help='Number of CPUs to use',default=1,type=int)
@@ -43,6 +44,7 @@ def main():
     machine_name = args.machine
     corrected_flag = args.corrected
     all_strips_flag = args.all_strips
+    gsw_file = args.gsw
     no_gsw_flag = args.no_gsw
     dir_structure = args.dir_structure
     N_cpus = args.cpus
@@ -90,7 +92,10 @@ def main():
     X_MAX_SEARCH = config.getfloat('MOSAIC_CONSTANTS','X_MAX_SEARCH') #in m
     Y_MAX_SEARCH = config.getfloat('MOSAIC_CONSTANTS','y_MAX_SEARCH') #in m
     MOSAIC_TILE_SIZE = config.getfloat('MOSAIC_CONSTANTS','MOSAIC_TILE_SIZE') #in m^2   
-    
+    if no_gsw_flag == True:
+        GSW_OVERLAP_THRESHOLD = 1.0
+        GSW_INTERSECTION_THRESHOLD = 1.0
+
     for i in range(len(df_input)):
         loc_dir = df_input.loc_dirs[i]
         output_dir = df_input.output_dirs[i]
@@ -135,7 +140,6 @@ def main():
             if strip_list.size == 0:
                 print('No strips found!')
                 continue
-            strip_shp_data = gpd.GeoDataFrame()
             lon_min_strips,lon_max_strips,lat_min_strips,lat_max_strips = 180,-180,90,-90
             for strip in strip_list:
                 lon_min_single_strip,lon_max_single_strip,lat_min_single_strip,lat_max_single_strip = get_strip_extents(strip)
@@ -143,14 +147,18 @@ def main():
                 lon_max_strips = np.max((lon_max_strips,lon_max_single_strip))
                 lat_min_strips = np.min((lat_min_strips,lat_min_single_strip))
                 lat_max_strips = np.max((lat_max_strips,lat_max_single_strip))
+            if gsw_file is None:
+                gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed = get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min_strips,lon_max_strips,lat_min_strips,lat_max_strips,loc_name,GSW_POCKET_THRESHOLD,GSW_CRS_TRANSFORM_THRESHOLD)
+            else:
+                gsw_main_sea_only = gpd.read_file(gsw_file)
+                gsw_main_sea_only = gsw_main_sea_only.to_crs(f'EPSG:{epsg_code}')
 
-            gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed = get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min_strips,lon_max_strips,lat_min_strips,lat_max_strips,loc_name,GSW_POCKET_THRESHOLD,GSW_CRS_TRANSFORM_THRESHOLD)
-            if no_gsw_flag == True:
-                gsw_main_sea_only = None
             if gsw_main_sea_only is not None:
                 gsw_main_sea_only_buffered = gsw_main_sea_only.buffer(0)
             else:
                 gsw_main_sea_only_buffered = None
+
+            strip_shp_data = gpd.GeoDataFrame()
             strip_idx = np.ones(len(strip_list),dtype=bool)
             print('Loading strips...')
             for j,strip in enumerate(strip_list):
