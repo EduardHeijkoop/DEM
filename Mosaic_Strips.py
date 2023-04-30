@@ -31,7 +31,7 @@ def main():
     parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
     parser.add_argument('--corrected',default=False,help='Find corrected strips instead?',action='store_true')
     parser.add_argument('--all_strips',default=False,help='Mosaic all strips in directory? (No geometry filtering.)',action='store_true')
-    parser.add_argument('--gsw',defaul=None,help='Path to GSW shapefile')
+    parser.add_argument('--gsw',default=None,help='Path to GSW shapefile')
     parser.add_argument('--no_gsw',default=False,help='Skip GSW filter?',action='store_true')
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
     parser.add_argument('--cpus',help='Number of CPUs to use',default=1,type=int)
