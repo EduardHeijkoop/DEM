@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
     parser.add_argument('--corrected',default=False,help='Find corrected strips instead?',action='store_true')
     parser.add_argument('--all_strips',default=False,help='Mosaic all strips in directory? (No geometry filtering.)',action='store_true')
+    parser.add_argument('--no_gsw',default=False,help='Skip GSW filter?',action='store_true')
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
     parser.add_argument('--cpus',help='Number of CPUs to use',default=1,type=int)
     args = parser.parse_args()
@@ -42,6 +43,7 @@ def main():
     machine_name = args.machine
     corrected_flag = args.corrected
     all_strips_flag = args.all_strips
+    no_gsw_flag = args.no_gsw
     dir_structure = args.dir_structure
     N_cpus = args.cpus
 
@@ -143,6 +145,8 @@ def main():
                 lat_max_strips = np.max((lat_max_strips,lat_max_single_strip))
 
             gsw_main_sea_only,gsw_output_shp_file_main_sea_only_clipped_transformed = get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min_strips,lon_max_strips,lat_min_strips,lat_max_strips,loc_name,GSW_POCKET_THRESHOLD,GSW_CRS_TRANSFORM_THRESHOLD)
+            if no_gsw_flag == True:
+                gsw_main_sea_only = None
             if gsw_main_sea_only is not None:
                 gsw_main_sea_only_buffered = gsw_main_sea_only.buffer(0)
             else:
