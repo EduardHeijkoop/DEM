@@ -27,8 +27,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dem',help='Path to input DEM to run inundation on.')
     parser.add_argument('--loc_name',help='Name of location to run inundation on.')
-    parser.add_argument('--geoid',help='Path to geoid file to calculate orthometric heights with.')
-    parser.add_argument('--vlm',help='Path to VLM file to propagate input file in time.')
+    parser.add_argument('--geoid',help='Path to geoid file to calculate orthometric heights with.',default=None)
+    parser.add_argument('--vlm',help='Path to VLM file to propagate input file in time.',default=None)
     parser.add_argument('--clip_vlm',help='Clip DEM to VLM extents?',default=False,action='store_true')
     parser.add_argument('--icesat2',help='Path to ICESat-2 file to calculate coastal sea level with.')
     parser.add_argument('--sealevel_grid',help='Path to sea level grid to calculate coastal sea level with.')
@@ -61,7 +61,8 @@ def main():
     years = [int(yr) for yr in np.atleast_1d(years)]
     rcp = args.rcp
     ssp = args.ssp
-    t0 = int(args.t0)
+    if args.t0 is not None:
+        t0 = int(args.t0)
     if args.return_period is not None:
         return_period = int(args.return_period)
     else:
@@ -70,7 +71,6 @@ def main():
     fes2014_flag = args.fes2014
     connectivity_flag = args.connectivity
     uncertainty_flag = args.uncertainty
-    sigma = int(args.sigma)
     machine_name = args.machine
 
     if icesat2_file is not None and sl_grid_file is not None:
@@ -99,10 +99,12 @@ def main():
         print('Invalid return period selected!')
         print('Must be 2, 5, 10, 25, 50, 100, 250, 500 or 1000 years.')
         sys.exit()
-    if sigma not in [1,2,3]:
-        print('Invalid sigma value selected!')
-        print('Must be 1, 2 or 3.')
-        sys.exit()
+    if uncertainty_flag == True:
+        sigma = int(args.sigma)
+        if sigma not in [1,2,3]:
+            print('Invalid sigma value selected!')
+            print('Must be 1, 2 or 3.')
+            sys.exit()
     
 
     if os.path.dirname(os.path.abspath(dem_file)).split('/')[-1] == 'Mosaic':
@@ -134,7 +136,7 @@ def main():
     elif machine_name == 'local':
         AR6_dir = AR6_dir.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
         CODEC_file = CODEC_file.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
-        fes2014_file = fes2014_file.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
+        fes2014_file = fes2014_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
         tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/EDUARD/','/home/heijkoop/Desktop/Projects/')
         gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
         landmask_c_file = landmask_c_file.replace('/home/eheijkoop/Scripts/','/media/heijkoop/DATA/Dropbox/TU/PhD/Github/')
@@ -337,7 +339,7 @@ def main():
         sealevel_csv_output = output_file_codec
         sealevel_high_grid_intermediate_res = codec_grid_intermediate_res
         sealevel_high_grid_full_res = codec_grid_full_res
-    elif fes2014_file is not None:
+    elif fes2014_flag == True:
         t_start = datetime.datetime.now()
         print(f'Finding FES2014 max tidal heights...')
         fes_heights_coast = get_fes(lon_coast,lat_coast,fes2014_file)
@@ -387,6 +389,8 @@ def main():
             lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,dem_file,ssp,osm_shp_file,yr,quantile_select=quantile_select)
         if geoid_file is not None:
             output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
+        if vlm_file is None:
+            output_inundation_file = output_inundation_file.replace('_Inundation_','_Inundation_No_VLM_')
         h_projection_coast = interpolate_points(lon_projection,lat_projection,slr_projection,x_coast,y_coast,INTERPOLATE_METHOD)
         h_coast_yr = h_coast + h_projection_coast
         output_file_coastline_yr = output_file_coastline.replace('.csv',f'_{yr}.csv')
@@ -394,8 +398,11 @@ def main():
         sl_grid_file_intermediate_res = csv_to_grid(output_file_coastline_yr,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
         sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
         resample_raster(sl_grid_file_intermediate_res,dem_file,sl_grid_file_full_res)
-        dt = int(yr - t0)
-        inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+        if vlm_file is not None:
+            dt = int(yr - t0)
+            inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+        else:
+            inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
         subprocess.run(inundation_command,shell=True)
         output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
         polygonize_command = f'gdal_polygonize.py -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
