@@ -333,10 +333,10 @@ def get_codec(lon,lat,codec_file,return_period=10):
 def get_fes(lon,lat,fes2014_file,search_radius=3.0):
     lon = lon[~np.isnan(lon)]
     lat = lat[~np.isnan(lat)]
-    df_fes = pd.read_csv(fes2014_file,header=None,names=['lon','lat','min_tide','max_tide'],dtype={'lon':'float','lat':'float','min_tide':'float','max_tide':'float'})
+    df_fes = pd.read_csv(fes2014_file)
     lon_fes = np.asarray(df_fes['lon'])
     lat_fes = np.asarray(df_fes['lat'])
-    max_tide_fes = np.asarray(df_fes['max_tide'])
+    max_tide_fes = np.asarray(df_fes['tide_max'])
 
     idx_fes_lon_close = np.logical_and(lon_fes > np.min(lon) - search_radius,lon_fes < np.max(lon) + search_radius)
     idx_fes_lat_close = np.logical_and(lat_fes > np.min(lat) - search_radius,lat_fes < np.max(lat) + search_radius)
