@@ -1237,7 +1237,7 @@ def calculate_shift(df_sampled,mean_median_mode='mean',n_sigma_filter=2,vertical
     return cumulative_shift,df_sampled
 
 
-def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.02,primary='h_primary',secondary='h_secondary',return_df=False):
+def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='mean',n_sigma_filter=2,vertical_shift_iterative_threshold=0.02,primary='h_primary',secondary='h_secondary',return_df=False,write_df=False,sampled_file='tmp.txt'):
     src = gdal.Open(raster_path,gdalconst.GA_ReadOnly)
     raster_nodata = src.GetRasterBand(1).GetNoDataValue()
     vertical_shift,df_new = calculate_shift(df_sampled,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,primary=primary,secondary=secondary)
@@ -1274,6 +1274,11 @@ def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='me
     # print(f'Retained {len(df_new)/len(df_sampled)*100:.1f}% of points.')
     # print(f'Vertical shift: {vertical_shift:.2f} m')
     # print(f'RMSE: {rmse:.2f} m')
+    df_new.rename(columns={'h_primary':primary,'h_secondary':secondary},inplace=True)
+    if write_df == True:
+        if sampled_file == 'tmp.txt':
+            print('Writing to tmp.txt file, please specify sampled_file to write to a different file.')
+        df_new.to_csv(sampled_file,index=False,float_format='%.6f')
     if return_df == True:
         return raster_shifted,vertical_shift,rmse,ratio_pts,df_new
     else:
