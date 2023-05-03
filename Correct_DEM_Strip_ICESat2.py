@@ -18,7 +18,7 @@ import getpass
 from scipy.interpolate import SmoothBivariateSpline,LSQBivariateSpline
 
 from dem_utils import deg2utm,get_raster_extents,resample_raster,sample_raster
-from dem_utils import get_strip_list,get_strip_extents
+from dem_utils import get_strip_list,get_strip_extents,raster_to_geotiff
 from Global_DEMs import download_copernicus
 
 def filter_outliers(dh,mean_median_mode='mean',n_sigma_filter=2):
@@ -304,27 +304,6 @@ def csv_to_grid(csv_file,algorithm_dict,xmin,xmax,xres,ymin,ymax,yres,epsg_code)
         build_grid_command = f'gdal_grid -q -a {grid_algorithm}:nodata={grid_nodata}:smoothing={grid_smoothing}:power={grid_power}:max_points={grid_max_pts}:radius={grid_max_dist} -txe {xmin} {xmax} -tye {ymax} {ymin} -tr {xres} {yres} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {vrt_file} {grid_file} --config GDAL_NUM_THREADS {grid_num_threads} -co "COMPRESS=LZW"'
     subprocess.run(build_grid_command,shell=True)
     return grid_file
-
-def raster_to_geotiff(x,y,arr,epsg_code,output_file):
-    '''
-    given numpy array and x and y coordinates, produces a geotiff in the right epsg code
-    '''
-    arr = np.flipud(arr)
-    xmin = x.min()
-    xmax = x.max()
-    ymin = y.min()
-    ymax = y.max()
-    xres = x[1] - x[0]
-    yres = y[1] - y[0]
-    geotransform = (xmin-xres/2,xres,0,ymax+yres/2,0,-yres)
-    driver = gdal.GetDriverByName('GTiff')
-    dataset = driver.Create(output_file,arr.shape[1],arr.shape[0],1,gdal.GDT_Float32)
-    dataset.SetGeoTransform(geotransform)
-    dataset.SetProjection(f'EPSG:{epsg_code}')
-    dataset.GetRasterBand(1).WriteArray(arr)
-    dataset.FlushCache()
-    dataset = None
-    return None
 
 def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_filter,vertical_shift_iterative_threshold,N_coverage_minimum,N_photons_minimum,tmp_dir,keep_flag,print_flag,copernicus_dict):
     lon_icesat2 = np.asarray(df_icesat2.lon)

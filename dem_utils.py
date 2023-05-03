@@ -343,6 +343,28 @@ def compress_raster(filename,nodata=-9999,quiet_flag = False):
     subprocess.run(move_command,shell=True)
     return None
 
+def raster_to_geotiff(x,y,arr,epsg_code,output_file):
+    '''
+    given numpy array and x and y coordinates, produces a geotiff in the right epsg code
+    '''
+    arr = np.flipud(arr)
+    xmin = x.min()
+    xmax = x.max()
+    ymin = y.min()
+    ymax = y.max()
+    xres = x[1] - x[0]
+    yres = y[1] - y[0]
+    geotransform = (xmin-xres/2,xres,0,ymax+yres/2,0,-yres)
+    driver = gdal.GetDriverByName('GTiff')
+    dataset = driver.Create(output_file,arr.shape[1],arr.shape[0],1,gdal.GDT_Float32)
+    dataset.SetGeoTransform(geotransform)
+    dataset.SetProjection(f'EPSG:{epsg_code}')
+    dataset.GetRasterBand(1).WriteArray(arr)
+    dataset.FlushCache()
+    dataset = None
+    return None
+
+
 def get_lonlat_geometry(geom):
     '''
     Returns lon/lat of all exteriors and interiors of a Shapely geomery:
