@@ -364,6 +364,31 @@ def raster_to_geotiff(x,y,arr,epsg_code,output_file):
     dataset = None
     return None
 
+def df_to_gdf(df,dt_threshold=0.01):
+    '''
+    dt_threshold given in seconds, then converted to ns
+    '''
+    dt_threshold = dt_threshold / 1e-9
+    gdf = gpd.GeoDataFrame()
+    df['date'] = [t[:10] for t in df.time]
+    df['t_datetime'] = pd.to_datetime(df.time)
+    unique_dates = np.unique(df.date)
+    for ud in unique_dates:
+        df_date = df[df.date == ud].copy()
+        unique_beams = np.unique(df_date.beam)
+        for beam in unique_beams:
+            df_beam = df_date[df_date.beam == beam].copy()
+            t_datetime = np.asarray(df_beam.t_datetime)
+            dt = np.asarray(t_datetime[1:] - t_datetime[:-1])
+            dt = np.append(0,dt).astype(int)
+            idx_jump_orig = np.atleast_1d(np.argwhere(dt > dt_threshold).squeeze())
+            idx_jump = np.concatenate([[0],idx_jump_orig,[len(df_beam)-1]])
+            for k in range(len(idx_jump)-1):
+                geom = shapely.geometry.LineString([(df_beam.lon.iloc[idx_jump[k]],df_beam.lat.iloc[idx_jump[k]]),(df_beam.lon.iloc[idx_jump[k+1]-1],df_beam.lat.iloc[idx_jump[k+1]-1])])
+                tmp_gdf = gpd.GeoDataFrame(pd.DataFrame({'date':[ud],'beam':[beam]}),geometry=[geom],crs='EPSG:4326')
+                gdf = pd.concat((gdf,tmp_gdf)).reset_index(drop=True)
+    return gdf
+
 
 def get_lonlat_geometry(geom):
     '''
