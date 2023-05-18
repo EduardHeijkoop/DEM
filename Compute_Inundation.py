@@ -73,6 +73,7 @@ def main():
     uncertainty_flag = args.uncertainty
     machine_name = args.machine
 
+
     if icesat2_file is not None and sl_grid_file is not None:
         print('ICESat-2 file and sea level grid given, cannot handle both!')
         sys.exit()
@@ -105,6 +106,11 @@ def main():
             print('Invalid sigma value selected!')
             print('Must be 1, 2 or 3.')
             sys.exit()
+    try:
+        vlm_rate = float(vlm_file)
+        vlm_file = None
+    except ValueError:
+        vlm_rate = None
     
 
     if os.path.dirname(os.path.abspath(dem_file)).split('/')[-1] == 'Mosaic':
@@ -401,6 +407,8 @@ def main():
         if vlm_file is not None:
             dt = int(yr - t0)
             inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+        elif vlm_rate is not None:
+            inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+{vlm_rate}*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
         else:
             inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
         subprocess.run(inundation_command,shell=True)
@@ -429,7 +437,7 @@ def main():
                 idx_intersects = np.any(idx_intersects,axis=0)
                 idx_contains = np.any(idx_contains,axis=0)
                 idx_connected = np.any((idx_intersects,idx_contains),axis=0)
-            gdf_inundation_connected = gdf_inundation[idx_connected]
+            gdf_inundation_connected = gdf_inundation[idx_connected].reset_index(drop=True)
             gdf_inundation_connected.to_file(output_inundation_shp_file_connected)
             t_end = datetime.datetime.now()
             delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
