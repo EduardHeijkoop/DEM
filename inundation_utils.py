@@ -330,21 +330,22 @@ def get_codec(lon,lat,codec_file,return_period=10):
     rps_input = interpolate_points(lon_codec_select,lat_codec_select,rps_select,lon,lat,'Smooth',2)
     return rps_input
 
-def get_fes(lon,lat,fes2014_file,search_radius=3.0):
+def get_fes(lon,lat,fes2014_file,search_radius=3.0,mhhw_flag=False):
     lon = lon[~np.isnan(lon)]
     lat = lat[~np.isnan(lat)]
     df_fes = pd.read_csv(fes2014_file)
     lon_fes = np.asarray(df_fes['lon'])
     lat_fes = np.asarray(df_fes['lat'])
-    max_tide_fes = np.asarray(df_fes['tide_max'])
-
+    if mhhw_flag == True:
+        max_tide_fes = np.asarray(df_fes['MHHW'])
+    else:
+        max_tide_fes = np.asarray(df_fes['tide_max'])
     idx_fes_lon_close = np.logical_and(lon_fes > np.min(lon) - search_radius,lon_fes < np.max(lon) + search_radius)
     idx_fes_lat_close = np.logical_and(lat_fes > np.min(lat) - search_radius,lat_fes < np.max(lat) + search_radius)
     idx_fes_lonlat_close = np.logical_and(idx_fes_lon_close,idx_fes_lat_close)
     lon_fes = lon_fes[idx_fes_lonlat_close]
     lat_fes = lat_fes[idx_fes_lonlat_close]
     max_tide_fes = max_tide_fes[idx_fes_lonlat_close]
-
     height_fes_coast = interpolate_points(lon_fes,lat_fes,max_tide_fes,lon,lat,'Smooth',3)
     return height_fes_coast
 

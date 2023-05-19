@@ -38,9 +38,11 @@ def main():
     parser.add_argument('--years',help='Years to compute inundation for.',nargs='*',default='2020')
     parser.add_argument('--rcp',help='RCP to use.')
     parser.add_argument('--ssp',help='RCP to use.')
+    parser.add_argument('--slr',help='Sea level rise to use.',default=None)
     parser.add_argument('--t0',help='Time to use as t0 to zero SLR.',default='2020')
     parser.add_argument('--return_period',help='Return period of CoDEC in years')
     parser.add_argument('--fes2014',help='Flag to use FES2014 max tidal heights.',default=False,action='store_true')
+    parser.add_argument('--mhhw',help='Flag to use MHHW instead of max tidal heights.',default=False,action='store_true')
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
     parser.add_argument('--uncertainty',help='Calculate inundation uncertainty?',default=False,action='store_true')
     parser.add_argument('--sigma',help='Sigma value to use for uncertainty calculation.')
@@ -61,6 +63,7 @@ def main():
     years = [int(yr) for yr in np.atleast_1d(years)]
     rcp = args.rcp
     ssp = args.ssp
+    slr = args.slr
     if args.t0 is not None:
         t0 = int(args.t0)
     if args.return_period is not None:
@@ -69,6 +72,7 @@ def main():
         return_period = None
     return_period_options = np.asarray([2,5,10,25,50,100,250,500,1000])
     fes2014_flag = args.fes2014
+    mhhw_flag = args.mhhw
     connectivity_flag = args.connectivity
     uncertainty_flag = args.uncertainty
     machine_name = args.machine
@@ -348,7 +352,7 @@ def main():
     elif fes2014_flag == True:
         t_start = datetime.datetime.now()
         print(f'Finding FES2014 max tidal heights...')
-        fes_heights_coast = get_fes(lon_coast,lat_coast,fes2014_file)
+        fes_heights_coast = get_fes(lon_coast,lat_coast,fes2014_file,mhhw_flag=mhhw_flag)
         output_file_fes = f'{tmp_dir}{loc_name}_FES2014_coastline.csv'
         np.savetxt(output_file_fes,np.c_[x_coast,y_coast,fes_heights_coast],fmt='%f',delimiter=',',comments='')
         fes_grid_intermediate_res = csv_to_grid(output_file_fes,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
