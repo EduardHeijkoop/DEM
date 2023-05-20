@@ -15,7 +15,7 @@ import itertools
 from dem_utils import get_lonlat_gdf,find_corner_points_gdf
 from dem_utils import get_raster_extents,resample_raster,get_gsw
 from inundation_utils import create_icesat2_grid, interpolate_grid, interpolate_points,get_codec,get_fes,csv_to_grid
-from inundation_utils import upscale_SROCC_grid,upscale_ar6_data
+from inundation_utils import upscale_SROCC_grid,upscale_ar6_data,compute_connectivity
 
 
 def main():
@@ -38,7 +38,7 @@ def main():
     parser.add_argument('--years',help='Years to compute inundation for.',nargs='*',default='2020')
     parser.add_argument('--rcp',help='RCP to use.')
     parser.add_argument('--ssp',help='RCP to use.')
-    parser.add_argument('--slr',help='Sea level rise to use.',default=None)
+    parser.add_argument('--slr',help='Sea level rise to use.',nargs='*',default=None)
     parser.add_argument('--t0',help='Time to use as t0 to zero SLR.',default='2020')
     parser.add_argument('--return_period',help='Return period of CoDEC in years')
     parser.add_argument('--fes2014',help='Flag to use FES2014 max tidal heights.',default=False,action='store_true')
@@ -64,6 +64,8 @@ def main():
     rcp = args.rcp
     ssp = args.ssp
     slr = args.slr
+    if slr is not None:
+        slr = [float(s) for s in np.atleast_1d(slr)]
     if args.t0 is not None:
         t0 = int(args.t0)
     if args.return_period is not None:
@@ -91,11 +93,11 @@ def main():
     if vlm_file is None and clip_vlm_flag == True:
         print('No VLM file supplied, but clipping desired!')
         sys.exit()
-    if rcp is None and ssp is None:
-        print('No RCP or SSP pathway supplied!')
+    if np.sum((ssp is not None, rcp is not None, slr is not None)) > 1:
+        print('Please only select SSP, RCP or SLR!')
         sys.exit()
-    if rcp is not None and ssp is not None:
-        print('Both RCP and SSP supplied, only one can be used!')
+    if np.sum((ssp is not None, rcp is not None, slr is not None)) < 1:
+        print('Please select one of SSP, RCP or SLR!')
         sys.exit()
     if fes2014_flag == True and return_period is not None:
         print('Cannot use FES2014 and CoDEC together!')
@@ -183,8 +185,14 @@ def main():
     if ssp is not None:
         projection_select = 'AR6'
         ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
+        if ssp not in ['119','126','245','370','585']:
+            print('Invalid SSP pathway selected!')
+            sys.exit()
     elif rcp is not None:
         projection_select = 'SROCC'
+        if rcp not in ['2.6','4.5','8.5']:
+            print('Invalid RCP pathway selected!')
+            sys.exit()
     else:
         print('No RCP or SSP pathway selected!')
         sys.exit()
@@ -351,7 +359,10 @@ def main():
         sealevel_high_grid_full_res = codec_grid_full_res
     elif fes2014_flag == True:
         t_start = datetime.datetime.now()
-        print(f'Finding FES2014 max tidal heights...')
+        if mhhw_flag == False:
+            print(f'Finding FES2014 max tidal heights...')
+        else:
+            print(f'Finding FES2014 MHHW values...')
         fes_heights_coast = get_fes(lon_coast,lat_coast,fes2014_file,mhhw_flag=mhhw_flag)
         output_file_fes = f'{tmp_dir}{loc_name}_FES2014_coastline.csv'
         np.savetxt(output_file_fes,np.c_[x_coast,y_coast,fes_heights_coast],fmt='%f',delimiter=',',comments='')
@@ -361,7 +372,7 @@ def main():
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
-        print(f'Generating FES2014 high tides took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+        print(f'Generating FES2014 values took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
         sealevel_csv_output = output_file_fes
         sealevel_high_grid_intermediate_res = fes_grid_intermediate_res
         sealevel_high_grid_full_res = fes_grid_full_res
@@ -380,77 +391,113 @@ def main():
         gdf_surface_water_buffered = gdf_surface_water.buffer(GSW_BUFFER)
         gdf_surface_water_buffered.to_file(surface_water_file_buffered)
 
-    for yr,quantile_select in itertools.product(years,quantiles):
-        print(f'Creating inundation in {yr}...')
-        t_start = datetime.datetime.now()
-        if fes2014_flag == True:
-            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_PROJECTION_METHOD_FES2014.tif'
-        elif return_period is not None:
-            output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_PROJECTION_METHOD_CoDEC_RP_{return_period}_yrs.tif'
-        if projection_select == 'SROCC':
-            output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'SROCC_RCP_{str(rcp).replace(".","p")}')
-            lon_projection,lat_projection,slr_projection = upscale_SROCC_grid(SROCC_dir,dem_file,rcp,t0,yr,)
-        elif projection_select == 'AR6':
-            output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'AR6_SSP_{ssp}')
-            if quantile_select < 0.5:
-                output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Minus_{sigma}sigma_')
-            elif quantile_select > 0.5:
-                output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Plus_{sigma}sigma_')
-            lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,dem_file,ssp,osm_shp_file,yr,quantile_select=quantile_select)
-        if geoid_file is not None:
-            output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
-        if vlm_file is None:
-            output_inundation_file = output_inundation_file.replace('_Inundation_','_Inundation_No_VLM_')
-        h_projection_coast = interpolate_points(lon_projection,lat_projection,slr_projection,x_coast,y_coast,INTERPOLATE_METHOD)
-        h_coast_yr = h_coast + h_projection_coast
-        output_file_coastline_yr = output_file_coastline.replace('.csv',f'_{yr}.csv')
-        np.savetxt(output_file_coastline_yr,np.c_[x_coast,y_coast,h_coast_yr],fmt='%f',delimiter=',',comments='')
-        sl_grid_file_intermediate_res = csv_to_grid(output_file_coastline_yr,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
-        sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
-        resample_raster(sl_grid_file_intermediate_res,dem_file,sl_grid_file_full_res)
-        if vlm_file is not None:
-            dt = int(yr - t0)
-            inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
-        elif vlm_rate is not None:
-            inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+{vlm_rate}*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
-        else:
-            inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
-        subprocess.run(inundation_command,shell=True)
-        output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
-        polygonize_command = f'gdal_polygonize.py -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
-        subprocess.run(polygonize_command,shell=True)
-        t_end = datetime.datetime.now()
-        delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
-        delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
-        print(f'Inundation creation took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
-        if connectivity_flag == True:
-            print('Computing connectivity to the ocean...')
+    if slr is not None:
+        for slr_value in slr:
             t_start = datetime.datetime.now()
-            gdf_inundation = gpd.read_file(output_inundation_shp_file)
-            output_inundation_shp_file_connected = output_inundation_shp_file.replace('.shp','_connected_GSW.shp')
-            if len(gdf_surface_water_buffered) == 1:
-                idx_intersects = np.asarray([gdf_surface_water_buffered.geometry[0].intersects(geom) for geom in gdf_inundation.geometry])
-                idx_contains = np.asarray([gdf_surface_water_buffered.geometry[0].contains(geom) for geom in gdf_inundation.geometry])
-                idx_connected = np.any((idx_intersects,idx_contains),axis=0)
+            print(f'Creating inundation for {slr_value:.2f} m...')
+            slr_value_str = f'SLR_{slr_value:.2f}m'.replace('.','p').replace('-','neg')
+            if fes2014_flag == True:
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{slr_value_str}_FES2014.tif'
+                if mhhw_flag == True:
+                    output_inundation_file = output_inundation_file.replace('FES2014','FES2014_MHHW')
+            elif return_period is not None:
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{slr_value_str}_CoDEC_RP_{return_period}_yrs.tif'
+            if geoid_file is not None:
+                output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
+            if vlm_file is None:
+                output_inundation_file = output_inundation_file.replace('_Inundation_','_Inundation_No_VLM_')
+            h_coast_slr = h_coast + slr_value
+            output_file_coastline_slr = output_file_coastline.replace('.csv',f'_{slr_value_str}.csv')
+            np.savetxt(output_file_coastline_slr,np.c_[x_coast,y_coast,h_coast_slr],fmt='%f',delimiter=',',comments='')
+            sl_grid_file_intermediate_res = csv_to_grid(output_file_coastline_slr,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
+            sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
+            resample_raster(sl_grid_file_intermediate_res,dem_file,sl_grid_file_full_res)
+            if vlm_file is not None:
+                dt = int(yr - t0)
+                inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+            elif vlm_rate is not None:
+                inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+{vlm_rate}*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
             else:
-                idx_intersects = np.zeros((len(gdf_inundation),len(gdf_surface_water_buffered)),dtype=bool)
-                idx_contains = np.zeros((len(gdf_inundation),len(gdf_surface_water_buffered)),dtype=bool)
-                for i,gsw_geom in enumerate(gdf_surface_water_buffered.geometry):
-                    idx_intersects[i,:] = np.asarray([gsw_geom.intersects(geom) for geom in gdf_inundation.geometry])
-                    idx_contains[i,:] = np.asarray([gsw_geom.contains(geom) for geom in gdf_inundation.geometry])
-                idx_intersects = np.any(idx_intersects,axis=0)
-                idx_contains = np.any(idx_contains,axis=0)
-                idx_connected = np.any((idx_intersects,idx_contains),axis=0)
-            gdf_inundation_connected = gdf_inundation[idx_connected].reset_index(drop=True)
-            gdf_inundation_connected.to_file(output_inundation_shp_file_connected)
+                inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+            subprocess.run(inundation_command,shell=True)
+            output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
+            polygonize_command = f'gdal_polygonize.py -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
+            subprocess.run(polygonize_command,shell=True)
             t_end = datetime.datetime.now()
             delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
             delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
-            print(f'Connectivity took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
-        subprocess.run(f'rm {output_file_coastline_yr}',shell=True)
-        subprocess.run(f'rm {output_file_coastline_yr.replace(".csv",".vrt")}',shell=True)
-        subprocess.run(f'rm {sl_grid_file_intermediate_res}',shell=True)
-        subprocess.run(f'rm {sl_grid_file_full_res}',shell=True)
+            print(f'Inundation creation took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+            if connectivity_flag == True:
+                print('Computing connectivity to the ocean...')
+                t_start = datetime.datetime.now()
+                compute_connectivity(output_inundation_shp_file,gdf_surface_water_buffered)
+                t_end = datetime.datetime.now()
+                delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+                delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+                print(f'Connectivity took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+            subprocess.run(f'rm {output_file_coastline_slr}',shell=True)
+            subprocess.run(f'rm {output_file_coastline_slr.replace(".csv",".vrt")}',shell=True)
+            subprocess.run(f'rm {sl_grid_file_intermediate_res}',shell=True)
+            subprocess.run(f'rm {sl_grid_file_full_res}',shell=True)
+    else:
+        for yr,quantile_select in itertools.product(years,quantiles):
+            t_start = datetime.datetime.now()
+            if fes2014_flag == True:
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_PROJECTION_METHOD_FES2014.tif'
+                if mhhw_flag == True:
+                    output_inundation_file = output_inundation_file.replace('FES2014','FES2014_MHHW')
+            elif return_period is not None:
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_PROJECTION_METHOD_CoDEC_RP_{return_period}_yrs.tif'
+            if projection_select == 'SROCC':
+                print(f'Creating inundation in {yr} using RCP{rcp}...')
+                output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'SROCC_RCP_{str(rcp).replace(".","p")}')
+                lon_projection,lat_projection,slr_projection = upscale_SROCC_grid(SROCC_dir,dem_file,rcp,t0,yr,)
+            elif projection_select == 'AR6':
+                print(f'Creating inundation in {yr} using SSP{ssp}...')
+                output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'AR6_SSP_{ssp}')
+                if quantile_select < 0.5:
+                    output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Minus_{sigma}sigma_')
+                elif quantile_select > 0.5:
+                    output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Plus_{sigma}sigma_')
+                lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,dem_file,ssp,osm_shp_file,yr,quantile_select=quantile_select)
+            if geoid_file is not None:
+                output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
+            if vlm_file is None:
+                output_inundation_file = output_inundation_file.replace('_Inundation_','_Inundation_No_VLM_')
+            h_projection_coast = interpolate_points(lon_projection,lat_projection,slr_projection,x_coast,y_coast,INTERPOLATE_METHOD)
+            h_coast_yr = h_coast + h_projection_coast
+            output_file_coastline_yr = output_file_coastline.replace('.csv',f'_{yr}.csv')
+            np.savetxt(output_file_coastline_yr,np.c_[x_coast,y_coast,h_coast_yr],fmt='%f',delimiter=',',comments='')
+            sl_grid_file_intermediate_res = csv_to_grid(output_file_coastline_yr,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
+            sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
+            resample_raster(sl_grid_file_intermediate_res,dem_file,sl_grid_file_full_res)
+            if vlm_file is not None:
+                dt = int(yr - t0)
+                inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+            elif vlm_rate is not None:
+                inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+{vlm_rate}*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+            else:
+                inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+            subprocess.run(inundation_command,shell=True)
+            output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
+            polygonize_command = f'gdal_polygonize.py -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
+            subprocess.run(polygonize_command,shell=True)
+            t_end = datetime.datetime.now()
+            delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+            delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+            print(f'Inundation creation took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+            if connectivity_flag == True:
+                print('Computing connectivity to the ocean...')
+                t_start = datetime.datetime.now()
+                compute_connectivity(output_inundation_shp_file,gdf_surface_water_buffered)
+                t_end = datetime.datetime.now()
+                delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+                delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+                print(f'Connectivity took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+            subprocess.run(f'rm {output_file_coastline_yr}',shell=True)
+            subprocess.run(f'rm {output_file_coastline_yr.replace(".csv",".vrt")}',shell=True)
+            subprocess.run(f'rm {sl_grid_file_intermediate_res}',shell=True)
+            subprocess.run(f'rm {sl_grid_file_full_res}',shell=True)
     
     subprocess.run(f'rm {sealevel_csv_output}',shell=True)
     subprocess.run(f'rm {sealevel_csv_output.replace(".csv",".vrt")}',shell=True)

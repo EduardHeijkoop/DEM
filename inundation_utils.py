@@ -375,3 +375,26 @@ def csv_to_grid(csv_file,algorithm_dict,xmin,xmax,xres,ymin,ymax,yres,epsg_code)
         build_grid_command = f'gdal_grid -a {grid_algorithm}:nodata={grid_nodata}:smoothing={grid_smoothing}:power={grid_power}:max_points={grid_max_pts}:radius={grid_max_dist} -txe {xmin} {xmax} -tye {ymax} {ymin} -tr {xres} {yres} -a_srs EPSG:{epsg_code} -of GTiff -ot Float32 -l {layer_name} {vrt_file} {grid_file} --config GDAL_NUM_THREADS {grid_num_threads} -co "COMPRESS=LZW"'
     subprocess.run(build_grid_command,shell=True)
     return grid_file
+
+def compute_connectivity(inundation_shp_file,gdf_surface_water):
+    '''
+    Compute connectivty of inundation to the sea (defined as the gdf_surface_water)
+    Surface water should be buffered already, if desired
+    '''
+    gdf_inundation = gpd.read_file(inundation_shp_file)
+    inundation_shp_file_connected = inundation_shp_file.replace('.shp','_connected_GSW.shp')
+    if len(inundation_shp_file) == 1:
+        idx_intersects = np.asarray([gdf_surface_water.geometry[0].intersects(geom) for geom in gdf_inundation.geometry])
+        idx_contains = np.asarray([gdf_surface_water.geometry[0].contains(geom) for geom in gdf_inundation.geometry])
+        idx_connected = np.any((idx_intersects,idx_contains),axis=0)
+    else:
+        idx_intersects = np.zeros((len(gdf_inundation),len(gdf_surface_water)),dtype=bool)
+        idx_contains = np.zeros((len(gdf_inundation),len(gdf_surface_water)),dtype=bool)
+        for i,gsw_geom in enumerate(gdf_surface_water.geometry):
+            idx_intersects[i,:] = np.asarray([gsw_geom.intersects(geom) for geom in gdf_inundation.geometry])
+            idx_contains[i,:] = np.asarray([gsw_geom.contains(geom) for geom in gdf_inundation.geometry])
+        idx_intersects = np.any(idx_intersects,axis=0)
+        idx_contains = np.any(idx_contains,axis=0)
+        idx_connected = np.any((idx_intersects,idx_contains),axis=0)
+    gdf_inundation_connected = gdf_inundation[idx_connected].reset_index(drop=True)
+    gdf_inundation_connected.to_file(inundation_shp_file_connected)
