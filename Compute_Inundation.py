@@ -43,6 +43,7 @@ def main():
     parser.add_argument('--return_period',help='Return period of CoDEC in years')
     parser.add_argument('--fes2014',help='Flag to use FES2014 max tidal heights.',default=False,action='store_true')
     parser.add_argument('--mhhw',help='Flag to use MHHW instead of max tidal heights.',default=False,action='store_true')
+    parser.add_argument('--high_tide',help='Value to use for high tide.',default=None,type=float,nargs=1)
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
     parser.add_argument('--uncertainty',help='Calculate inundation uncertainty?',default=False,action='store_true')
     parser.add_argument('--sigma',help='Sigma value to use for uncertainty calculation.')
@@ -75,6 +76,7 @@ def main():
     return_period_options = np.asarray([2,5,10,25,50,100,250,500,1000])
     fes2014_flag = args.fes2014
     mhhw_flag = args.mhhw
+    high_tide = args.high_tide
     connectivity_flag = args.connectivity
     uncertainty_flag = args.uncertainty
     machine_name = args.machine
@@ -99,10 +101,10 @@ def main():
     if np.sum((ssp is not None, rcp is not None, slr is not None)) < 1:
         print('Please select one of SSP, RCP or SLR!')
         sys.exit()
-    if fes2014_flag == True and return_period is not None:
-        print('Cannot use FES2014 and CoDEC together!')
+    if np.sum((fes2014_flag == True, return_period is not None, high_tide is not None)) > 1:
+        print('Cannot use FES2014, CoDEC and/or high tide together!')
         sys.exit()
-    if fes2014_flag == False and return_period not in return_period_options:
+    if (high_tide is None and fes2014_flag == False) and return_period not in return_period_options:
         print('Invalid return period selected!')
         print('Must be 2, 5, 10, 25, 50, 100, 250, 500 or 1000 years.')
         sys.exit()
@@ -292,15 +294,18 @@ def main():
 
     dem_x_size = src.RasterXSize
     dem_y_size = src.RasterYSize
+    src_proj = src.GetProjection()
+    src_geotransform = src.GetGeoTransform()
     dem_resampled_x_size = src_resampled.RasterXSize
     dem_resampled_y_size = src_resampled.RasterYSize
+    src_resampled_proj = src_resampled.GetProjection()
+    src_resampled_geotransform = src_resampled.GetGeoTransform()
     xres_dem_resampled,yres_dem_resampled = src_resampled.GetGeoTransform()[1],-src_resampled.GetGeoTransform()[5]
     x_dem_resampled_min,x_dem_resampled_max,y_dem_resampled_min,y_dem_resampled_max = get_raster_extents(dem_resampled_file,'local')
     dx_dem_resampled = np.abs(x_dem_resampled_max - x_dem_resampled_min)
     dy_dem_resampled = np.abs(y_dem_resampled_max - y_dem_resampled_min)
     grid_max_dist = np.max((dx_dem_resampled,dy_dem_resampled))
     algorithm_dict['grid_max_dist'] = grid_max_dist
-
 
     t_start = datetime.datetime.now()
     print('Generating coastal sea level grid...')
@@ -340,8 +345,31 @@ def main():
     delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
     print(f'Generating coastal sea level took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
 
-
-    if return_period is not None:
+    if high_tide is not None:
+        '''
+        Implement manual high tide value here
+        Create a grid of high tide values at DEM resampled resolution and resample to full res
+        '''
+        t_start = datetime.datetime.now()
+        print(f'Generating high tide file with a value of {high_tide:.2f} m...')
+        high_tide_array = np.ones((dem_resampled_y_size,dem_resampled_x_size))*high_tide
+        high_tide_full_res = f'{tmp_dir}{loc_name}_high_tide.tif'
+        high_tide_intermediate_res = f'{tmp_dir}{loc_name}_high_tide_resampled.tif'
+        driver = gdal.GetDriverByName('GTiff')
+        dataset = driver.Create(sealevel_high_grid_intermediate_res,high_tide_array.shape[1],high_tide_array.shape[0],1,gdal.GDT_Float32)
+        dataset.SetGeoTransform(src_resampled_geotransform)
+        dataset.SetProjection(src_resampled_proj)
+        dataset.GetRasterBand(1).WriteArray(high_tide_array)
+        dataset.FlushCache()
+        dataset = None
+        resample_raster(high_tide_intermediate_res,dem_file,high_tide_full_res)
+        t_end = datetime.datetime.now()
+        delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
+        delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
+        print(f'Generating high tide file took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+        sealevel_high_grid_intermediate_res = high_tide_intermediate_res
+        sealevel_high_grid_full_res = high_tide_full_res
+    elif return_period is not None:
         t_start = datetime.datetime.now()
         print(f'Finding CoDEC sea level extremes for return period of {return_period} years...')
         rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,return_period)
@@ -498,9 +526,9 @@ def main():
             subprocess.run(f'rm {output_file_coastline_yr.replace(".csv",".vrt")}',shell=True)
             subprocess.run(f'rm {sl_grid_file_intermediate_res}',shell=True)
             subprocess.run(f'rm {sl_grid_file_full_res}',shell=True)
-    
-    subprocess.run(f'rm {sealevel_csv_output}',shell=True)
-    subprocess.run(f'rm {sealevel_csv_output.replace(".csv",".vrt")}',shell=True)
+    if os.path.isfile(sealevel_csv_output):
+        subprocess.run(f'rm {sealevel_csv_output}',shell=True)
+        subprocess.run(f'rm {sealevel_csv_output.replace(".csv",".vrt")}',shell=True)
     subprocess.run(f'rm {sealevel_high_grid_intermediate_res}',shell=True)
     subprocess.run(f'rm {sealevel_high_grid_full_res}',shell=True)
     print(f'Finished with {loc_name} at {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.')
