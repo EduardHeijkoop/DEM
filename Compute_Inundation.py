@@ -196,9 +196,6 @@ def main():
         if rcp not in ['2.6','4.5','8.5']:
             print('Invalid RCP pathway selected!')
             sys.exit()
-    else:
-        print('No RCP or SSP pathway selected!')
-        sys.exit()
 
     gdf_coast = gpd.read_file(coastline_file)
     epsg_coastline = gdf_coast.crs.to_epsg()
