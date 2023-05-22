@@ -352,6 +352,7 @@ def main():
         '''
         t_start = datetime.datetime.now()
         print(f'Generating high tide file with a value of {high_tide:.2f} m...')
+        high_tide_str = f'{high_tide:.2f}'.replace('.','p')
         high_tide_array = np.ones((dem_resampled_y_size,dem_resampled_x_size))*high_tide
         high_tide_full_res = f'{tmp_dir}{loc_name}_high_tide.tif'
         high_tide_intermediate_res = f'{tmp_dir}{loc_name}_high_tide_resampled.tif'
@@ -425,11 +426,11 @@ def main():
             print(f'Creating inundation for {slr_value:.2f} m...')
             slr_value_str = f'SLR_{slr_value:.2f}m'.replace('.','p').replace('-','neg')
             if high_tide is not None:
-                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_SLR_{slr_value_str}_HT_{high_tide:.2f}.tif'.replace('.','p')
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{slr_value_str}_HT_{high_tide_str}.tif'
             elif return_period is not None:
-                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_SLR_{slr_value_str}_CoDEC_RP_{return_period}_yrs.tif'
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{slr_value_str}_CoDEC_RP_{return_period}_yrs.tif'
             elif fes2014_flag == True:
-                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_SLR_{slr_value_str}_FES2014.tif'
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{slr_value_str}_FES2014.tif'
                 if mhhw_flag == True:
                     output_inundation_file = output_inundation_file.replace('FES2014','FES2014_MHHW')
             if geoid_file is not None:
