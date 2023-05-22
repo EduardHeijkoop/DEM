@@ -422,12 +422,14 @@ def main():
             t_start = datetime.datetime.now()
             print(f'Creating inundation for {slr_value:.2f} m...')
             slr_value_str = f'SLR_{slr_value:.2f}m'.replace('.','p').replace('-','neg')
-            if fes2014_flag == True:
-                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{slr_value_str}_FES2014.tif'
+            if high_tide is not None:
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_SLR_{slr_value_str}_HT_{high_tide:.2f}.tif'.replace('.','p')
+            elif return_period is not None:
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_SLR_{slr_value_str}_CoDEC_RP_{return_period}_yrs.tif'
+            elif fes2014_flag == True:
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_SLR_{slr_value_str}_FES2014.tif'
                 if mhhw_flag == True:
                     output_inundation_file = output_inundation_file.replace('FES2014','FES2014_MHHW')
-            elif return_period is not None:
-                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{slr_value_str}_CoDEC_RP_{return_period}_yrs.tif'
             if geoid_file is not None:
                 output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
             if vlm_file is None:
@@ -468,12 +470,14 @@ def main():
     else:
         for yr,quantile_select in itertools.product(years,quantiles):
             t_start = datetime.datetime.now()
-            if fes2014_flag == True:
+            if high_tide is not None:
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_PROJECTION_METHOD_HT_{high_tide:.2f}.tif'.replace('.','p')
+            elif return_period is not None:
+                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_PROJECTION_METHOD_CoDEC_RP_{return_period}_yrs.tif'
+            elif fes2014_flag == True:
                 output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_PROJECTION_METHOD_FES2014.tif'
                 if mhhw_flag == True:
                     output_inundation_file = output_inundation_file.replace('FES2014','FES2014_MHHW')
-            elif return_period is not None:
-                output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{yr}_PROJECTION_METHOD_CoDEC_RP_{return_period}_yrs.tif'
             if projection_select == 'SROCC':
                 print(f'Creating inundation in {yr} using RCP{rcp}...')
                 output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'SROCC_RCP_{str(rcp).replace(".","p")}')
