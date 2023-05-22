@@ -368,6 +368,7 @@ def main():
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
         print(f'Generating high tide file took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+        sealevel_csv_output = f'{tmp_dir}tmp.txt'
         sealevel_high_grid_intermediate_res = high_tide_intermediate_res
         sealevel_high_grid_full_res = high_tide_full_res
     elif return_period is not None:
