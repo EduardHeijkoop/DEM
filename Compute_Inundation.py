@@ -120,6 +120,8 @@ def main():
             vlm_file = None
         except ValueError:
             vlm_rate = None
+    else:
+        vlm_rate = None
     
 
     if os.path.dirname(os.path.abspath(dem_file)).split('/')[-1] == 'Mosaic':
