@@ -354,7 +354,7 @@ def main():
         high_tide_full_res = f'{tmp_dir}{loc_name}_high_tide.tif'
         high_tide_intermediate_res = f'{tmp_dir}{loc_name}_high_tide_resampled.tif'
         driver = gdal.GetDriverByName('GTiff')
-        dataset = driver.Create(sealevel_high_grid_intermediate_res,high_tide_array.shape[1],high_tide_array.shape[0],1,gdal.GDT_Float32)
+        dataset = driver.Create(high_tide_intermediate_res,high_tide_array.shape[1],high_tide_array.shape[0],1,gdal.GDT_Float32)
         dataset.SetGeoTransform(src_resampled_geotransform)
         dataset.SetProjection(src_resampled_proj)
         dataset.GetRasterBand(1).WriteArray(high_tide_array)
