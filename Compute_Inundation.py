@@ -114,11 +114,12 @@ def main():
             print('Invalid sigma value selected!')
             print('Must be 1, 2 or 3.')
             sys.exit()
-    try:
-        vlm_rate = float(vlm_file)
-        vlm_file = None
-    except ValueError:
-        vlm_rate = None
+    if vlm_file is not None:
+        try:
+            vlm_rate = float(vlm_file)
+            vlm_file = None
+        except ValueError:
+            vlm_rate = None
     
 
     if os.path.dirname(os.path.abspath(dem_file)).split('/')[-1] == 'Mosaic':
