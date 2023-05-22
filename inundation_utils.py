@@ -383,13 +383,13 @@ def compute_connectivity(inundation_shp_file,gdf_surface_water):
     '''
     gdf_inundation = gpd.read_file(inundation_shp_file)
     inundation_shp_file_connected = inundation_shp_file.replace('.shp','_connected_GSW.shp')
-    if len(inundation_shp_file) == 1:
+    if len(gdf_inundation) == 1:
         idx_intersects = np.asarray([gdf_surface_water.geometry[0].intersects(geom) for geom in gdf_inundation.geometry])
         idx_contains = np.asarray([gdf_surface_water.geometry[0].contains(geom) for geom in gdf_inundation.geometry])
         idx_connected = np.any((idx_intersects,idx_contains),axis=0)
     else:
-        idx_intersects = np.zeros((len(gdf_inundation),len(gdf_surface_water)),dtype=bool)
-        idx_contains = np.zeros((len(gdf_inundation),len(gdf_surface_water)),dtype=bool)
+        idx_intersects = np.zeros((len(gdf_surface_water),len(gdf_inundation)),dtype=bool)
+        idx_contains = np.zeros((len(gdf_surface_water),len(gdf_inundation)),dtype=bool)
         for i,gsw_geom in enumerate(gdf_surface_water.geometry):
             idx_intersects[i,:] = np.asarray([gsw_geom.intersects(geom) for geom in gdf_inundation.geometry])
             idx_contains[i,:] = np.asarray([gsw_geom.contains(geom) for geom in gdf_inundation.geometry])
