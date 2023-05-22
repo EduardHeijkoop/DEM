@@ -383,7 +383,7 @@ def compute_connectivity(inundation_shp_file,gdf_surface_water):
     '''
     gdf_inundation = gpd.read_file(inundation_shp_file)
     inundation_shp_file_connected = inundation_shp_file.replace('.shp','_connected_GSW.shp')
-    if len(gdf_inundation) == 1:
+    if len(gdf_surface_water) == 1:
         idx_intersects = np.asarray([gdf_surface_water.geometry[0].intersects(geom) for geom in gdf_inundation.geometry])
         idx_contains = np.asarray([gdf_surface_water.geometry[0].contains(geom) for geom in gdf_inundation.geometry])
         idx_connected = np.any((idx_intersects,idx_contains),axis=0)
