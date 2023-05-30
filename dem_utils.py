@@ -967,7 +967,7 @@ def find_mosaic(strip_shp_data,mst_array,strip_dates):
         print(' ')
         print(f'Mosaic {i}:')
         print(f'Starting at: {mosaic_ID_start}')
-        print(strip_dict[ID_start])
+        print(strip_dict[mosaic_ID_start])
         generation_dict = {}
         while ~path_check:
             generation_count = generation_count+1
