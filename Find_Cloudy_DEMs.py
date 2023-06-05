@@ -160,6 +160,8 @@ def main():
     subprocess.run(f'rm {a_priori_filename}',shell=True)
     if tmp_dir in coastline_file:
         subprocess.run(f'rm {coastline_file.replace(os.path.splitext(coastline_file)[0],".*")}',shell=True)
+    
+    np.savetxt(output_file,np.c_[strip_list.astype(object),pct_exceedance],fmt='%s,%.3f',header='Strip,Percent Exceedance',comments='',delimiter=',')
 
 
 if __name__ == "__main__":
