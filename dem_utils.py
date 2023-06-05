@@ -620,18 +620,15 @@ def get_strip_extents(strip,round_flag=False,N_round=3):
         lat_max = np.ceil(lat_max * 10**N_round) / 10**N_round
     return lon_min,lon_max,lat_min,lat_max
 
-def get_list_extents(file_list):
+def get_list_extents(file_list,round_flag=False,N_round=3):
     lon_min,lon_max,lat_min,lat_max = 180,-180,90,-90
     for f in file_list:
-        lon_min_single_file,lon_max_single_file,lat_min_single_file,lat_max_single_file = get_strip_extents(f)
+        lon_min_single_file,lon_max_single_file,lat_min_single_file,lat_max_single_file = get_strip_extents(f,round_flag=round_flag,N_round=N_round)
         lon_min = np.min((lon_min,lon_min_single_file))
         lon_max = np.max((lon_max,lon_max_single_file))
         lat_min = np.min((lat_min,lat_min_single_file))
         lat_max = np.max((lat_max,lat_max_single_file))
     return lon_min,lon_max,lat_min,lat_max
-
-
-
 
 def get_gsw(output_dir,tmp_dir,gsw_dir,epsg_code,lon_min,lon_max,lat_min,lat_max,loc_name=None,gsw_pocket_threshold=0.01,gsw_crs_transform_threshold=0.05):
     '''
