@@ -592,7 +592,7 @@ def get_strip_list(loc_dir,input_type,corrected_flag,dir_structure):
             strip_list = sorted(glob.glob(f'{loc_dir}*dem.tif'))
     return np.asarray(strip_list)
 
-def get_strip_extents(strip):
+def get_strip_extents(strip,round_flag=False,N_round=3):
     '''
     Find extents of a given strip.
     Return will be lon/lat in EPSG:4326.
@@ -613,6 +613,11 @@ def get_strip_extents(strip):
     lon_max = np.nanmax(lon_strip)
     lat_min = np.nanmin(lat_strip)
     lat_max = np.nanmax(lat_strip)
+    if round_flag == True:
+        lon_min = np.floor(lon_min * 10**N_round) / 10**N_round
+        lon_max = np.ceil(lon_max * 10**N_round) / 10**N_round
+        lat_min = np.floor(lat_min * 10**N_round) / 10**N_round
+        lat_max = np.ceil(lat_max * 10**N_round) / 10**N_round
     return lon_min,lon_max,lat_min,lat_max
 
 def get_list_extents(file_list):
