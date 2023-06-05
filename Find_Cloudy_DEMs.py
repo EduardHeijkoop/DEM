@@ -136,8 +136,8 @@ def main():
         resample_raster(strip_resampled_intermediate_4326,a_priori_subset,strip_resampled,resample_method='bilinear',compress=True,nodata=-9999,quiet_flag=True)
         subprocess.run(edit_command,shell=True)
         #Clip a priori and strip to coastline:
-        a_priori_coastline_clip_command = f'gdalwarp -s_srs EPSG:4326 -t_srs EPSG:4326 -of GTiff -cutline {coastline_file} -cl {os.path.splitext(os.path.basename(coastline_file))[0]} -dstnodata -9999 {a_priori_subset} {a_priori_clipped} {warp_comp_bigtiff}'
-        strip_coastline_clip_command = f'gdalwarp -s_srs EPSG:4326 -t_srs EPSG:4326 -of GTiff -cutline {coastline_file} -cl {os.path.splitext(os.path.basename(coastline_file))[0]} -dstnodata -9999 {strip_resampled} {strip_resampled_clipped} {warp_comp_bigtiff}'
+        a_priori_coastline_clip_command = f'gdalwarp -q -s_srs EPSG:4326 -t_srs EPSG:4326 -of GTiff -cutline {coastline_file} -cl {os.path.splitext(os.path.basename(coastline_file))[0]} -dstnodata -9999 {a_priori_subset} {a_priori_clipped} {warp_comp_bigtiff}'
+        strip_coastline_clip_command = f'gdalwarp -q -s_srs EPSG:4326 -t_srs EPSG:4326 -of GTiff -cutline {coastline_file} -cl {os.path.splitext(os.path.basename(coastline_file))[0]} -dstnodata -9999 {strip_resampled} {strip_resampled_clipped} {warp_comp_bigtiff}'
         subprocess.run(a_priori_coastline_clip_command,shell=True)
         subprocess.run(strip_coastline_clip_command,shell=True)
         #Subtract a priori from strip:
