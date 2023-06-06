@@ -25,20 +25,29 @@ def main():
     parser.add_argument('--loc_name',default=None,help='Location name.')
     parser.add_argument('--a_priori',default='copernicus',help='A priori DEM to use.',choices=['srtm','aster','copernicus'])
     parser.add_argument('--coastline',default=config.get('GENERAL_PATHS','osm_shp_file'),help='Path to coastline shapefile')
+    parser.add_argument('--pct_threshold',default=0.05,type=float,help='Threshold exceedance value.')
+    parser.add_argument('--vertical_threshold',default=50,type=float,help='Vertical threshold for exceedance.')
     parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips',choices=['sealevel','simple'])
     parser.add_argument('--cpus',help='Number of CPUs to use.',default=1,type=int)
     parser.add_argument('--keep_diff',help='Keep DEM differences.',action='store_true')
+    parser.add_argument('--find_water',default=False,help='Find percentage of water in DEM too.',action='store_true')
+    parser.add_argument('--water_threshold',default=0.3,type=float,help='Water percentage threshold.')
+
     args = parser.parse_args()
     input_dir = args.input_dir
     list_file = args.list
     loc_name = args.loc_name
     a_priori_dem = args.a_priori
     coastline_file = args.coastline
+    exceedance_threshold = args.pct_threshold
+    diff_threshold = args.vertical_threshold
     machine_name = args.machine
     dir_structure = args.dir_structure
     N_cpus = args.cpus
     keep_diff_flag = args.keep_diff
+    find_water_flag = args.find_water
+    water_threshold = args.water_threshold
 
     gdal.SetConfigOption('GDAL_NUM_THREADS', f'{N_cpus}')
 
@@ -54,6 +63,8 @@ def main():
             loc_name = os.path.splitext(os.path.basename(list_file))[0]
         output_file = list_file.replace(os.path.splitext(list_file)[1],f'_Threshold_Exceedance_Values{os.path.splitext(list_file)[1]}')
     elif input_dir is not None:
+        if input_dir[-1] != '/':
+            input_dir += '/'
         strip_list = get_strip_list(input_dir,input_type=0,corrected_flag=False,dir_structure=dir_structure)
         if loc_name is None:
             loc_name = os.path.basename(os.path.dirname(input_dir))
@@ -64,8 +75,6 @@ def main():
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     default_coastline = config.get('GENERAL_PATHS','osm_shp_file')
     intermediate_res = 10
-    diff_threshold = 50
-    exceedance_threshold = 0.05
     pct_exceedance = np.zeros(len(strip_list))
 
     a_priori_filename = f'{tmp_dir}{loc_name}_{a_priori_dem}_WGS84.tif'
@@ -152,6 +161,19 @@ def main():
         pct_exceedance[i] = pct_exceeding
         if pct_exceeding > exceedance_threshold:
             print(f'{strip_name} exceeds threshold of {exceedance_threshold*100:.2f}%!')
+        if find_water_flag == True:
+            src_unclipped = gdal.Open(strip_resampled,gdalconst.GA_ReadOnly)
+            src_clipped = gdal.Open(strip_resampled_clipped,gdalconst.GA_ReadOnly)
+            unclipped_array = np.asarray(src_unclipped.GetRasterBand(1).ReadAsArray())
+            clipped_array = np.asarray(src_clipped.GetRasterBand(1).ReadAsArray())
+            unclipped_array[unclipped_array == 0] = np.nan
+            clipped_array[clipped_array == -9999] = np.nan
+            pct_nan_unclipped = np.sum(np.isnan(unclipped_array)) / (unclipped_array.shape[0] * unclipped_array.shape[1])
+            pct_nan_clipped = np.sum(np.isnan(clipped_array)) / (clipped_array.shape[0] * clipped_array.shape[1])
+            pct_water = pct_nan_clipped - pct_nan_unclipped
+            print(f'{100*pct_water:.1f}% over water.')
+            if pct_water > water_threshold:
+                print(f'{strip_name} exceeds threshold of {water_threshold*100:.1f}%!')
         delete_list = [a_priori_subset,a_priori_clipped,strip_resampled,strip_resampled_intermediate,strip_resampled_intermediate_4326,strip_resampled_clipped]
         if keep_diff_flag == False:
             delete_list.append(diff_file)
