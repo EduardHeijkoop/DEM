@@ -79,6 +79,7 @@ def main():
     default_coastline = config.get('GENERAL_PATHS','osm_shp_file')
     intermediate_res = 10
     pct_exceedance = np.zeros(len(strip_list))
+    pct_water = np.zeros(len(strip_list))
 
     a_priori_filename = f'{tmp_dir}{loc_name}_{a_priori_dem}_WGS84.tif'
     lon_min,lon_max,lat_min,lat_max = get_list_extents(strip_list)
@@ -165,11 +166,10 @@ def main():
         src_diff = gdal.Open(diff_file,gdalconst.GA_ReadOnly)
         diff_array = np.asarray(src_diff.GetRasterBand(1).ReadAsArray())
         diff_array[diff_array == -9999] = np.nan
-        pct_exceeding = np.sum(np.abs(diff_array) > diff_threshold) / np.sum(~np.isnan(diff_array))
-        pct_exceedance[i] = pct_exceeding
+        pct_exceedance[i] = np.sum(np.abs(diff_array) > diff_threshold) / np.sum(~np.isnan(diff_array))
         if quiet_flag == False:
-            print(f'{pct_exceeding*100:.2f}% of pixels exceed {diff_threshold}m.')
-            if pct_exceeding > exceedance_threshold:
+            print(f'{pct_exceedance[i]*100:.2f}% of pixels exceed {diff_threshold}m.')
+            if pct_exceedance[i] > exceedance_threshold:
                 print(f'{strip_name} exceeds difference threshold of {exceedance_threshold*100:.2f}%!')
         if find_water_flag == True:
             src_unclipped = gdal.Open(strip_resampled,gdalconst.GA_ReadOnly)
@@ -180,15 +180,16 @@ def main():
             clipped_array[clipped_array == -9999] = np.nan
             pct_nan_unclipped = np.sum(np.isnan(unclipped_array)) / (unclipped_array.shape[0] * unclipped_array.shape[1])
             pct_nan_clipped = np.sum(np.isnan(clipped_array)) / (clipped_array.shape[0] * clipped_array.shape[1])
-            pct_water = pct_nan_clipped - pct_nan_unclipped
+            pct_water[i] = pct_nan_clipped - pct_nan_unclipped
             if quiet_flag == False:
-                print(f'{100*pct_water:.1f}% over water.')
-                if pct_water > water_threshold:
+                print(f'{100*pct_water[i]:.1f}% over water.')
+                if pct_water[i] > water_threshold:
                     print(f'{strip_name} exceeds water threshold of {water_threshold*100:.1f}%!')
         delete_list = [a_priori_subset,a_priori_clipped,strip_resampled,strip_resampled_intermediate,strip_resampled_intermediate_4326,strip_resampled_clipped]
         if keep_diff_flag == False:
             delete_list.append(diff_file)
         subprocess.run(f'rm {" ".join(delete_list)}',shell=True)
+    print('\n')
     
     subprocess.run(f'rm {a_priori_filename}',shell=True)
     if tmp_dir in coastline_file:
