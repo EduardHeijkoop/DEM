@@ -294,7 +294,7 @@ def sample_raster(raster_path, csv_path, output_file,nodata='-9999',header=None,
     subprocess.run(f"rm tmp_{raster_base}.txt tmp2_{raster_base}.txt",shell=True,cwd=output_dir)
     return None
 
-def resample_raster(src_filename,match_filename,dst_filename,nodata=-9999,resample_method='bilinear',compress=True,quiet_flag=False):
+def resample_raster(src_filename,match_filename,dst_filename,resample_method='bilinear',compress=True,nodata=-9999,quiet_flag=False):
     '''
     src = what you want to resample
     match = resample to this one's resolution
@@ -1345,5 +1345,24 @@ def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='me
     else:
         return raster_shifted,vertical_shift,rmse,ratio_pts,None
 
-
+def find_cloud_water(gdf_strips,df_cloud_water):
+    '''
+    Given a GeoDataFrame with strip outlines and a DataFrame with their cloud/water content, link them
+    Caveat: all vertical exceedance is attributed to clouds, but other factors may be the cause too
+    Starting them at -1 will ensure that they won't get thrown out if they're not found.
+    '''
+    cloud_array = -1*np.ones(len(gdf_strips))
+    water_array = -1*np.ones(len(gdf_strips))
+    strip_array_gdf = np.asarray([s.split('/')[-1] for s in gdf_strips.strip])
+    strip_array_df = np.asarray([s.split('/')[-1] for s in df_cloud_water.Strip])
+    for i in range(len(gdf_strips)):
+        idx = np.atleast_1d(np.argwhere(strip_array_gdf[i] == strip_array_df).squeeze())
+        if len(idx) == 0:
+            continue
+        idx = idx[0]
+        cloud_array[i] = df_cloud_water['Percent Exceedance'][idx]
+        water_array[i] = df_cloud_water['Percent Water'][idx]
+    gdf_strips['Percent Exceedance'] = cloud_array
+    gdf_strips['Percent Water'] = water_array
+    return gdf_strips
 

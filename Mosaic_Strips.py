@@ -5,6 +5,7 @@ from shapely.geometry import Polygon
 import shapely
 from osgeo import gdal,gdalconst,osr
 import os,sys
+import glob
 import argparse
 import subprocess
 import datetime
@@ -12,7 +13,7 @@ import warnings
 import configparser
 
 from dem_utils import get_strip_list,get_strip_extents
-from dem_utils import get_gsw,get_strip_shp,filter_strip_gsw
+from dem_utils import get_gsw,get_strip_shp,filter_strip_gsw,find_cloud_water
 from dem_utils import get_contained_strips,get_valid_strip_overlaps,get_minimum_spanning_tree
 from dem_utils import find_mosaic,build_mosaic,copy_single_strips
 
@@ -28,7 +29,8 @@ def main():
     parser.add_argument('--output_dir',default=None,help='path to output directory')
     parser.add_argument('--loc_name',default=None,help='name of location')
     parser.add_argument('--horizontal',default=False,help='Incorperate horizontal alignment in mosaic?',action='store_true')
-    parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
+    parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
+    parser.add_argument('--cloud_water_filter',default='default',nargs='?',help='Use cloud and water filter?')
     parser.add_argument('--corrected',default=False,help='Find corrected strips instead?',action='store_true')
     parser.add_argument('--all_strips',default=False,help='Mosaic all strips in directory? (No geometry filtering.)',action='store_true')
     parser.add_argument('--gsw',default=None,help='Path to GSW shapefile')
@@ -42,6 +44,7 @@ def main():
     single_loc_name = args.loc_name
     horizontal_flag = args.horizontal
     machine_name = args.machine
+    cloud_water_filter_flag = args.cloud_water_filter
     corrected_flag = args.corrected
     all_strips_flag = args.all_strips
     gsw_file = args.gsw
@@ -84,6 +87,8 @@ def main():
     STRIP_TOTAL_AREA_PERCENTAGE_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','STRIP_TOTAL_AREA_PERCENTAGE_THRESHOLD') #in %
     STRIP_CONTAINMENT_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','STRIP_CONTAINMENT_THRESHOLD') #in %
     STRIP_DELTA_TIME_THRESHOLD = config.getint('MOSAIC_CONSTANTS','STRIP_DELTA_TIME_THRESHOLD') #in days
+    STRIP_CLOUD_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','STRIP_CLOUD_THRESHOLD') #in %
+    STRIP_WATER_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','STRIP_WATER_THRESHOLD') #in %
     N_STRIPS_CONTAINMENT = config.getint('MOSAIC_CONSTANTS','N_STRIPS_CONTAINMENT') #[-]
     AREA_OVERLAP_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','AREA_OVERLAP_THRESHOLD') #in m^2
     GSW_INTERSECTION_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','GSW_INTERSECTION_THRESHOLD') #in %
@@ -130,6 +135,19 @@ def main():
             full_strip_list = np.asarray(df_list.strip)
         else:
             full_strip_list = get_strip_list(loc_dir,input_type,corrected_flag,dir_structure)
+        if cloud_water_filter_flag == 'default':
+            cloud_water_filter_file = None
+        elif cloud_water_filter_flag is None:
+            cloud_water_filter_file = glob.glob(f'{loc_dir}*Threshold_Exceedance_Values.txt')
+            if len(cloud_water_filter_file) == 0:
+                print('No cloud/water filter file found! Skipping...')
+                cloud_water_filter_file = None
+            else:
+                cloud_water_filter_file = cloud_water_filter_file[0]
+                df_cloud_water = pd.read_csv(cloud_water_filter_file)
+        else:
+            cloud_water_filter_file = cloud_water_filter_flag
+            df_cloud_water = pd.read_csv(cloud_water_filter_file)
         full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(s,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for s in full_strip_list])
         unique_epsg_list = np.unique(full_epsg_list)
 
@@ -175,13 +193,19 @@ def main():
                 df_strip = pd.DataFrame({'strip':[strip]})
                 tmp_gdf = gpd.GeoDataFrame(df_strip,geometry=[tmp_mp],crs='EPSG:'+epsg_code)
                 strip_shp_data = gpd.GeoDataFrame(pd.concat([strip_shp_data,tmp_gdf],ignore_index=True),crs='EPSG:'+epsg_code)
-
+            
+            if cloud_water_filter_file is not None:
+                print('\nApplying cloud/water filter...')
+                strip_shp_data = find_cloud_water(strip_shp_data,df_cloud_water)
+                idx_cloud_water = np.logical_or(strip_shp_data['Percent Exceedance']>STRIP_CLOUD_THRESHOLD,strip_shp_data['Percent Water']>STRIP_WATER_THRESHOLD)
+                strip_shp_data = strip_shp_data[idx_cloud_water].reset_index(drop=True)
+            else:
+                print('\n')
             strip_list = strip_list[strip_idx]
             output_strips_shp_file = f'{output_dir}{output_name}_Strips_{epsg_code}.shp'
             output_strips_shp_file_dissolved = f'{output_dir}{output_name}_Strips_{epsg_code}_Dissolved.shp'
             output_strips_shp_file_filtered = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered.shp'
             output_strips_shp_file_filtered_dissolved = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered_Dissolved.shp'
-            print('\n')
             # print(output_strips_shp_file)
             
             strip_dates = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list])
