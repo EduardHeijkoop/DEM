@@ -151,7 +151,7 @@ def main():
         print(f'{pct_exceeding*100:.2f}% of pixels exceed {diff_threshold}m.')
         pct_exceedance[i] = pct_exceeding
         if pct_exceeding > exceedance_threshold:
-            print(f'{strip} exceeds threshold of {exceedance_threshold*100:.2f}%!')
+            print(f'{strip_name} exceeds threshold of {exceedance_threshold*100:.2f}%!')
         delete_list = [a_priori_subset,a_priori_clipped,strip_resampled,strip_resampled_intermediate,strip_resampled_intermediate_4326,strip_resampled_clipped]
         if keep_diff_flag == False:
             delete_list.append(diff_file)
