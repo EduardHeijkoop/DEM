@@ -184,7 +184,11 @@ def main():
         subprocess.run(f'rm {coastline_file.replace(os.path.splitext(coastline_file)[1],".*")}',shell=True)
     
     np.savetxt(output_file,np.c_[strip_list.astype(object),pct_exceedance],fmt='%s,%.3f',header='Strip,Percent Exceedance',comments='',delimiter=',')
-
+    if find_water_flag == True:
+        np.savetxt(f'{tmp_dir}tmp_water.txt',np.c_[pct_water],fmt='%.3f',header='Percent Water',comments='',delimiter=',')
+        subprocess.run(f'paste -d , {output_file} {tmp_dir}tmp_water.txt > {tmp_dir}tmp.txt',shell=True)
+        subprocess.run(f'mv {tmp_dir}tmp.txt {output_file}',shell=True)
+        subprocess.run(f'rm {tmp_dir}tmp_water.txt',shell=True)
 
 if __name__ == "__main__":
     main()
