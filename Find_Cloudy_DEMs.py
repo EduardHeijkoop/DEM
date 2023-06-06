@@ -5,6 +5,7 @@ import argparse
 import configparser
 import warnings
 import os
+import sys
 from osgeo import gdal,gdalconst,osr
 
 
@@ -33,6 +34,7 @@ def main():
     parser.add_argument('--keep_diff',help='Keep DEM differences.',action='store_true')
     parser.add_argument('--find_water',default=False,help='Find percentage of water in DEM too.',action='store_true')
     parser.add_argument('--water_threshold',default=0.3,type=float,help='Water percentage threshold.')
+    parser.add_argument('--quiet',default=False,help='Suppress output.',action='store_true')
 
     args = parser.parse_args()
     input_dir = args.input_dir
@@ -48,6 +50,7 @@ def main():
     keep_diff_flag = args.keep_diff
     find_water_flag = args.find_water
     water_threshold = args.water_threshold
+    quiet_flag = args.quiet
 
     gdal.SetConfigOption('GDAL_NUM_THREADS', f'{N_cpus}')
 
@@ -107,7 +110,7 @@ def main():
     # else:
     #     gdf_coast_epsg = None
 
-
+    print(f'Working on {loc_name}.')
     print(f'Downloading {a_priori_dem}...')
     if a_priori_dem == 'srtm':
         download_srtm(lon_min,lon_max,lat_min,lat_max,EGM96_file,tmp_dir,a_priori_filename)
@@ -122,7 +125,13 @@ def main():
 
     for i,strip in enumerate(strip_list):
         strip_name = os.path.splitext(os.path.basename(strip))[0]
-        print(f'Working on {strip_name}...')
+        if quiet_flag == False:
+            print(f'Working on {strip_name}...')
+        else:
+            sys.stdout.write('\r')
+            n_progressbar = (i + 1) / len(strip_list)
+            sys.stdout.write("[%-20s] %d%%" % ('='*int(20*n_progressbar), 100*n_progressbar))
+            sys.stdout.flush()
         #Define new names:
         a_priori_subset = f'{os.path.splitext(a_priori_filename)[0]}_Subset_{strip_name}{os.path.splitext(a_priori_filename)[1]}'
         a_priori_clipped = f'{os.path.splitext(a_priori_filename)[0]}_Subset_{strip_name}_Clipped{os.path.splitext(a_priori_filename)[1]}'
@@ -157,10 +166,11 @@ def main():
         diff_array = np.asarray(src_diff.GetRasterBand(1).ReadAsArray())
         diff_array[diff_array == -9999] = np.nan
         pct_exceeding = np.sum(np.abs(diff_array) > diff_threshold) / np.sum(~np.isnan(diff_array))
-        print(f'{pct_exceeding*100:.2f}% of pixels exceed {diff_threshold}m.')
         pct_exceedance[i] = pct_exceeding
-        if pct_exceeding > exceedance_threshold:
-            print(f'{strip_name} exceeds threshold of {exceedance_threshold*100:.2f}%!')
+        if quiet_flag == False:
+            print(f'{pct_exceeding*100:.2f}% of pixels exceed {diff_threshold}m.')
+            if pct_exceeding > exceedance_threshold:
+                print(f'{strip_name} exceeds difference threshold of {exceedance_threshold*100:.2f}%!')
         if find_water_flag == True:
             src_unclipped = gdal.Open(strip_resampled,gdalconst.GA_ReadOnly)
             src_clipped = gdal.Open(strip_resampled_clipped,gdalconst.GA_ReadOnly)
@@ -171,9 +181,10 @@ def main():
             pct_nan_unclipped = np.sum(np.isnan(unclipped_array)) / (unclipped_array.shape[0] * unclipped_array.shape[1])
             pct_nan_clipped = np.sum(np.isnan(clipped_array)) / (clipped_array.shape[0] * clipped_array.shape[1])
             pct_water = pct_nan_clipped - pct_nan_unclipped
-            print(f'{100*pct_water:.1f}% over water.')
-            if pct_water > water_threshold:
-                print(f'{strip_name} exceeds threshold of {water_threshold*100:.1f}%!')
+            if quiet_flag == False:
+                print(f'{100*pct_water:.1f}% over water.')
+                if pct_water > water_threshold:
+                    print(f'{strip_name} exceeds water threshold of {water_threshold*100:.1f}%!')
         delete_list = [a_priori_subset,a_priori_clipped,strip_resampled,strip_resampled_intermediate,strip_resampled_intermediate_4326,strip_resampled_clipped]
         if keep_diff_flag == False:
             delete_list.append(diff_file)
