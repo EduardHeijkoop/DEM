@@ -198,7 +198,7 @@ def main():
                 print('\nApplying cloud/water filter...')
                 strip_shp_data = find_cloud_water(strip_shp_data,df_cloud_water)
                 idx_cloud_water = np.logical_or(strip_shp_data['Percent Exceedance']>STRIP_CLOUD_THRESHOLD,strip_shp_data['Percent Water']>STRIP_WATER_THRESHOLD)
-                strip_shp_data = strip_shp_data[idx_cloud_water].reset_index(drop=True)
+                strip_shp_data = strip_shp_data[~idx_cloud_water].reset_index(drop=True)
             else:
                 print('\n')
             strip_list = strip_list[strip_idx]
