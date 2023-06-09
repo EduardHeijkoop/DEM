@@ -81,7 +81,6 @@ def main():
     uncertainty_flag = args.uncertainty
     machine_name = args.machine
 
-
     if icesat2_file is not None and sl_grid_file is not None:
         print('ICESat-2 file and sea level grid given, cannot handle both!')
         sys.exit()
@@ -487,12 +486,15 @@ def main():
                 output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'SROCC_RCP_{str(rcp).replace(".","p")}')
                 lon_projection,lat_projection,slr_projection = upscale_SROCC_grid(SROCC_dir,dem_file,rcp,t0,yr,)
             elif projection_select == 'AR6':
-                print(f'Creating inundation in {yr} using SSP{ssp}...')
                 output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'AR6_SSP_{ssp}')
                 if quantile_select < 0.5:
                     output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Minus_{sigma}sigma_')
+                    print(f'Creating inundation in {yr} using SSP{ssp} (Median minus {sigma} sigma)...')
                 elif quantile_select > 0.5:
                     output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Plus_{sigma}sigma_')
+                    print(f'Creating inundation in {yr} using SSP{ssp} (Median plus {sigma} sigma)...')
+                else:
+                    print(f'Creating inundation in {yr} using SSP{ssp}...')
                 lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,dem_file,ssp,osm_shp_file,yr,quantile_select=quantile_select)
             if geoid_file is not None:
                 output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
