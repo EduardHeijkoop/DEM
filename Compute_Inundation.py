@@ -240,7 +240,7 @@ def main():
             dem_file = dem_clipped_to_vlm_file
             src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
         vlm_resampled_file = vlm_file.replace('.tif',f'_resampled.tif')
-        resample_raster(vlm_file,dem_file,vlm_resampled_file,VLM_NODATA)
+        resample_raster(vlm_file,dem_file,vlm_resampled_file,nodata=VLM_NODATA,quiet_flag=True)
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
@@ -252,7 +252,7 @@ def main():
         print('Resampling geoid...')
         geoid_name = geoid_file.split('/')[-1].split('.')[0]
         geoid_resampled_file = f'{os.path.dirname(os.path.abspath(dem_file))}/{loc_name}_{geoid_name}_resampled.tif'
-        resample_raster(geoid_file,dem_file,geoid_resampled_file,None)
+        resample_raster(geoid_file,dem_file,geoid_resampled_file,nodata=None,quiet_flag=True)
         dem_file_orthometric = dem_file.replace('.tif','_orthometric.tif')
         orthometric_command = f'gdal_calc.py --quiet -A {dem_file} -B {geoid_resampled_file} --outfile={dem_file_orthometric} --calc="A-B" --NoDataValue={dem_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
         subprocess.run(orthometric_command,shell=True)
@@ -362,7 +362,7 @@ def main():
         dataset.GetRasterBand(1).WriteArray(high_tide_array)
         dataset.FlushCache()
         dataset = None
-        resample_raster(high_tide_intermediate_res,dem_file,high_tide_full_res)
+        resample_raster(high_tide_intermediate_res,dem_file,high_tide_full_res,quiet_flag=True)
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
@@ -378,7 +378,7 @@ def main():
         np.savetxt(output_file_codec,np.c_[x_coast,y_coast,rps_coast],fmt='%f',delimiter=',',comments='')
         codec_grid_intermediate_res = csv_to_grid(output_file_codec,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
         codec_grid_full_res = codec_grid_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
-        resample_raster(codec_grid_intermediate_res,dem_file,codec_grid_full_res)
+        resample_raster(codec_grid_intermediate_res,dem_file,codec_grid_full_res,quiet_flag=True)
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
@@ -397,7 +397,7 @@ def main():
         np.savetxt(output_file_fes,np.c_[x_coast,y_coast,fes_heights_coast],fmt='%f',delimiter=',',comments='')
         fes_grid_intermediate_res = csv_to_grid(output_file_fes,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
         fes_grid_full_res = fes_grid_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
-        resample_raster(fes_grid_intermediate_res,dem_file,fes_grid_full_res)
+        resample_raster(fes_grid_intermediate_res,dem_file,fes_grid_full_res,quiet_flag=True)
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
@@ -423,7 +423,7 @@ def main():
     if slr is not None:
         for slr_value in slr:
             t_start = datetime.datetime.now()
-            print(f'Creating inundation for {slr_value:.2f} m...')
+            print(f'\nCreating inundation for {slr_value:.2f} m...')
             slr_value_str = f'SLR_{slr_value:.2f}m'.replace('.','p').replace('-','neg')
             if high_tide is not None:
                 output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{slr_value_str}_HT_{high_tide_str}.tif'
@@ -442,7 +442,7 @@ def main():
             np.savetxt(output_file_coastline_slr,np.c_[x_coast,y_coast,h_coast_slr],fmt='%f',delimiter=',',comments='')
             sl_grid_file_intermediate_res = csv_to_grid(output_file_coastline_slr,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
             sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
-            resample_raster(sl_grid_file_intermediate_res,dem_file,sl_grid_file_full_res)
+            resample_raster(sl_grid_file_intermediate_res,dem_file,sl_grid_file_full_res,quiet_flag=True)
             if vlm_file is not None:
                 dt = int(yr - t0)
                 inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
@@ -482,19 +482,19 @@ def main():
                 if mhhw_flag == True:
                     output_inundation_file = output_inundation_file.replace('FES2014','FES2014_MHHW')
             if projection_select == 'SROCC':
-                print(f'Creating inundation in {yr} using RCP{rcp}...')
+                print(f'\nCreating inundation in {yr} using RCP{rcp}...')
                 output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'SROCC_RCP_{str(rcp).replace(".","p")}')
                 lon_projection,lat_projection,slr_projection = upscale_SROCC_grid(SROCC_dir,dem_file,rcp,t0,yr,)
             elif projection_select == 'AR6':
                 output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'AR6_SSP_{ssp}')
                 if quantile_select < 0.5:
                     output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Minus_{sigma}sigma_')
-                    print(f'Creating inundation in {yr} using SSP{ssp} (Median minus {sigma} sigma)...')
+                    print(f'\nCreating inundation in {yr} using SSP{ssp} (Median minus {sigma} sigma)...')
                 elif quantile_select > 0.5:
                     output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Plus_{sigma}sigma_')
-                    print(f'Creating inundation in {yr} using SSP{ssp} (Median plus {sigma} sigma)...')
+                    print(f'\nCreating inundation in {yr} using SSP{ssp} (Median plus {sigma} sigma)...')
                 else:
-                    print(f'Creating inundation in {yr} using SSP{ssp}...')
+                    print(f'\nCreating inundation in {yr} using SSP{ssp}...')
                 lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,dem_file,ssp,osm_shp_file,yr,quantile_select=quantile_select)
             if geoid_file is not None:
                 output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
