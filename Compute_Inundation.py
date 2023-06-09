@@ -235,7 +235,7 @@ def main():
         epsg_vlm_file = osr.SpatialReference(wkt=src_vlm.GetProjection()).GetAttrValue('AUTHORITY',1)
         if clip_vlm_flag == True:
             dem_clipped_to_vlm_file = dem_file.replace('.tif','_clipped_to_vlm.tif')
-            clip_dem_to_vlm_command = f'gdal_translate -projwin {lon_vlm_min} {lat_vlm_max} {lon_vlm_max} {lat_vlm_min} -projwin_srs EPSG:{epsg_vlm_file} {dem_file} {dem_clipped_to_vlm_file} -co "COMPRESS=LZW"'
+            clip_dem_to_vlm_command = f'gdal_translate -q -projwin {lon_vlm_min} {lat_vlm_max} {lon_vlm_max} {lat_vlm_min} -projwin_srs EPSG:{epsg_vlm_file} {dem_file} {dem_clipped_to_vlm_file} -co "COMPRESS=LZW"'
             subprocess.run(clip_dem_to_vlm_command,shell=True)
             dem_file = dem_clipped_to_vlm_file
             src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
@@ -267,7 +267,7 @@ def main():
         t_start = datetime.datetime.now()
         print('Clipping DEM to coastline...')
         dem_file_clipped = dem_file.replace('.tif','_clipped.tif')
-        clip_command = f'gdalwarp -s_srs EPSG:{epsg_code} -t_srs EPSG:{epsg_code} -of GTiff -cutline {coastline_file} -cl {os.path.splitext(os.path.basename(coastline_file))[0]} -dstnodata {GRID_NODATA} {dem_file} {dem_file_clipped} -overwrite -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" -co "TILED=YES"'
+        clip_command = f'gdalwarp -q -s_srs EPSG:{epsg_code} -t_srs EPSG:{epsg_code} -of GTiff -cutline {coastline_file} -cl {os.path.splitext(os.path.basename(coastline_file))[0]} -dstnodata {GRID_NODATA} {dem_file} {dem_file_clipped} -overwrite -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" -co "TILED=YES"'
         subprocess.run(clip_command,shell=True)
         dem_file = dem_file_clipped
         src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
@@ -283,7 +283,7 @@ def main():
     t_start = datetime.datetime.now()
     print(f'Resampling DEM to {GRID_INTERMEDIATE_RES} meters.')
     dem_resampled_file = dem_file.replace('.tif',f'_resampled_{GRID_INTERMEDIATE_RES}m.tif')
-    resample_dem_command = f'gdalwarp -overwrite -tr {GRID_INTERMEDIATE_RES} {GRID_INTERMEDIATE_RES} -r bilinear {dem_file} {dem_resampled_file}'
+    resample_dem_command = f'gdalwarp -q -overwrite -tr {GRID_INTERMEDIATE_RES} {GRID_INTERMEDIATE_RES} -r bilinear {dem_file} {dem_resampled_file}'
     subprocess.run(resample_dem_command,shell=True)
     src_resampled = gdal.Open(dem_resampled_file,gdalconst.GA_ReadOnly)
     t_end = datetime.datetime.now()
@@ -452,7 +452,7 @@ def main():
                 inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
             subprocess.run(inundation_command,shell=True)
             output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
-            polygonize_command = f'gdal_polygonize.py -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
+            polygonize_command = f'gdal_polygonize.py -q -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
             subprocess.run(polygonize_command,shell=True)
             t_end = datetime.datetime.now()
             delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
@@ -516,7 +516,7 @@ def main():
                 inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
             subprocess.run(inundation_command,shell=True)
             output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
-            polygonize_command = f'gdal_polygonize.py -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
+            polygonize_command = f'gdal_polygonize.py -q -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
             subprocess.run(polygonize_command,shell=True)
             t_end = datetime.datetime.now()
             delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
