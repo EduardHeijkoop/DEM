@@ -442,6 +442,19 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         sample_code = sample_raster(plane_corrected_dem,sampled_coregistered_file,sampled_plane_corrected_file,header='height_dsm_plane_corrected')
         df_sampled_plane_corrected = pd.read_csv(sampled_plane_corrected_file)
         dh_plane_corrected = df_sampled_plane_corrected.height_icesat2 - df_sampled_plane_corrected.height_dsm_plane_corrected
+        if np.abs(np.mean(dh_plane_corrected)) > 0.01:
+            second_alignment = np.round(np.mean(dh_plane_corrected)*1000)/1000
+            old_alignment_str = plane_corrected_dem.split('Shifted_z_')[1].split('_')[0]
+            old_alignment_value = float(old_alignment_str.replace('p','.').replace('m','').replace('neg','-'))
+            new_alignment_value = np.round(100*(old_alignment_value + second_alignment))/100
+            new_alignment_str = str(new_alignment_value).replace('-','neg').replace('.','p')
+            new_plane_corrected_dem = plane_corrected_dem.replace(old_alignment_str,new_alignment_str)
+            second_alignment_command = f'gdal_calc.py --quiet -A {plane_corrected_dem} --outfile={new_plane_corrected_dem} --calc="A+{second_alignment}" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
+            subprocess.run(second_alignment_command,shell=True)
+            subprocess.run(f'rm {plane_corrected_dem}',shell=True)
+            plane_corrected_dem = new_plane_corrected_dem
+            df_sampled_plane_corrected.height_dsm_plane_corrected += second_alignment
+            dh_plane_corrected = df_sampled_plane_corrected.height_icesat2 - df_sampled_plane_corrected.height_dsm_plane_corrected
         rmse_plane_corrected = np.sqrt(np.sum(dh_plane_corrected**2)/len(dh_plane_corrected))
         # print(f'RMSE of plane-corrected DEM: {rmse_plane_corrected:.2f} m')
         raster_stats_dict['plane_improvement'] = True
@@ -475,6 +488,19 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         sample_code = sample_raster(jitter_corrected_dem,sampled_coregistered_file,sampled_jitter_corrected_file,header='height_dsm_jitter_corrected')
         df_sampled_jitter_corrected = pd.read_csv(sampled_jitter_corrected_file)
         dh_jitter_corrected = df_sampled_jitter_corrected.height_icesat2 - df_sampled_jitter_corrected.height_dsm_jitter_corrected
+        if np.abs(np.mean(dh_jitter_corrected)) > 0.01:
+            second_alignment = np.round(np.mean(dh_jitter_corrected)*1000)/1000
+            old_alignment_str = jitter_corrected_dem.split('Shifted_z_')[1].split('_')[0]
+            old_alignment_value = float(old_alignment_str.replace('p','.').replace('m','').replace('neg','-'))
+            new_alignment_value = np.round(100*(old_alignment_value + second_alignment))/100
+            new_alignment_str = str(new_alignment_value).replace('-','neg').replace('.','p')
+            new_jitter_corrected_dem = jitter_corrected_dem.replace(old_alignment_str,new_alignment_str)
+            second_alignment_command = f'gdal_calc.py --quiet -A {jitter_corrected_dem} --outfile={new_jitter_corrected_dem} --calc="A+{second_alignment}" --NoDataValue={src_dem.GetRasterBand(1).GetNoDataValue()} --overwrite'
+            subprocess.run(second_alignment_command,shell=True)
+            subprocess.run(f'rm {jitter_corrected_dem}',shell=True)
+            jitter_corrected_dem = new_jitter_corrected_dem
+            df_sampled_jitter_corrected.height_dsm_jitter_corrected += second_alignment
+            dh_jitter_corrected = df_sampled_jitter_corrected.height_icesat2 - df_sampled_jitter_corrected.height_dsm_jitter_corrected
         rmse_jitter_corrected = np.sqrt(np.sum(dh_jitter_corrected**2)/len(dh_jitter_corrected))
         # print(f'RMSE of jitter-corrected DEM: {rmse_jitter_corrected:.2f} m')
         raster_stats_dict['jitter_improvement'] = True
@@ -489,6 +515,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     else:
         jitter_corrected_dem = plane_corrected_dem
     subprocess.run(f'mv {jitter_corrected_dem} {os.path.dirname(dem)}/',shell=True)
+
 
     if print_flag == True:
         print(f'Finished correcting {dem_base}.')
