@@ -177,53 +177,89 @@ def compute_plane_correction(df_sampled,dem_file):
         return None,None,None
     return x_grid,y_grid,dh_grid
 
-def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=1000):
-    '''
-    Checks if DEM has jitter effect in it and corrects for it, using ICESat-2 as truth
-    '''
+# def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=1000):
+#     '''
+#     Checks if DEM has jitter effect in it and corrects for it, using ICESat-2 as truth
+#     '''
+#     x_icesat2 = np.asarray(df_sampled.x_local)
+#     y_icesat2 = np.asarray(df_sampled.y_local)
+#     height_icesat2 = np.asarray(df_sampled.height_icesat2)
+#     # time_icesat2 = np.asarray(df_sampled.time)
+#     height_dsm = np.asarray(df_sampled.height_dsm)
+#     dh = height_icesat2 - height_dsm
+#     x_segments = np.linspace(np.min(x_icesat2),np.max(x_icesat2),N_segments_x+1)
+#     y_segments = np.linspace(np.min(y_icesat2),np.max(y_icesat2),N_segments_y)
+#     src_dem = gdal.Open(dem_file,gdalconst.GA_Update)
+#     src_dem_proj = src_dem.GetProjection()
+#     src_dem_geotrans = src_dem.GetGeoTransform()
+#     src_dem_epsg = osr.SpatialReference(wkt=src_dem_proj).GetAttrValue('AUTHORITY',1)
+#     dem_x_size = src_dem.RasterXSize
+#     dem_y_size = src_dem.RasterYSize
+#     xres_dem,yres_dem = src_dem.GetGeoTransform()[1],-src_dem.GetGeoTransform()[5]
+#     x_dem_min,x_dem_max,y_dem_min,y_dem_max = get_raster_extents(dem_file,'local')
+#     dx_dem = np.abs(x_dem_max - x_dem_min)
+#     dy_dem = np.abs(y_dem_max - y_dem_min)
+#     grid_max_dist = np.max((dx_dem,dy_dem))
+#     x_segments_array = np.empty([0,1],dtype=float)
+#     y_segments_array = np.empty([0,1],dtype=float)
+#     dh_segments_array = np.empty([0,1],dtype=float)
+#     p0_estimate = 15133
+#     count_error = 0
+#     for i in range(N_segments_x):
+#         idx_x = np.logical_and(x_icesat2 >= x_segments[i],x_icesat2 <= x_segments[i+1])
+#         x_segment_middle = np.mean(x_segments[i:i+2])
+#         x_segment = x_icesat2[idx_x]
+#         y_segment = y_icesat2[idx_x]
+#         dh_segment = dh[idx_x]
+#         try:
+#             params_segment,params_covariance_segment = scipy.optimize.curve_fit(fit_sine,y_segment,dh_segment,p0=[1, 2*np.math.pi/p0_estimate],bounds=((0,-np.inf),(np.max(dh_segment),np.inf)))
+#         except ValueError:
+#             count_error += 1
+#             continue
+#         dh_segment_sine = fit_sine(y_segments,params_segment[0],params_segment[1])
+#         x_segments_array = np.append(x_segments_array,x_segment_middle*np.ones([len(y_segments),1]).squeeze())
+#         y_segments_array = np.append(y_segments_array,y_segments)
+#         dh_segments_array = np.append(dh_segments_array,dh_segment_sine)
+#     if count_error >= N_segments_x/2:
+#         # print('Jitter correction failed')
+#         return None,None,None
+#     xy_segments_array = np.stack((x_segments_array,y_segments_array),axis=1)
+#     xres = 100
+#     yres = 100
+#     A_jitter = 0.6
+#     c_jitter = 0
+#     p_jitter = 15133
+#     k_jitter = 0
+#     x_grid = np.arange(np.floor(x_dem_min/xres)*xres,np.ceil(x_dem_max/xres)*xres,xres)
+#     y_grid = np.arange(np.floor(y_dem_min/yres)*yres,np.ceil(y_dem_max/yres)*yres,yres)
+#     x_mesh,y_mesh = np.meshgrid(x_grid,y_grid)
+#     x_mesh_array = np.reshape(x_mesh,x_mesh.shape[0]*x_mesh.shape[1])
+#     y_mesh_array = np.reshape(y_mesh,y_mesh.shape[0]*y_mesh.shape[1])
+#     xy_mesh_array = np.stack((x_mesh_array,y_mesh_array),axis=1)
+#     try:
+#         params_jitter,params_covariance_jitter = scipy.optimize.curve_fit(fit_jitter,xy_segments_array,dh_segments_array,
+#             p0=[A_jitter,c_jitter,p_jitter,k_jitter,x_dem_min,y_dem_min],
+#             bounds=((-np.max(np.abs(dh_segments_array)),-0.0005,0.9*p_jitter,-2,0.8*x_dem_min,0.8*y_dem_min),(1.5*np.max(np.abs(dh_segments_array)),0.0005,1.1*p_jitter,2,1.1*x_dem_max,1.1*y_dem_max)))
+#     except ValueError:
+#         # print('Jitter correction failed')
+#         return None,None,None
+#     dh_jitter_orig = fit_jitter(xy_segments_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
+#     dh_jitter = fit_jitter(xy_mesh_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
+#     dh_grid = np.reshape(dh_jitter,x_mesh.shape)
+#     if np.max(np.abs(dh_grid)) < 0.1:
+#         # print('Jitter correction is too flat. Skipping jitter correction.')
+#         return None,None,None
+#     return x_grid,y_grid,dh_grid
+
+def compute_jitter_correction(df_sampled,dem_file):
     x_icesat2 = np.asarray(df_sampled.x_local)
     y_icesat2 = np.asarray(df_sampled.y_local)
+    xy_icesat2 = np.stack((x_icesat2,y_icesat2),axis=1)
     height_icesat2 = np.asarray(df_sampled.height_icesat2)
-    time_icesat2 = np.asarray(df_sampled.time)
     height_dsm = np.asarray(df_sampled.height_dsm)
     dh = height_icesat2 - height_dsm
-    x_segments = np.linspace(np.min(x_icesat2),np.max(x_icesat2),N_segments_x+1)
-    y_segments = np.linspace(np.min(y_icesat2),np.max(y_icesat2),N_segments_y)
     src_dem = gdal.Open(dem_file,gdalconst.GA_Update)
-    src_dem_proj = src_dem.GetProjection()
-    src_dem_geotrans = src_dem.GetGeoTransform()
-    src_dem_epsg = osr.SpatialReference(wkt=src_dem_proj).GetAttrValue('AUTHORITY',1)
-    dem_x_size = src_dem.RasterXSize
-    dem_y_size = src_dem.RasterYSize
-    xres_dem,yres_dem = src_dem.GetGeoTransform()[1],-src_dem.GetGeoTransform()[5]
     x_dem_min,x_dem_max,y_dem_min,y_dem_max = get_raster_extents(dem_file,'local')
-    dx_dem = np.abs(x_dem_max - x_dem_min)
-    dy_dem = np.abs(y_dem_max - y_dem_min)
-    grid_max_dist = np.max((dx_dem,dy_dem))
-    x_segments_array = np.empty([0,1],dtype=float)
-    y_segments_array = np.empty([0,1],dtype=float)
-    dh_segments_array = np.empty([0,1],dtype=float)
-    p0_estimate = 15133
-    count_error = 0
-    for i in range(N_segments_x):
-        idx_x = np.logical_and(x_icesat2 >= x_segments[i],x_icesat2 <= x_segments[i+1])
-        x_segment_middle = np.mean(x_segments[i:i+2])
-        x_segment = x_icesat2[idx_x]
-        y_segment = y_icesat2[idx_x]
-        dh_segment = dh[idx_x]
-        try:
-            params_segment,params_covariance_segment = scipy.optimize.curve_fit(fit_sine,y_segment,dh_segment,p0=[1, 2*np.math.pi/p0_estimate],bounds=((0,-np.inf),(np.max(dh_segment),np.inf)))
-        except ValueError:
-            count_error += 1
-            continue
-        dh_segment_sine = fit_sine(y_segments,params_segment[0],params_segment[1])
-        x_segments_array = np.append(x_segments_array,x_segment_middle*np.ones([len(y_segments),1]).squeeze())
-        y_segments_array = np.append(y_segments_array,y_segments)
-        dh_segments_array = np.append(dh_segments_array,dh_segment_sine)
-    if count_error >= N_segments_x/2:
-        # print('Jitter correction failed')
-        return None,None,None
-    xy_segments_array = np.stack((x_segments_array,y_segments_array),axis=1)
     xres = 100
     yres = 100
     A_jitter = 0.6
@@ -237,19 +273,18 @@ def compute_jitter_correction(df_sampled,dem_file,N_segments_x=8,N_segments_y=10
     y_mesh_array = np.reshape(y_mesh,y_mesh.shape[0]*y_mesh.shape[1])
     xy_mesh_array = np.stack((x_mesh_array,y_mesh_array),axis=1)
     try:
-        params_jitter,params_covariance_jitter = scipy.optimize.curve_fit(fit_jitter,xy_segments_array,dh_segments_array,
+        params_jitter,params_covariance_jitter = scipy.optimize.curve_fit(fit_jitter,xy_icesat2,dh,
             p0=[A_jitter,c_jitter,p_jitter,k_jitter,x_dem_min,y_dem_min],
-            bounds=((-np.max(np.abs(dh_segments_array)),-0.0005,0.9*p_jitter,-2,0.8*x_dem_min,0.8*y_dem_min),(1.5*np.max(np.abs(dh_segments_array)),0.0005,1.1*p_jitter,2,1.1*x_dem_max,1.1*y_dem_max)))
+            bounds=((-np.max(np.abs(dh)),-0.0005,0.9*p_jitter,-2,0.8*x_dem_min,0.8*y_dem_min),(np.max(np.abs(dh)),0.0005,1.1*p_jitter,2,1.1*x_dem_max,1.1*y_dem_max)))
     except ValueError:
-        # print('Jitter correction failed')
         return None,None,None
-    dh_jitter_orig = fit_jitter(xy_segments_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
-    dh_jitter = fit_jitter(xy_mesh_array,params_jitter[0],params_jitter[1],params_jitter[2],params_jitter[3],params_jitter[4],params_jitter[5])
+    dh_jitter = fit_jitter(xy_mesh_array,*params_jitter)
     dh_grid = np.reshape(dh_jitter,x_mesh.shape)
     if np.max(np.abs(dh_grid)) < 0.1:
-        # print('Jitter correction is too flat. Skipping jitter correction.')
         return None,None,None
     return x_grid,y_grid,dh_grid
+
+
 
 def interpolate_points(x_input,y_input,h_input,x_output,y_output,interpolate_method='Smooth',k_select=3):
     '''
@@ -309,7 +344,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     lon_icesat2 = np.asarray(df_icesat2.lon)
     lat_icesat2 = np.asarray(df_icesat2.lat)
     height_icesat2 = np.asarray(df_icesat2.height_icesat2)
-    time_icesat2 = np.asarray(df_icesat2.time)
+    # time_icesat2 = np.asarray(df_icesat2.time)
     icesat2_base,icesat2_ext = os.path.splitext(os.path.basename(icesat2_file))
     dem_base,dem_ext = os.path.splitext(os.path.basename(dem))
     print(f'Processing {dem_base}...')
@@ -365,7 +400,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     lon_icesat2 = lon_icesat2[idx_lonlat]
     lat_icesat2 = lat_icesat2[idx_lonlat]
     height_icesat2 = height_icesat2[idx_lonlat]
-    time_icesat2 = time_icesat2[idx_lonlat]
+    # time_icesat2 = time_icesat2[idx_lonlat]
     if np.sum(idx_lonlat)/len(idx_lonlat) < 0.9:
         # print('ICESat-2 file covers more than just the DEM.')
         # print('Subsetting into new file.')
