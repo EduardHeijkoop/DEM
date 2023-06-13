@@ -514,8 +514,22 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
                 subprocess.run(f'rm {jitter_correction_file}',shell=True)
     else:
         jitter_corrected_dem = plane_corrected_dem
+        df_sampled_jitter_corrected = df_sampled_plane_corrected
     subprocess.run(f'mv {jitter_corrected_dem} {os.path.dirname(dem)}/',shell=True)
 
+    final_output_file = f'{os.path.dirname(dem)}/{icesat2_base}_Sampled_{dem_base}_Correction_Steps{icesat2_ext}'
+    df_final = pd.concat([df_sampled_coregistered.lon,df_sampled_coregistered.lat,df_sampled_coregistered.height_icesat2],axis=1,
+                         keys=['lon','lat','height_icesat2'])
+    if 'time' in df_sampled_coregistered.columns:
+        df_final['time'] = df_sampled_coregistered.time
+    if 'beam' in df_sampled_coregistered.columns:
+        df_final['beam'] = df_sampled_coregistered.beam
+    df_final['height_dsm_coregistered'] = df_sampled_coregistered.height_dsm
+    if 'height_dsm_plane_corrected' in df_sampled_plane_corrected.columns:
+        df_final['height_dsm_plane_corrected'] = df_sampled_plane_corrected.height_dsm_plane_corrected
+    if 'height_dsm_jitter_corrected' in df_sampled_jitter_corrected.columns:
+        df_final['height_dsm_jitter_corrected'] = df_sampled_jitter_corrected.height_dsm_jitter_corrected
+    df_final.to_csv(final_output_file,index=False,float_format='%.6f')
 
     if print_flag == True:
         print(f'Finished correcting {dem_base}.')
