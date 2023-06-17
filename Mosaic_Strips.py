@@ -35,6 +35,7 @@ def main():
     parser.add_argument('--all_strips',default=False,help='Mosaic all strips in directory? (No geometry filtering.)',action='store_true')
     parser.add_argument('--gsw',default=None,help='Path to GSW shapefile')
     parser.add_argument('--no_gsw',default=False,help='Skip GSW filter?',action='store_true')
+    parser.add_argument('--simplify',default=False,help='Apply simplify operation to shapefile of strips?',action='store_true')
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
     parser.add_argument('--cpus',help='Number of CPUs to use',default=1,type=int)
     args = parser.parse_args()
@@ -49,6 +50,7 @@ def main():
     all_strips_flag = args.all_strips
     gsw_file = args.gsw
     no_gsw_flag = args.no_gsw
+    simplify_flag = args.simplify
     dir_structure = args.dir_structure
     N_cpus = args.cpus
 
@@ -207,6 +209,8 @@ def main():
             output_strips_shp_file_filtered = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered.shp'
             output_strips_shp_file_filtered_dissolved = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered_Dissolved.shp'
             # print(output_strips_shp_file)
+            if simplify_flag == True:
+                strip_shp_data = strip_shp_data.simplify(tolerance=10)
             
             strip_dates = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list])
             idx_date = np.argsort(-strip_dates)
