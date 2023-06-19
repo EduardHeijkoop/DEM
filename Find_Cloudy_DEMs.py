@@ -196,12 +196,11 @@ def main():
     
     if batch_file is not None:
         df_batch = pd.read_csv(batch_file)
-        output_file_array = np.asarray(df_batch.Location)
-        loc_name_array = np.asarray([o.split('/')[-1] if o[-1] != '/' else o.split('/')[-2] for o in output_file_array])
+        input_dir_array = np.asarray([f'{o}/' if o[-1] != '/' else o for o in df_batch.Location])
+        loc_name_array = np.asarray([o.split('/')[-2] for o in input_dir_array])
+        output_file_array = np.asarray([f'{o}{loc}_Threshold_Exceedance_Values.txt' for o,loc in zip(input_dir_array,loc_name_array)])
         coastline_array = np.asarray(df_batch.Coastline)
     elif list_file is not None:
-        df_list = pd.read_csv(list_file,header=None,names=['strip'],dtype={'strip':'str'})
-        strip_list = np.asarray(df_list.strip)
         if loc_name is None:
             loc_name_array = np.atleast_1d(os.path.splitext(os.path.basename(list_file))[0])
         else:
@@ -211,7 +210,7 @@ def main():
     elif input_dir is not None:
         if input_dir[-1] != '/':
             input_dir += '/'
-        strip_list = get_strip_list(input_dir,input_type=0,corrected_flag=False,dir_structure=dir_structure)
+        input_dir_array = np.atleast_1d(input_dir)
         if loc_name is None:
             loc_name_array = np.atleast_1d(os.path.basename(os.path.dirname(input_dir)))
         else:
@@ -220,9 +219,14 @@ def main():
         coastline_array = np.atleast_1d(coastline_file)
     
     t_start_full = datetime.datetime.now()
-    for output_file,loc_name,coast in zip(output_file_array,loc_name_array,coastline_array):
+    for input_dir,output_file,loc_name,coast in zip(input_dir_array,output_file_array,loc_name_array,coastline_array):
         t_start_loc = datetime.datetime.now()
         print(f'Working on {loc_name}.')
+        if list_file is not None:
+            df_list = pd.read_csv(list_file,header=None,names=['strip'],dtype={'strip':'str'})
+            strip_list = np.asarray(df_list.strip)
+        else:
+            strip_list = get_strip_list(input_dir,input_type=0,corrected_flag=False,dir_structure=dir_structure)
         a_priori_filename = f'{tmp_dir}{loc_name}_{a_priori_dem}_WGS84.tif'
         lon_min,lon_max,lat_min,lat_max = get_list_extents(strip_list)
 
