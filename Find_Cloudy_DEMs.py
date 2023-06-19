@@ -11,6 +11,7 @@ import sys
 from osgeo import gdal,gdalconst,osr
 import multiprocessing
 import itertools
+import datetime
 
 from Global_DEMs import download_srtm,download_aster,download_copernicus
 from dem_utils import get_strip_list,get_list_extents,get_strip_extents,resample_raster,get_strip_shp,raster_to_geotiff
@@ -122,6 +123,11 @@ def find_cloudy_DEMs(strip,cloud_water_dict):
         print(f'{strip_name}: {100*pct_exceedance:.1f}% over clouds, {100*pct_water:.1f}% over water.')
     return pct_exceedance,pct_water
 
+def single_str(v,s):
+    if v == 1:
+        s = s.replace('days','day').replace('hours','hour').replace('minutes','minute').replace('seconds','second')
+    return s
+
 def main():
     warnings.simplefilter(action='ignore')
     config_file = 'dem_config.ini'
@@ -163,23 +169,9 @@ def main():
     # gdal.SetConfigOption('GDAL_NUM_THREADS', f'{N_cpus}')
 
     if input_dir is None and list_file is None and batch_file is None:
-        raise ValueError('Must specify either input_dir, list_file or batch file.')
-    if input_dir is not None and list_file is not None:
-        raise ValueError('Cannot specify both input_dir and list_file.')
-    
-    if list_file is not None:
-        df_list = pd.read_csv(list_file,header=None,names=['strip'],dtype={'strip':'str'})
-        strip_list = np.asarray(df_list.strip)
-        if loc_name is None:
-            loc_name = os.path.splitext(os.path.basename(list_file))[0]
-        output_file = list_file.replace(os.path.splitext(list_file)[1],f'_Threshold_Exceedance_Values{os.path.splitext(list_file)[1]}')
-    elif input_dir is not None:
-        if input_dir[-1] != '/':
-            input_dir += '/'
-        strip_list = get_strip_list(input_dir,input_type=0,corrected_flag=False,dir_structure=dir_structure)
-        if loc_name is None:
-            loc_name = os.path.basename(os.path.dirname(input_dir))
-        output_file = f'{input_dir}{loc_name}_Threshold_Exceedance_Values.txt'
+        raise ValueError('Must specify either input_dir, list_file or batch_file.')
+    if np.sum((list_file is not None,batch_file is not None,input_dir is not None)) > 1:
+        raise ValueError('Cannot specify more than one of input_dir, list_file or batch_file.')
     
     EGM96_file = config.get('GENERAL_PATHS','EGM96_path')
     EGM2008_file = config.get('GENERAL_PATHS','EGM2008_path')
@@ -188,9 +180,6 @@ def main():
     intermediate_res = 10
     # pct_exceedance = np.zeros(len(strip_list))
     # pct_water = np.zeros(len(strip_list))
-
-    a_priori_filename = f'{tmp_dir}{loc_name}_{a_priori_dem}_WGS84.tif'
-    lon_min,lon_max,lat_min,lat_max = get_list_extents(strip_list)
 
     if machine_name == 'b':
         EGM96_file = EGM96_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
@@ -205,56 +194,88 @@ def main():
         coastline_file = coastline_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
         default_coastline = default_coastline.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
     
-    if coastline_file == default_coastline:
-        print('Using default coastline file. Clipping it to DEM extents...')
-        new_coastline_file = f'{tmp_dir}{loc_name}_coastline.shp'
-        coastline_clip_command = f'ogr2ogr {new_coastline_file} {coastline_file} -clipsrc {lon_min} {lat_min} {lon_max} {lat_max}'
-        subprocess.run(coastline_clip_command,shell=True)
-        coastline_file = new_coastline_file
-
-    # gdf_coast = gpd.read_file(coastline_file)
-    # epsg_list = [osr.SpatialReference(wkt=gdal.Open(s,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for s in strip_list]
-    # if len(np.unique(epsg_list)) == 1:
-    #     gdf_coast_epsg = gdf_coast.to_crs(f'EPSG:{epsg_list[0]}')
-    # else:
-    #     gdf_coast_epsg = None
-
-    print(f'Working on {loc_name}.')
-    print(f'Downloading {a_priori_dem}...')
-    if a_priori_dem == 'srtm':
-        download_srtm(lon_min,lon_max,lat_min,lat_max,EGM96_file,tmp_dir,a_priori_filename)
-    elif a_priori_dem == 'aster':
-        download_aster(lon_min,lon_max,lat_min,lat_max,EGM96_file,tmp_dir,a_priori_filename)
-    elif a_priori_dem == 'copernicus':
-        download_copernicus(lon_min,lon_max,lat_min,lat_max,EGM2008_file,tmp_dir,a_priori_filename)
-    print('Download complete.')
-
-    cloud_water_dict = {
-        'a_priori_dem':a_priori_dem,
-        'a_priori_filename':a_priori_filename,
-        'coastline_file':coastline_file,
-        'tmp_dir':tmp_dir,
-        'quiet_flag':quiet_flag,
-        'keep_diff_flag':keep_diff_flag,
-        'diff_threshold':diff_threshold,
-        'intermediate_res':intermediate_res,
-    }
-
-    ir = itertools.repeat
-    p = multiprocessing.Pool(np.min((N_cpus,len(strip_list))))
-    pct_exceedance_water = p.starmap(find_cloudy_DEMs,zip(
-        strip_list,
-        ir(cloud_water_dict)
-        ))
-    p.close()
-    pct_exceedance = np.asarray([pct[0] for pct in pct_exceedance_water])
-    pct_water = np.asarray([pct[1] for pct in pct_exceedance_water])
-
-    subprocess.run(f'rm {a_priori_filename}',shell=True)
-    if tmp_dir in coastline_file:
-        subprocess.run(f'rm {coastline_file.replace(os.path.splitext(coastline_file)[1],".*")}',shell=True)
+    if batch_file is not None:
+        df_batch = pd.read_csv(batch_file)
+        output_file_array = np.asarray(df_batch.Location)
+        loc_name_array = np.asarray([o.split('/')[-1] if o[-1] != '/' else o.split('/')[-2] for o in output_file_array])
+        coastline_array = np.asarray(df_batch.Coastline)
+    elif list_file is not None:
+        df_list = pd.read_csv(list_file,header=None,names=['strip'],dtype={'strip':'str'})
+        strip_list = np.asarray(df_list.strip)
+        if loc_name is None:
+            loc_name_array = np.atleast_1d(os.path.splitext(os.path.basename(list_file))[0])
+        else:
+            loc_name_array = np.atleast_1d(loc_name)
+        output_file_array = np.atleast_1d(list_file.replace(os.path.splitext(list_file)[1],f'_Threshold_Exceedance_Values{os.path.splitext(list_file)[1]}'))
+        coastline_array = np.atleast_1d(coastline_file)
+    elif input_dir is not None:
+        if input_dir[-1] != '/':
+            input_dir += '/'
+        strip_list = get_strip_list(input_dir,input_type=0,corrected_flag=False,dir_structure=dir_structure)
+        if loc_name is None:
+            loc_name_array = np.atleast_1d(os.path.basename(os.path.dirname(input_dir)))
+        else:
+            loc_name_array = np.atleast_1d(loc_name)
+        output_file_array = np.atleast_1d(f'{input_dir}{loc_name}_Threshold_Exceedance_Values.txt')
+        coastline_array = np.atleast_1d(coastline_file)
     
-    np.savetxt(output_file,np.c_[strip_list.astype(object),pct_exceedance,pct_water],fmt='%s,%.3f',header='Strip,Percent Exceedance,Percent Water',comments='',delimiter=',')
+    t_start_full = datetime.datetime.now()
+    for output_file,loc_name,coast in zip(output_file_array,loc_name_array,coastline_array):
+        t_start_loc = datetime.datetime.now()
+        print(f'Working on {loc_name}.')
+        a_priori_filename = f'{tmp_dir}{loc_name}_{a_priori_dem}_WGS84.tif'
+        lon_min,lon_max,lat_min,lat_max = get_list_extents(strip_list)
+
+        if np.logical_or(coast == default_coastline,np.isnan(coast)):
+            print('Using default coastline file. Clipping it to DEM extents...')
+            new_coastline_file = f'{tmp_dir}{loc_name}_coastline.shp'
+            coastline_clip_command = f'ogr2ogr {new_coastline_file} {coastline_file} -clipsrc {lon_min} {lat_min} {lon_max} {lat_max}'
+            subprocess.run(coastline_clip_command,shell=True)
+            coast = new_coastline_file
+
+        print(f'Downloading {a_priori_dem}...')
+        if a_priori_dem == 'srtm':
+            download_srtm(lon_min,lon_max,lat_min,lat_max,EGM96_file,tmp_dir,a_priori_filename)
+        elif a_priori_dem == 'aster':
+            download_aster(lon_min,lon_max,lat_min,lat_max,EGM96_file,tmp_dir,a_priori_filename)
+        elif a_priori_dem == 'copernicus':
+            download_copernicus(lon_min,lon_max,lat_min,lat_max,EGM2008_file,tmp_dir,a_priori_filename)
+        print('Download complete.')
+
+        cloud_water_dict = {
+            'a_priori_dem':a_priori_dem,
+            'a_priori_filename':a_priori_filename,
+            'coastline_file':coast,
+            'tmp_dir':tmp_dir,
+            'quiet_flag':quiet_flag,
+            'keep_diff_flag':keep_diff_flag,
+            'diff_threshold':diff_threshold,
+            'intermediate_res':intermediate_res,
+        }
+
+        ir = itertools.repeat
+        p = multiprocessing.Pool(np.min((N_cpus,len(strip_list))))
+        pct_exceedance_water = p.starmap(find_cloudy_DEMs,zip(
+            strip_list,
+            ir(cloud_water_dict)
+            ))
+        p.close()
+        pct_exceedance = np.asarray([pct[0] for pct in pct_exceedance_water])
+        pct_water = np.asarray([pct[1] for pct in pct_exceedance_water])
+        subprocess.run(f'rm {a_priori_filename}',shell=True)
+        if tmp_dir in coastline_file:
+            subprocess.run(f'rm {coastline_file.replace(os.path.splitext(coastline_file)[1],".*")}',shell=True)
+        np.savetxt(output_file,np.c_[strip_list.astype(object),pct_exceedance,pct_water],fmt='%s,%.3f',header='Strip,Percent Exceedance,Percent Water',comments='',delimiter=',')
+        t_end_loc = datetime.datetime.now()
+        dt_loc = (t_end_loc - t_start_loc).seconds
+        minutes_loc,seconds_loc = divmod(dt_loc,60)
+        print(f'Finished {loc_name} in {minutes_loc} {single_str(minutes_loc,"minutes")}, {seconds_loc} {single_str(seconds_loc,"seconds")}.')
+        print('\n')
+    t_end_full = datetime.datetime.now()
+    dt_full = (t_end_full - t_start_full).seconds
+    hours_full,remainder_full = divmod(dt_full,3600)
+    minutes_full,seconds_full = divmod(remainder_full,60)
+    print(f'Finished all locations in {hours_full} {single_str(hours_full,"hours")}, {minutes_full} {single_str(minutes_full,"minutes")}, {seconds_full} {single_str(seconds_full,"seconds")}.')
 
 if __name__ == "__main__":
     main()
