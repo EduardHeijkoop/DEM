@@ -10,11 +10,8 @@ import os
 import sys
 from osgeo import gdal,gdalconst,osr
 
-
 from Global_DEMs import download_srtm,download_aster,download_copernicus
 from dem_utils import get_strip_list,get_list_extents,get_strip_extents,resample_raster,get_strip_shp,raster_to_geotiff
-
-
 
 def main():
     warnings.simplefilter(action='ignore')
@@ -28,14 +25,14 @@ def main():
     parser.add_argument('--loc_name',default=None,help='Location name.')
     parser.add_argument('--a_priori',default='copernicus',help='A priori DEM to use.',choices=['srtm','aster','copernicus'])
     parser.add_argument('--coastline',default=config.get('GENERAL_PATHS','osm_shp_file'),help='Path to coastline shapefile')
-    parser.add_argument('--pct_threshold',default=config.get('MOSAIC_CONSTANTS','STRIP_CLOUD_THRESHOLD'),type=float,help='Threshold exceedance value.')
+    parser.add_argument('--pct_threshold',default=config.getfloat('MOSAIC_CONSTANTS','STRIP_CLOUD_THRESHOLD'),type=float,help='Threshold exceedance value.')
     parser.add_argument('--vertical_threshold',default=50,type=float,help='Vertical threshold for exceedance.')
     parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips',choices=['sealevel','simple'])
     parser.add_argument('--cpus',help='Number of CPUs to use.',default=1,type=int)
     parser.add_argument('--keep_diff',help='Keep DEM differences.',action='store_true')
     parser.add_argument('--find_water',default=False,help='Find percentage of water in DEM too.',action='store_true')
-    parser.add_argument('--water_threshold',default=config.get('MOSAIC_CONSTANTS','STRIP_WATER_THRESHOLD'),type=float,help='Water percentage threshold.')
+    parser.add_argument('--water_threshold',default=config.getfloat('MOSAIC_CONSTANTS','STRIP_WATER_THRESHOLD'),type=float,help='Water percentage threshold.')
     parser.add_argument('--quiet',default=False,help='Suppress output.',action='store_true')
 
     args = parser.parse_args()
@@ -193,7 +190,14 @@ def main():
         src_diff = gdal.Open(diff_file,gdalconst.GA_ReadOnly)
         diff_array = np.asarray(src_diff.GetRasterBand(1).ReadAsArray())
         diff_array[diff_array == 0] = np.nan
-        pct_exceedance[i] = np.sum(np.abs(diff_array) > diff_threshold) / np.sum(~np.isnan(diff_array))
+        if np.sum(np.isnan(diff_array)) / (diff_array.shape[0]*diff_array.shape[1]) > 0.95:
+            pct_exceedance[i] = 1.0
+            pct_water[i] = 1.0
+            if quiet_flag == False:
+                print(f'{strip_name} is likely entirely over water. Setting both values to 100%.')
+            continue
+        else:
+            pct_exceedance[i] = np.sum(np.abs(diff_array) > diff_threshold) / np.sum(~np.isnan(diff_array))
         if quiet_flag == False:
             print(f'{pct_exceedance[i]*100:.2f}% of pixels exceed {diff_threshold}m.')
             if pct_exceedance[i] > exceedance_threshold:
