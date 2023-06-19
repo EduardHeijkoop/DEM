@@ -754,20 +754,21 @@ def get_strip_shp(strip,tmp_dir):
     Returns the shapefile of the real outline of a strip,
     i.e. not the raster, but the actual area of valid data.
     '''
-    if subprocess.os.path.exists(f'{tmp_dir}tmp_strip_binary.tif'):
-        subprocess.os.remove(f'{tmp_dir}tmp_strip_binary.tif')
-    if subprocess.os.path.exists(f'{tmp_dir}tmp_strip_binary.shp'):
-        for fi in glob.glob(f'{tmp_dir}tmp_strip_binary.*'):
+    strip_base = os.path.splitext(os.path.basename(strip))[0]
+    if subprocess.os.path.exists(f'{tmp_dir}{strip_base}_binary.tif'):
+        subprocess.os.remove(f'{tmp_dir}{strip_base}_binary.tif')
+    if subprocess.os.path.exists(f'{tmp_dir}{strip_base}_binary.shp'):
+        for fi in glob.glob(f'{tmp_dir}{strip_base}_binary.*'):
             subprocess.os.remove(fi)
-    calc_command = f'gdal_calc.py -A {strip} --calc=\"A>-9999\" --outfile={tmp_dir}tmp_strip_binary.tif --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
+    calc_command = f'gdal_calc.py -A {strip} --calc=\"A>-9999\" --outfile={tmp_dir}{strip_base}_binary.tif --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
     subprocess.run(calc_command,shell=True)
-    polygonize_command = f'gdal_polygonize.py -q {tmp_dir}tmp_strip_binary.tif -f "ESRI Shapefile" {tmp_dir}tmp_strip_binary.shp'
+    polygonize_command = f'gdal_polygonize.py -q {tmp_dir}{strip_base}_binary.tif -f "ESRI Shapefile" {tmp_dir}{strip_base}_binary.shp'
     subprocess.run(polygonize_command,shell=True)
-    wv_strip_shp = gpd.read_file(tmp_dir + 'tmp_strip_binary.shp')
-    if subprocess.os.path.exists(tmp_dir + 'tmp_strip_binary.tif'):
-        subprocess.os.remove(tmp_dir + 'tmp_strip_binary.tif')
-    if subprocess.os.path.exists(tmp_dir + 'tmp_strip_binary.shp'):
-        for fi in glob.glob(tmp_dir + 'tmp_strip_binary.*'):
+    wv_strip_shp = gpd.read_file(f'{tmp_dir}{strip_base}_binary.shp')
+    if subprocess.os.path.exists(f'{tmp_dir}{strip_base}_binary.tif'):
+        subprocess.os.remove(f'{tmp_dir}{strip_base}_binary.tif')
+    if subprocess.os.path.exists(f'{tmp_dir}{strip_base}_binary.shp'):
+        for fi in glob.glob(f'{tmp_dir}{strip_base}_binary.*'):
             subprocess.os.remove(fi)
     return wv_strip_shp
 
