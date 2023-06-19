@@ -212,7 +212,9 @@ def main():
                 print(f'{100*pct_water[i]:.1f}% over water.')
                 if pct_water[i] > water_threshold:
                     print(f'{strip_name} exceeds water threshold of {water_threshold*100:.1f}%!')
-        delete_list = [a_priori_subset,a_priori_clipped,strip_resampled,strip_resampled_intermediate,strip_resampled_intermediate_4326,strip_resampled_clipped]
+        delete_list = [a_priori_subset,a_priori_clipped,strip_resampled,strip_resampled_intermediate,
+                       strip_resampled_intermediate_4326,strip_resampled_clipped,strip_outline.replace('.shp','.*'),
+                       strip_ones,strip_ones_clipped,strip_resampled_intermediate_nodata_removed]
         if keep_diff_flag == False:
             delete_list.append(diff_file)
         subprocess.run(f'rm {" ".join(delete_list)}',shell=True)
