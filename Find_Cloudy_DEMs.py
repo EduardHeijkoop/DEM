@@ -120,7 +120,7 @@ def find_cloudy_DEMs(strip,cloud_water_dict):
     #         print(f'{strip_name} exceeds water threshold of {water_threshold*100:.1f}%!')
     subprocess.run(f'rm {" ".join(delete_list)}',shell=True)
     if quiet_flag == False:
-        print(f'{strip_name}: {100*pct_exceedance:.1f}% over clouds, {100*pct_water:.1f}% over water.')
+        print(f'{strip_name}: {100*pct_exceedance:.1f}% cloudy, {100*pct_water:.1f}% over water.')
     return pct_exceedance,pct_water
 
 def single_str(v,s):
