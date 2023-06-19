@@ -267,8 +267,8 @@ def main():
         pct_exceedance = np.asarray([pct[0] for pct in pct_exceedance_water])
         pct_water = np.asarray([pct[1] for pct in pct_exceedance_water])
         subprocess.run(f'rm {a_priori_filename}',shell=True)
-        if tmp_dir in coastline_file:
-            subprocess.run(f'rm {coastline_file.replace(os.path.splitext(coastline_file)[1],".*")}',shell=True)
+        if tmp_dir in coast:
+            subprocess.run(f'rm {coast.replace(os.path.splitext(coast)[1],".*")}',shell=True)
         np.savetxt(output_file,np.c_[strip_list.astype(object),pct_exceedance,pct_water],fmt='%s,%.3f,%.3f',header='Strip,Percent Exceedance,Percent Water',comments='',delimiter=',')
         t_end_loc = datetime.datetime.now()
         dt_loc = (t_end_loc - t_start_loc).seconds
