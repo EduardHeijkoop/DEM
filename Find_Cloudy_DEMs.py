@@ -144,6 +144,9 @@ def main():
         strip_outline = f'{tmp_dir}{strip_name}_Outline.shp'
         strip_resampled_clipped = f'{tmp_dir}{strip_name}_Resampled_to_{a_priori_dem}_Clipped{os.path.splitext(strip)[1]}'
         diff_file = f'{os.path.splitext(a_priori_filename)[0]}_Minus_{strip_name}{os.path.splitext(strip)[1]}'
+        delete_list = [a_priori_subset,a_priori_clipped,strip_resampled,strip_resampled_intermediate,
+                       strip_resampled_intermediate_4326,strip_resampled_clipped,strip_outline.replace('.shp','.*'),
+                       strip_ones,strip_ones_clipped,strip_resampled_intermediate_nodata_removed]
         #Subset a priori DEM to strip extents:
         lon_min_strip,lon_max_strip,lat_min_strip,lat_max_strip = get_strip_extents(strip,round_flag=True,N_round=4)
         a_priori_subset_command = f'gdalwarp -q -te {lon_min_strip} {lat_min_strip} {lon_max_strip} {lat_max_strip} {warp_comp_bigtiff} {a_priori_filename} {a_priori_subset}'
@@ -165,7 +168,7 @@ def main():
         raster_to_geotiff(x_ones,y_ones,ones_array,epsg_code,strip_ones)
         gdf_strip = get_strip_shp(strip_resampled_intermediate,tmp_dir)
         mp_unary_union = shapely.ops.unary_union([shapely.geometry.Polygon(g) for g in gdf_strip.geometry.exterior])
-        gdf_strip_filtered = gpd.GeoDataFrame(pd.DataFrame({'strip':[strip]}),geometry=[mp_unary_union],crs='EPSG:32644')
+        gdf_strip_filtered = gpd.GeoDataFrame(pd.DataFrame({'strip':[strip]}),geometry=[mp_unary_union],crs=f'EPSG:{epsg_code}')
         gdf_strip_filtered.to_file(strip_outline)
         ones_clip_command = f'gdalwarp -q -cutline {strip_outline} -cl {os.path.splitext(os.path.basename(strip_outline))[0]} -dstnodata 0 {strip_ones} {strip_ones_clipped}'
         unset_nodata_command = f'gdal_edit.py -unsetnodata {strip_resampled_intermediate}'
@@ -195,6 +198,9 @@ def main():
             pct_water[i] = 1.0
             if quiet_flag == False:
                 print(f'{strip_name} is likely entirely over water. Setting both values to 100%.')
+            if keep_diff_flag == False:
+                delete_list.append(diff_file)
+            subprocess.run(f'rm {" ".join(delete_list)}',shell=True)
             continue
         else:
             pct_exceedance[i] = np.sum(np.abs(diff_array) > diff_threshold) / np.sum(~np.isnan(diff_array))
@@ -216,9 +222,6 @@ def main():
                 print(f'{100*pct_water[i]:.1f}% over water.')
                 if pct_water[i] > water_threshold:
                     print(f'{strip_name} exceeds water threshold of {water_threshold*100:.1f}%!')
-        delete_list = [a_priori_subset,a_priori_clipped,strip_resampled,strip_resampled_intermediate,
-                       strip_resampled_intermediate_4326,strip_resampled_clipped,strip_outline.replace('.shp','.*'),
-                       strip_ones,strip_ones_clipped,strip_resampled_intermediate_nodata_removed]
         if keep_diff_flag == False:
             delete_list.append(diff_file)
         subprocess.run(f'rm {" ".join(delete_list)}',shell=True)
