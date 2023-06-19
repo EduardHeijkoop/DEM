@@ -30,7 +30,7 @@ def main():
     parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips',choices=['sealevel','simple'])
     parser.add_argument('--cpus',help='Number of CPUs to use.',default=1,type=int)
-    parser.add_argument('--keep_diff',help='Keep DEM differences.',action='store_true')
+    parser.add_argument('--keep_diff',default=False,help='Keep DEM differences.',action='store_true')
     parser.add_argument('--find_water',default=False,help='Find percentage of water in DEM too.',action='store_true')
     parser.add_argument('--water_threshold',default=config.getfloat('MOSAIC_CONSTANTS','STRIP_WATER_THRESHOLD'),type=float,help='Water percentage threshold.')
     parser.add_argument('--quiet',default=False,help='Suppress output.',action='store_true')
