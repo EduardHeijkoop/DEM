@@ -227,6 +227,9 @@ def main():
             strip_list = np.asarray(df_list.strip)
         else:
             strip_list = get_strip_list(input_dir,input_type=0,corrected_flag=False,dir_structure=dir_structure)
+        if len(strip_list) == 0:
+            print('No strips found. Skipping!')
+            continue
         a_priori_filename = f'{tmp_dir}{loc_name}_{a_priori_dem}_WGS84.tif'
         lon_min,lon_max,lat_min,lat_max = get_list_extents(strip_list)
 
