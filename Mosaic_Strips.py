@@ -82,6 +82,7 @@ def main():
         gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/').replace('Extent/','')
 
     POLYGON_AREA_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','POLYGON_AREA_THRESHOLD') #in m^2
+    POLYGON_SIMPLIFY_VALUE = config.getfloat('MOSAIC_CONSTANTS','POLYGON_SIMPLIFY_VALUE') #in m^2
     STRIP_AREA_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','STRIP_AREA_THRESHOLD') #in m^2
     GSW_POCKET_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','GSW_POCKET_THRESHOLD') #in %
     GSW_CRS_TRANSFORM_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','GSW_CRS_TRANSFORM_THRESHOLD') #in %
@@ -147,9 +148,11 @@ def main():
             else:
                 cloud_water_filter_file = cloud_water_filter_file[0]
                 df_cloud_water = pd.read_csv(cloud_water_filter_file)
+                full_strip_list = np.asarray(df_cloud_water.Strip)
         else:
             cloud_water_filter_file = cloud_water_filter_flag
             df_cloud_water = pd.read_csv(cloud_water_filter_file)
+            full_strip_list = np.asarray(df_cloud_water.Strip)
         full_epsg_list = np.asarray([osr.SpatialReference(wkt=gdal.Open(s,gdalconst.GA_ReadOnly).GetProjection()).GetAttrValue('AUTHORITY',1) for s in full_strip_list])
         unique_epsg_list = np.unique(full_epsg_list)
 
@@ -210,7 +213,7 @@ def main():
             output_strips_shp_file_filtered_dissolved = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered_Dissolved.shp'
             # print(output_strips_shp_file)
             if simplify_flag == True:
-                strip_shp_data = strip_shp_data.simplify(tolerance=10)
+                strip_shp_data = strip_shp_data.simplify(tolerance=POLYGON_SIMPLIFY_VALUE)
             
             strip_dates = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list])
             idx_date = np.argsort(-strip_dates)
