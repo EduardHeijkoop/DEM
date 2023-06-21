@@ -235,7 +235,7 @@ def main():
         else:
             strip_list = get_strip_list(input_dir,input_type=0,corrected_flag=False,dir_structure=dir_structure)
         if len(strip_list) == 0:
-            print('No strips found. Skipping!')
+            print('No strips found. Skipping!\n')
             continue
         #Remove duplicate strips from consideration.
         strip_filenames = np.asarray([s.split('/')[-1].split('_dem')[0] for s in strip_list])
