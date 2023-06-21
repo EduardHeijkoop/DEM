@@ -218,6 +218,13 @@ def main():
         output_file_array = np.atleast_1d(f'{input_dir}{loc_name}_Threshold_Exceedance_Values.txt')
         coastline_array = np.atleast_1d(coastline_file)
     
+    if batch_file is not None:
+        error_log_file = batch_file.replace(os.path.splitext(batch_file)[1],f'_error_log.txt')
+    elif list_file is not None:
+        error_log_file = list_file.replace(os.path.splitext(list_file)[1],f'_error_log.txt')
+    else:
+        error_log_file = None
+
     t_start_full = datetime.datetime.now()
     for input_dir,output_file,loc_name,coast in zip(input_dir_array,output_file_array,loc_name_array,coastline_array):
         t_start_loc = datetime.datetime.now()
@@ -230,6 +237,32 @@ def main():
         if len(strip_list) == 0:
             print('No strips found. Skipping!')
             continue
+        #Remove duplicate strips from consideration.
+        strip_filenames = np.asarray([s.split('/')[-1].split('_dem')[0] for s in strip_list])
+        if len(np.unique(strip_filenames)) != len(strip_filenames):
+            print('Duplicate strip names found. Only doing unique ones.')
+            if error_log_file is not None:
+                with open(error_log_file,'a') as f:
+                    f.write(f'{loc_name}: Duplicate strip names found. Only doing unique ones.\n')
+            unique_strips = np.unique(strip_filenames)
+            keep_list = np.empty([0,1],dtype=int)
+            discard_list = np.empty([0,1],dtype=int)
+            for us in unique_strips:
+                strip_idx = np.where(strip_filenames == us)[0]
+                if len(strip_idx) == 1:
+                    keep_list = np.append(keep_list,strip_idx)
+                elif len(strip_idx) == 2:
+                    find_utm = np.asarray(['/UTM' in s for s in strip_list[strip_idx]])
+                    if len(find_utm) - np.sum(find_utm) == 1:
+                        discard_list = np.append(discard_list,strip_idx[np.argwhere(find_utm).squeeze()])
+                        keep_list = np.append(keep_list,strip_idx[np.argwhere(~find_utm).squeeze()])
+                    else:
+                        discard_list = np.append(discard_list,strip_idx[0])
+                        keep_list = np.append(keep_list,strip_idx[1])
+                else:
+                    keep_list = np.append(keep_list,strip_idx[0])
+                    discard_list = np.append(discard_list,strip_idx[1:])
+            strip_list = strip_list[keep_list]
         a_priori_filename = f'{tmp_dir}{loc_name}_{a_priori_dem}_WGS84.tif'
         lon_min,lon_max,lat_min,lat_max = get_list_extents(strip_list)
 
