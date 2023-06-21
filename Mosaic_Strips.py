@@ -213,7 +213,7 @@ def main():
             output_strips_shp_file_filtered_dissolved = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered_Dissolved.shp'
             # print(output_strips_shp_file)
             if simplify_flag == True:
-                strip_shp_data = strip_shp_data.simplify(tolerance=POLYGON_SIMPLIFY_VALUE)
+                strip_shp_data.geometry = strip_shp_data.geometry.simplify(tolerance=POLYGON_SIMPLIFY_VALUE)
             
             strip_dates = np.asarray([int(s.split('/')[-1][5:13]) for s in strip_list])
             idx_date = np.argsort(-strip_dates)
