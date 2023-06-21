@@ -559,7 +559,7 @@ def mask_csv_file(csv_file,shp_file,landmask_c_file,inside_flag=1,parallel_flag=
     df_masked.to_csv(csv_file_masked,index=False,float_format='%.6f')
     return df_masked
 
-def get_strip_list(loc_dir,input_type,corrected_flag,dir_structure):
+def get_strip_list(loc_dir,input_type=0,corrected_flag=False,dir_structure='sealevel'):
     '''
     Different input types:
         0: old and new methods
