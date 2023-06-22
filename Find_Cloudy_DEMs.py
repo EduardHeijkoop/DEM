@@ -68,6 +68,10 @@ def find_cloudy_DEMs(strip,cloud_water_dict):
     y_ones = np.flip(y_ones)
     raster_to_geotiff(x_ones,y_ones,ones_array,epsg_code,strip_ones)
     gdf_strip = get_strip_shp(strip_resampled_intermediate,tmp_dir)
+    if len(gdf_strip) == 0:
+        if quiet_flag == False:
+            print(f'{strip_name}: Cannot compute outline!')
+        return np.nan,np.nan
     mp_unary_union = shapely.ops.unary_union([shapely.geometry.Polygon(g) for g in gdf_strip.geometry.exterior])
     gdf_strip_filtered = gpd.GeoDataFrame(pd.DataFrame({'strip':[strip]}),geometry=[mp_unary_union],crs=f'EPSG:{epsg_code}')
     gdf_strip_filtered.to_file(strip_outline)
@@ -302,6 +306,10 @@ def main():
         p.close()
         pct_exceedance = np.asarray([pct[0] for pct in pct_exceedance_water])
         pct_water = np.asarray([pct[1] for pct in pct_exceedance_water])
+        idx_nan = np.isnan(pct_exceedance)
+        pct_exceedance = pct_exceedance[~idx_nan]
+        pct_water = pct_water[~idx_nan]
+        strip_list = strip_list[~idx_nan]
         subprocess.run(f'rm {a_priori_filename}',shell=True)
         if tmp_dir in coast:
             subprocess.run(f'rm {coast.replace(os.path.splitext(coast)[1],".*")}',shell=True)
