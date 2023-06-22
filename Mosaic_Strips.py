@@ -199,6 +199,7 @@ def main():
                 tmp_gdf = gpd.GeoDataFrame(df_strip,geometry=[tmp_mp],crs='EPSG:'+epsg_code)
                 strip_shp_data = gpd.GeoDataFrame(pd.concat([strip_shp_data,tmp_gdf],ignore_index=True),crs='EPSG:'+epsg_code)
             
+            strip_list = strip_list[strip_idx]
             if cloud_water_filter_file is not None:
                 print('\nApplying cloud/water filter...')
                 strip_shp_data = find_cloud_water(strip_shp_data,df_cloud_water)
@@ -207,7 +208,6 @@ def main():
                 strip_list = strip_list[~idx_cloud_water]
             else:
                 print('\n')
-            strip_list = strip_list[strip_idx]
             output_strips_shp_file = f'{output_dir}{output_name}_Strips_{epsg_code}.shp'
             output_strips_shp_file_dissolved = f'{output_dir}{output_name}_Strips_{epsg_code}_Dissolved.shp'
             output_strips_shp_file_filtered = f'{output_dir}{output_name}_Strips_{epsg_code}_Filtered.shp'
