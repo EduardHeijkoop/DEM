@@ -161,6 +161,7 @@ def main():
     VLM_NODATA = config.getfloat('VLM_CONSTANTS','VLM_NODATA')
     N_PTS = config.getint('INUNDATION_CONSTANTS','N_PTS')
     INTERPOLATE_METHOD = config.get('INUNDATION_CONSTANTS','INTERPOLATE_METHOD')
+    REGGRID_INTERPOLATE_METHOD = config.get('INUNDATION_CONSTANTS','REGGRID_INTERPOLATE_METHOD')
     ICESAT2_GRID_RESOLUTION = config.getfloat('INUNDATION_CONSTANTS','ICESAT2_GRID_RESOLUTION')
     GRID_ALGORITHM = config.get('INUNDATION_CONSTANTS','GRID_ALGORITHM')
     GRID_NODATA = config.getint('INUNDATION_CONSTANTS','GRID_NODATA')
@@ -309,7 +310,7 @@ def main():
     t_start = datetime.datetime.now()
     print('Generating coastal sea level grid...')
     if sl_grid_extents is not None:
-        h_coast = interpolate_grid(lon_coast,lat_coast,sl_grid_file,sl_grid_extents,loc_name,tmp_dir,GRID_NODATA)
+        h_coast = interpolate_grid(lon_coast,lat_coast,sl_grid_file,sl_grid_extents,loc_name,tmp_dir,grid_nodata=GRID_NODATA,method=REGGRID_INTERPOLATE_METHOD)
         idx_fillvalue = h_coast==GRID_NODATA
         idx_keep = ~np.logical_or(idx_fillvalue,np.isnan(h_coast))
         x_coast = x_coast[idx_keep]
@@ -322,7 +323,7 @@ def main():
         else:
             output_file_coastline = f'{tmp_dir}{loc_name}_{os.path.basename(sl_grid_file).replace(".tif","_subset_interpolated_coastline.csv")}'
         if geoid_file is not None:
-            h_geoid = interpolate_grid(lon_coast,lat_coast,geoid_file,None,loc_name,tmp_dir,GRID_NODATA)
+            h_geoid = interpolate_grid(lon_coast,lat_coast,geoid_file,None,loc_name,tmp_dir,grid_nodata=GRID_NODATA,method=REGGRID_INTERPOLATE_METHOD)
             h_geoid = h_geoid[idx_keep]
             h_coast = h_coast - h_geoid
             output_file_coastline = output_file_coastline.replace('.csv','_orthometric.csv')

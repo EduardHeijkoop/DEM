@@ -251,7 +251,7 @@ def create_icesat2_grid(df_icesat2,epsg_code,geoid_file,tmp_dir,loc_name,grid_re
     ocean_grid_array = reshape_grid_array(ocean_grid)
     return x_meshgrid_array,y_meshgrid_array,ocean_grid_array
 
-def interpolate_grid(lon_input,lat_input,grid_file,grid_extents,loc_name,tmp_dir,grid_nodata=-9999):
+def interpolate_grid(lon_input,lat_input,grid_file,grid_extents,loc_name,tmp_dir,grid_nodata=-9999,method='linear'):
     '''
     Interpolates regular grid onto input lon/lat using scipy RegularGridInterpolator
     This more accurate than sampling the points onto the grid with gdallocationinfo,
@@ -272,7 +272,7 @@ def interpolate_grid(lon_input,lat_input,grid_file,grid_extents,loc_name,tmp_dir
     grid = np.array(src_grid.GetRasterBand(1).ReadAsArray())
     lon_grid_array = np.linspace(src_grid.GetGeoTransform()[0] + 0.5*src_grid.GetGeoTransform()[1], src_grid.GetGeoTransform()[0] + src_grid.RasterXSize * src_grid.GetGeoTransform()[1] - 0.5*src_grid.GetGeoTransform()[1], src_grid.RasterXSize)
     lat_grid_array = np.linspace(src_grid.GetGeoTransform()[3] + 0.5*src_grid.GetGeoTransform()[5], src_grid.GetGeoTransform()[3] + src_grid.RasterYSize * src_grid.GetGeoTransform()[5] - 0.5*src_grid.GetGeoTransform()[5], src_grid.RasterYSize)
-    interp_func = RegularGridInterpolator((lon_grid_array,lat_grid_array[::-1]),np.flipud(grid).T,bounds_error=False,fill_value=grid_nodata)
+    interp_func = RegularGridInterpolator((lon_grid_array,lat_grid_array[::-1]),np.flipud(grid).T,bounds_error=False,fill_value=grid_nodata,method=method)
     z_interp = interp_func((lon_input,lat_input))
     if grid_extents is not None:
         subprocess.run(f'rm {grid_subset_file}',shell=True)
