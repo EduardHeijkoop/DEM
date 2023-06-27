@@ -85,7 +85,7 @@ def download_aster(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,
     aster_earthdata_base = 'https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/ASTGTM.003/'
     merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
     for tile in tile_array:
-        dl_command = f'wget --user={username} --password={password} {aster_earthdata_base}{tile} --quiet'
+        dl_command = f'wget --user={username} --password={password} {aster_earthdata_base}{tile} --quiet --no-check-certificate'
         subprocess.run(dl_command,shell=True,cwd=tmp_dir)
         if os.path.isfile(f'{tmp_dir}{tile}'):
             merge_command = f'{merge_command} {tmp_dir}{tile} ' 
@@ -101,6 +101,7 @@ def download_aster(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,
         subprocess.run(f'rm tmp_merged_clipped.tif EGM96_resampled.tif',shell=True,cwd=tmp_dir)
     else:
         subprocess.run(f'mv tmp_merged_clipped.tif {output_file}',shell=True,cwd=tmp_dir)
+
 def get_copernicus_tiles(lon_min,lon_max,lat_min,lat_max):
     COPERNICUS_list = []
     lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
