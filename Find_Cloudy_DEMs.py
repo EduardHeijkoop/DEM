@@ -270,7 +270,7 @@ def main():
         a_priori_filename = f'{tmp_dir}{loc_name}_{a_priori_dem}_WGS84.tif'
         lon_min,lon_max,lat_min,lat_max = get_list_extents(strip_list)
 
-        if np.logical_or(coast == default_coastline,np.isnan(coast)):
+        if np.logical_or(coast == default_coastline,pd.isnull(coast)):
             print('Using default coastline file. Clipping it to DEM extents...')
             new_coastline_file = f'{tmp_dir}{loc_name}_coastline.shp'
             coastline_clip_command = f'ogr2ogr {new_coastline_file} {coastline_file} -clipsrc {lon_min} {lat_min} {lon_max} {lat_max}'
