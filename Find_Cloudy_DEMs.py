@@ -102,14 +102,8 @@ def find_cloudy_DEMs(strip,cloud_water_dict):
     if np.sum(np.isnan(diff_array)) / (diff_array.shape[0]*diff_array.shape[1]) > 0.95:
         pct_exceedance = 1.0
         pct_water = 1.0
-        # if quiet_flag == False:
-            # print(f'{strip_name} is likely entirely over water. Setting both values to 100%.')
     else:
         pct_exceedance = np.sum(np.abs(diff_array) > diff_threshold) / np.sum(~np.isnan(diff_array))
-    # if quiet_flag == False:
-        # print(f'{pct_exceedance[i]*100:.2f}% of pixels exceed {diff_threshold}m.')
-        # if pct_exceedance[i] > exceedance_threshold:
-            # print(f'{strip_name} exceeds difference threshold of {exceedance_threshold*100:.2f}%!')
         src_unclipped = gdal.Open(strip_resampled,gdalconst.GA_ReadOnly)
         src_clipped = gdal.Open(strip_resampled_clipped,gdalconst.GA_ReadOnly)
         unclipped_array = np.asarray(src_unclipped.GetRasterBand(1).ReadAsArray())
@@ -119,10 +113,6 @@ def find_cloudy_DEMs(strip,cloud_water_dict):
         pct_nan_unclipped = np.sum(np.isnan(unclipped_array)) / (unclipped_array.shape[0] * unclipped_array.shape[1])
         pct_nan_clipped = np.sum(np.isnan(clipped_array)) / (clipped_array.shape[0] * clipped_array.shape[1])
         pct_water = pct_nan_clipped - pct_nan_unclipped
-    # if quiet_flag == False:
-    #     print(f'{100*pct_water:.1f}% over water.')
-    #     if pct_water > water_threshold:
-    #         print(f'{strip_name} exceeds water threshold of {water_threshold*100:.1f}%!')
     subprocess.run(f'rm {" ".join(delete_list)}',shell=True)
     if quiet_flag == False:
         print(f'{strip_name}: {100*pct_exceedance:.1f}% cloudy, {100*pct_water:.1f}% over water.')
@@ -146,13 +136,11 @@ def main():
     parser.add_argument('--batch',default=None,help='Path to file to run in batch mode.')
     parser.add_argument('--a_priori',default='copernicus',help='A priori DEM to use.',choices=['srtm','aster','copernicus'])
     parser.add_argument('--coastline',default=config.get('GENERAL_PATHS','osm_shp_file'),help='Path to coastline shapefile')
-    # parser.add_argument('--pct_threshold',default=config.getfloat('MOSAIC_CONSTANTS','STRIP_CLOUD_THRESHOLD'),type=float,help='Threshold exceedance value.')
     parser.add_argument('--vertical_threshold',default=50,type=float,help='Vertical threshold for exceedance.')
     parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips',choices=['sealevel','simple'])
     parser.add_argument('--cpus',help='Number of CPUs to use.',default=1,type=int)
     parser.add_argument('--keep_diff',default=False,help='Keep DEM differences.',action='store_true')
-    # parser.add_argument('--water_threshold',default=config.getfloat('MOSAIC_CONSTANTS','STRIP_WATER_THRESHOLD'),type=float,help='Water percentage threshold.')
     parser.add_argument('--quiet',default=False,help='Suppress output.',action='store_true')
 
     args = parser.parse_args()
@@ -162,16 +150,12 @@ def main():
     batch_file = args.batch
     a_priori_dem = args.a_priori
     coastline_file = args.coastline
-    # exceedance_threshold = args.pct_threshold
     diff_threshold = args.vertical_threshold
     machine_name = args.machine
     dir_structure = args.dir_structure
     N_cpus = args.cpus
     keep_diff_flag = args.keep_diff
-    # water_threshold = args.water_threshold
     quiet_flag = args.quiet
-
-    # gdal.SetConfigOption('GDAL_NUM_THREADS', f'{N_cpus}')
 
     if input_dir is None and list_file is None and batch_file is None:
         raise ValueError('Must specify either input_dir, list_file or batch_file.')
@@ -186,8 +170,6 @@ def main():
     if np.logical_or(a_priori_dem == 'srtm',a_priori_dem == 'aster'):
         username = config.get('GENERAL_CONSTANTS','earthdata_username')
         pw = getpass.getpass()
-    # pct_exceedance = np.zeros(len(strip_list))
-    # pct_water = np.zeros(len(strip_list))
 
     if machine_name == 'b':
         EGM96_file = EGM96_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
