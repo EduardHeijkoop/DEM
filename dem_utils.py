@@ -566,6 +566,9 @@ def get_strip_list(loc_dir,input_type=0,corrected_flag=False,dir_structure='seal
         1: old only (dem_browse.tif for 10 m and dem_smooth.tif for 2 m)
         2: new only (dem_10m.tif for 10 m and dem.tif for 2 m)
         3: input is from a list of strips
+    Dir structure:
+        sealevel: finds strips in WV*/strips/ subdirectories
+        simple: finds all *dem.tif strips in a given location
     '''
     if dir_structure == 'sealevel':
         if corrected_flag == True:
