@@ -184,7 +184,7 @@ def main():
     default_coastline = config.get('GENERAL_PATHS','osm_shp_file')
     intermediate_res = 10
     if np.logical_or(a_priori_dem == 'srtm',a_priori_dem == 'aster'):
-        username = config.get('NASA_EARTHDATA','username')
+        username = config.get('GENERAL_CONSTANTS','earthdata_username')
         pw = getpass.getpass()
     # pct_exceedance = np.zeros(len(strip_list))
     # pct_water = np.zeros(len(strip_list))
