@@ -12,6 +12,7 @@ from osgeo import gdal,gdalconst,osr
 import multiprocessing
 import itertools
 import datetime
+import getpass
 
 from Global_DEMs import download_srtm,download_aster,download_copernicus
 from dem_utils import get_strip_list,get_list_extents,get_strip_extents,resample_raster,get_strip_shp,raster_to_geotiff
@@ -182,6 +183,9 @@ def main():
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     default_coastline = config.get('GENERAL_PATHS','osm_shp_file')
     intermediate_res = 10
+    if np.logical_or(a_priori_dem == 'srtm',a_priori_dem == 'aster'):
+        username = config.get('NASA_EARTHDATA','username')
+        pw = getpass.getpass()
     # pct_exceedance = np.zeros(len(strip_list))
     # pct_water = np.zeros(len(strip_list))
 
@@ -279,9 +283,9 @@ def main():
 
         print(f'Downloading {a_priori_dem}...')
         if a_priori_dem == 'srtm':
-            download_srtm(lon_min,lon_max,lat_min,lat_max,EGM96_file,tmp_dir,a_priori_filename)
+            download_srtm(lon_min,lon_max,lat_min,lat_max,username,pw,EGM96_file,tmp_dir,a_priori_filename)
         elif a_priori_dem == 'aster':
-            download_aster(lon_min,lon_max,lat_min,lat_max,EGM96_file,tmp_dir,a_priori_filename)
+            download_aster(lon_min,lon_max,lat_min,lat_max,username,pw,EGM96_file,tmp_dir,a_priori_filename)
         elif a_priori_dem == 'copernicus':
             download_copernicus(lon_min,lon_max,lat_min,lat_max,EGM2008_file,tmp_dir,a_priori_filename)
         print('Download complete.')
