@@ -583,9 +583,12 @@ def main():
     config.read(config_file)
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--location',default=None,help='Location of DEM(s) to correct.')
+    parser.add_argument('--input_dir',default=None,help='Location of DEM(s) to correct.')
     parser.add_argument('--dem',default=None,help='Path to input DEM to correct.')
-    parser.add_argument('--dem_list',default=None,help='Path to input list of DEMs to correct.')
+    parser.add_argument('--list',default=None,help='Path to input list of DEMs to correct.')
+    parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
+    parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
+    parser.add_argument('--N_cpus',help='Number of CPUs to use',default=1,type=int)
     parser.add_argument('--icesat2',default=None,help='Path to ICESat-2 file used to correct DEM(s).')
     parser.add_argument('--mean',default=False,action='store_true')
     parser.add_argument('--median',default=False,action='store_true')
@@ -593,9 +596,6 @@ def main():
     parser.add_argument('--threshold', nargs='?', type=float, default=0.02)
     parser.add_argument('--print',default=False,action='store_true')
     parser.add_argument('--keep_files',default=False,action='store_true')
-    parser.add_argument('--cpus',help='Number of CPUs to use',default=1,type=int)
-    parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
-    parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
     parser.add_argument('--a_priori',default=False,help='Filter with a priori DEM (COPERNICUS)?',action='store_true')
     parser.add_argument('--coastline',default=None,help='Coastline file to filter DEM & COPERNICUS')
     args = parser.parse_args()
@@ -604,9 +604,9 @@ def main():
     N_coverage_minimum = config.getfloat('CORRECTIONS_CONSTANTS','N_coverage_minimum')
     N_photons_minimum = config.getint('CORRECTIONS_CONSTANTS','N_photons_minimum')
 
-    loc_dir = args.location
+    input_dir = args.input_dir
     dem_file = args.dem
-    dem_list_file = args.dem_list
+    dem_list_file = args.list
     icesat2_file = args.icesat2
     mean_mode = args.mean
     median_mode = args.median
@@ -614,7 +614,7 @@ def main():
     vertical_shift_iterative_threshold = args.threshold
     print_flag = args.print
     keep_flag = args.keep_files
-    N_cpus = args.cpus
+    N_cpus = args.N_cpus
     machine_name = args.machine
     dir_structure = args.dir_structure
     a_priori_flag = args.a_priori
@@ -628,7 +628,7 @@ def main():
     if dem_file is not None and dem_list_file is not None:
         print('Only doing files in list.')
     
-    if loc_dir is None and dem_file is None and dem_list_file is None:
+    if input_dir is None and dem_file is None and dem_list_file is None:
         print('Please provide a location, a single DEM or a list of DEMs.')
         sys.exit()
     
@@ -637,10 +637,10 @@ def main():
         dem_array = np.asarray(df_list.dem_file)
     elif dem_file is not None:
         dem_array = np.atleast_1d(dem_file)
-    elif loc_dir is not None:
-        if loc_dir[-1] != '/':
-            loc_dir = f'{loc_dir}/'
-        dem_array = get_strip_list(loc_dir,input_type=2,corrected_flag=False,dir_structure=dir_structure)
+    elif input_dir is not None:
+        if input_dir[-1] != '/':
+            input_dir = f'{input_dir}/'
+        dem_array = get_strip_list(input_dir,input_type=2,corrected_flag=False,dir_structure=dir_structure)
     
     if np.logical_xor(mean_mode,median_mode) == True:
         if mean_mode == True:
@@ -661,8 +661,8 @@ def main():
             loc_name = '_'.join([''.join([l[i].capitalize() if i == 0 else l for i,l in enumerate(t)]) for t in loc_name.split('_')])
         elif dem_file is not None:
             loc_name = '_'.join(dem_file.split('/')[-1].split('_')[:4])
-        elif loc_dir is not None:
-            loc_name = loc_dir.split('/')[-2]
+        elif input_dir is not None:
+            loc_name = input_dir.split('/')[-2]
         copernicus_wgs84_file = f'{tmp_dir}{loc_name}_COPERNICUS_WGS84.tif'
         
         if machine_name == 'b':

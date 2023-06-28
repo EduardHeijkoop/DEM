@@ -130,37 +130,37 @@ def main():
     config.read(config_file)
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_dir',default=None,help='Path to dir containing strips.')
-    parser.add_argument('--list',default=None,help='Path to list of strips to mosaic.')
+    parser.add_argument('--input_file',default=None,help='Path to input file to run in batch mode.')
+    parser.add_argument('--input_dir',default=None,help='Path to directory containing strips.')
+    parser.add_argument('--list',default=None,help='Path to list of strips to detect clouds in.')
     parser.add_argument('--loc_name',default=None,help='Location name.')
-    parser.add_argument('--batch',default=None,help='Path to file to run in batch mode.')
+    parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
+    parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips',choices=['sealevel','simple'])
     parser.add_argument('--a_priori',default='copernicus',help='A priori DEM to use.',choices=['srtm','aster','copernicus'])
     parser.add_argument('--coastline',default=config.get('GENERAL_PATHS','osm_shp_file'),help='Path to coastline shapefile')
     parser.add_argument('--vertical_threshold',default=50,type=float,help='Vertical threshold for exceedance.')
-    parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
-    parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips',choices=['sealevel','simple'])
-    parser.add_argument('--cpus',help='Number of CPUs to use.',default=1,type=int)
-    parser.add_argument('--keep_diff',default=False,help='Keep DEM differences.',action='store_true')
+    parser.add_argument('--N_cpus',help='Number of CPUs to use.',default=1,type=int)
+    parser.add_argument('--keep_diff',default=False,help='Keep DEM differences?',action='store_true')
     parser.add_argument('--quiet',default=False,help='Suppress output.',action='store_true')
 
     args = parser.parse_args()
     input_dir = args.input_dir
     list_file = args.list
     loc_name = args.loc_name
-    batch_file = args.batch
+    input_file = args.input_file
     a_priori_dem = args.a_priori
     coastline_file = args.coastline
     diff_threshold = args.vertical_threshold
     machine_name = args.machine
     dir_structure = args.dir_structure
-    N_cpus = args.cpus
+    N_cpus = args.N_cpus
     keep_diff_flag = args.keep_diff
     quiet_flag = args.quiet
 
-    if input_dir is None and list_file is None and batch_file is None:
-        raise ValueError('Must specify either input_dir, list_file or batch_file.')
-    if np.sum((list_file is not None,batch_file is not None,input_dir is not None)) > 1:
-        raise ValueError('Cannot specify more than one of input_dir, list_file or batch_file.')
+    if input_dir is None and list_file is None and input_file is None:
+        raise ValueError('Must specify either input_dir, list_file or input_file.')
+    if np.sum((list_file is not None,input_file is not None,input_dir is not None)) > 1:
+        raise ValueError('Cannot specify more than one of input_dir, list_file or input_file.')
     
     EGM96_file = config.get('GENERAL_PATHS','EGM96_path')
     EGM2008_file = config.get('GENERAL_PATHS','EGM2008_path')
@@ -184,12 +184,12 @@ def main():
         coastline_file = coastline_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
         default_coastline = default_coastline.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
     
-    if batch_file is not None:
-        df_batch = pd.read_csv(batch_file)
-        input_dir_array = np.asarray([f'{o}/' if o[-1] != '/' else o for o in df_batch.Location])
+    if input_file is not None:
+        df_input = pd.read_csv(input_file)
+        input_dir_array = np.asarray([f'{o}/' if o[-1] != '/' else o for o in df_input.Location])
         loc_name_array = np.asarray([o.split('/')[-2] for o in input_dir_array])
         output_file_array = np.asarray([f'{o}{loc}_Threshold_Exceedance_Values.txt' for o,loc in zip(input_dir_array,loc_name_array)])
-        coastline_array = np.asarray(df_batch.Coastline)
+        coastline_array = np.asarray(df_input.Coastline)
     elif list_file is not None:
         if loc_name is None:
             loc_name_array = np.atleast_1d(os.path.splitext(os.path.basename(list_file))[0])
@@ -208,8 +208,8 @@ def main():
         output_file_array = np.atleast_1d(f'{input_dir}{loc_name}_Threshold_Exceedance_Values.txt')
         coastline_array = np.atleast_1d(coastline_file)
     
-    if batch_file is not None:
-        error_log_file = batch_file.replace(os.path.splitext(batch_file)[1],f'_error_log.txt')
+    if input_file is not None:
+        error_log_file = input_file.replace(os.path.splitext(input_file)[1],f'_error_log.txt')
     elif list_file is not None:
         error_log_file = list_file.replace(os.path.splitext(list_file)[1],f'_error_log.txt')
     else:

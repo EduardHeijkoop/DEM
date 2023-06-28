@@ -24,20 +24,20 @@ def main():
     config.read(config_file)
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_file',default=config.get('MOSAIC_PATHS','input_file'),help='path to dir containing strips')
-    parser.add_argument('--list',default=None,help='path to list of strips to mosaic')
-    parser.add_argument('--output_dir',default=None,help='path to output directory')
-    parser.add_argument('--loc_name',default=None,help='name of location')
-    parser.add_argument('--horizontal',default=False,help='Incorperate horizontal alignment in mosaic?',action='store_true')
+    parser.add_argument('--input_file',default=config.get('MOSAIC_PATHS','input_file'),help='Path to input file containing directories of strips.')
+    parser.add_argument('--list',default=None,help='Path to list of strips to mosaic.')
+    parser.add_argument('--output_dir',default=None,help='Path to output directory.')
+    parser.add_argument('--loc_name',default=None,help='Name of location.')
     parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
+    parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
+    parser.add_argument('--N_cpus',help='Number of CPUs to use',default=1,type=int)
+    parser.add_argument('--horizontal',default=False,help='Incorperate horizontal alignment in mosaic?',action='store_true')
     parser.add_argument('--cloud_water_filter',default='default',nargs='?',help='Use cloud and water filter?')
     parser.add_argument('--corrected',default=False,help='Find corrected strips instead?',action='store_true')
     parser.add_argument('--all_strips',default=False,help='Mosaic all strips in directory? (No geometry filtering.)',action='store_true')
     parser.add_argument('--gsw',default=None,help='Path to GSW shapefile')
     parser.add_argument('--no_gsw',default=False,help='Skip GSW filter?',action='store_true')
     parser.add_argument('--simplify',default=False,help='Apply simplify operation to shapefile of strips?',action='store_true')
-    parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
-    parser.add_argument('--cpus',help='Number of CPUs to use',default=1,type=int)
     args = parser.parse_args()
     input_file = args.input_file
     list_file = args.list
@@ -52,7 +52,7 @@ def main():
     no_gsw_flag = args.no_gsw
     simplify_flag = args.simplify
     dir_structure = args.dir_structure
-    N_cpus = args.cpus
+    N_cpus = args.N_cpus
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
