@@ -25,8 +25,10 @@ def main():
     config.read(config_file)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dem',help='Path to input DEM to run inundation on.')
+    parser.add_argument('--input_file',help='Path to input DEM to run inundation on.')
     parser.add_argument('--loc_name',help='Name of location to run inundation on.')
+    parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
+    # parser.add_argument('--N_cpus',help='Number of CPUs to use for parallel processing.',default=1,type=int)
     parser.add_argument('--geoid',help='Path to geoid file to calculate orthometric heights with.',default=None)
     parser.add_argument('--vlm',help='Path to VLM file to propagate input file in time.',default=None)
     parser.add_argument('--clip_vlm',help='Clip DEM to VLM extents?',default=False,action='store_true')
@@ -36,7 +38,7 @@ def main():
     parser.add_argument('--coastline',help='Path to coastline file to calculate coastal sea level on.')
     parser.add_argument('--clip_coast',help='Clip DEM to coastline?',default=False,action='store_true')
     parser.add_argument('--years',help='Years to compute inundation for.',nargs='*',default='2020')
-    parser.add_argument('--rcp',help='RCP to use.')
+    parser.add_argument('--rcp',help='RCP to use.',choices=['2.6','4.5','8.5'])
     parser.add_argument('--ssp',help='RCP to use.')
     parser.add_argument('--slr',help='Sea level rise to use.',nargs='*',default=None)
     parser.add_argument('--t0',help='Time to use as t0 to zero SLR.',default='2020')
@@ -47,11 +49,13 @@ def main():
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
     parser.add_argument('--uncertainty',help='Calculate inundation uncertainty?',default=False,action='store_true')
     parser.add_argument('--sigma',help='Sigma value to use for uncertainty calculation.')
-    parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
+    parser.add_argument('--of',help='Output format to use.',choices=['shp','geojson'],default='shp')
     args = parser.parse_args()
 
-    dem_file = args.dem
+    dem_file = args.input_file
     loc_name = args.loc_name
+    machine_name = args.machine
+    # N_cpus = args.N_cpus
     geoid_file = args.geoid
     vlm_file = args.vlm
     clip_vlm_flag = args.clip_vlm
@@ -79,7 +83,7 @@ def main():
     high_tide = args.high_tide
     connectivity_flag = args.connectivity
     uncertainty_flag = args.uncertainty
-    machine_name = args.machine
+    output_format = args.of
 
     if icesat2_file is not None and sl_grid_file is not None:
         print('ICESat-2 file and sea level grid given, cannot handle both!')
@@ -452,8 +456,8 @@ def main():
             else:
                 inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
             subprocess.run(inundation_command,shell=True)
-            output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
-            polygonize_command = f'gdal_polygonize.py -q -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
+            output_inundation_vec_file = output_inundation_file.replace('.tif',f'.{output_format}')
+            polygonize_command = f'gdal_polygonize.py -q {output_inundation_file} {output_inundation_vec_file}'
             subprocess.run(polygonize_command,shell=True)
             t_end = datetime.datetime.now()
             delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
@@ -462,7 +466,7 @@ def main():
             if connectivity_flag == True:
                 print('Computing connectivity to the ocean...')
                 t_start = datetime.datetime.now()
-                compute_connectivity(output_inundation_shp_file,gdf_surface_water_buffered)
+                compute_connectivity(output_inundation_vec_file,gdf_surface_water_buffered)
                 t_end = datetime.datetime.now()
                 delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
                 delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
@@ -516,8 +520,8 @@ def main():
             else:
                 inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
             subprocess.run(inundation_command,shell=True)
-            output_inundation_shp_file = output_inundation_file.replace('.tif','.shp')
-            polygonize_command = f'gdal_polygonize.py -q -f "ESRI Shapefile" {output_inundation_file} {output_inundation_shp_file}'
+            output_inundation_vec_file = output_inundation_file.replace('.tif',f'.{output_format}')
+            polygonize_command = f'gdal_polygonize.py -q {output_inundation_file} {output_inundation_vec_file}'
             subprocess.run(polygonize_command,shell=True)
             t_end = datetime.datetime.now()
             delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
@@ -526,7 +530,7 @@ def main():
             if connectivity_flag == True:
                 print('Computing connectivity to the ocean...')
                 t_start = datetime.datetime.now()
-                compute_connectivity(output_inundation_shp_file,gdf_surface_water_buffered)
+                compute_connectivity(output_inundation_vec_file,gdf_surface_water_buffered)
                 t_end = datetime.datetime.now()
                 delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
                 delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)

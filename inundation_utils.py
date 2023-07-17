@@ -376,13 +376,14 @@ def csv_to_grid(csv_file,algorithm_dict,xmin,xmax,xres,ymin,ymax,yres,epsg_code)
     subprocess.run(build_grid_command,shell=True)
     return grid_file
 
-def compute_connectivity(inundation_shp_file,gdf_surface_water):
+def compute_connectivity(inundation_vec_file,gdf_surface_water):
     '''
     Compute connectivty of inundation to the sea (defined as the gdf_surface_water)
     Surface water should be buffered already, if desired
     '''
-    gdf_inundation = gpd.read_file(inundation_shp_file)
-    inundation_shp_file_connected = inundation_shp_file.replace('.shp','_connected_GSW.shp')
+    gdf_inundation = gpd.read_file(inundation_vec_file)
+    inundation_vec_file_base,inundation_vec_file_ext = os.path.splitext(inundation_vec_file)
+    inundation_vec_file_connected = f'{inundation_vec_file_base}_connectivity{inundation_vec_file_ext}'
     if len(gdf_surface_water) == 1:
         idx_intersects = np.asarray([gdf_surface_water.geometry[0].intersects(geom) for geom in gdf_inundation.geometry])
         idx_contains = np.asarray([gdf_surface_water.geometry[0].contains(geom) for geom in gdf_inundation.geometry])
@@ -397,4 +398,4 @@ def compute_connectivity(inundation_shp_file,gdf_surface_water):
         idx_contains = np.any(idx_contains,axis=0)
         idx_connected = np.any((idx_intersects,idx_contains),axis=0)
     gdf_inundation_connected = gdf_inundation[idx_connected].reset_index(drop=True)
-    gdf_inundation_connected.to_file(inundation_shp_file_connected)
+    gdf_inundation_connected.to_file(inundation_vec_file_connected)
