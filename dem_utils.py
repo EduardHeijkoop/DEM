@@ -569,6 +569,7 @@ def get_strip_list(loc_dir,input_type=0,corrected_flag=False,dir_structure='seal
     Dir structure:
         sealevel: finds strips in WV*/strips/ subdirectories
         simple: finds all *dem.tif strips in a given location
+        scenes: finds all *dem.tif scenes in a given location
     '''
     if dir_structure == 'sealevel':
         if corrected_flag == True:
@@ -593,6 +594,9 @@ def get_strip_list(loc_dir,input_type=0,corrected_flag=False,dir_structure='seal
             strip_list = sorted(glob.glob(f'{loc_dir}*dem_Shifted*.tif'))
         else:
             strip_list = sorted(glob.glob(f'{loc_dir}*dem.tif'))
+    elif dir_structure == 'scenes':
+        strip_list = glob.iglob(f'{loc_dir}**/*dem.tif',recursive=True)
+        strip_list = [s for s in strip_list]
     return np.asarray(strip_list)
 
 def get_strip_extents(strip,round_flag=False,N_round=3):

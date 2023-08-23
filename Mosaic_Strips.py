@@ -29,7 +29,7 @@ def main():
     parser.add_argument('--output_dir',default=None,help='Path to output directory.')
     parser.add_argument('--loc_name',default=None,help='Name of location.')
     parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
-    parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)')
+    parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel or simple)',choices=['sealevel','simple','scenes'])
     parser.add_argument('--N_cpus',help='Number of CPUs to use',default=1,type=int)
     parser.add_argument('--horizontal',default=False,help='Incorperate horizontal alignment in mosaic?',action='store_true')
     parser.add_argument('--cloud_water_filter',default='default',nargs='?',help='Use cloud and water filter?')
