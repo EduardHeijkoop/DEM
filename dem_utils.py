@@ -1071,15 +1071,22 @@ def populate_intersection(geom_intersection,gsw_main_sea_only_buffered,landmask_
         y = np.append(y,y_sampling_masked_intersection_gsw)
     return x,y
 
-def parallel_coregistration(ref_strip_ID,src_strip_ID,strip_shp_data,gsw,landmask_c_file,mosaic_dir,tmp_dir,horizontal_flag,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH):
+def parallel_coregistration(ref_strip_ID,src_strip_ID,strip_shp_data,gsw,landmask_c_file,mosaic_dir,tmp_dir,horizontal_flag,dir_structure,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH):
     ref_strip = strip_shp_data.strip[ref_strip_ID]
     src_strip = strip_shp_data.strip[src_strip_ID]
     ref_strip_sensor = ref_strip.split('/')[-1].split('_')[0]
     src_strip_sensor = src_strip.split('/')[-1].split('_')[0]
-    src_seg = f'seg{src_strip.split("seg")[1].split("_")[0]}'
-    src_base = f'{mosaic_dir}{os.path.splitext(src_strip.split("/")[-1].split(src_seg)[0])[0]}{src_seg}'
-    src_ext = os.path.splitext(src_strip)[1]
-    src_file = glob.glob(f'{src_base}*{src_ext}')[0]
+    if dir_structure == 'scenes':
+        src_seg1 = f'P0{os.path.basename(src_strip).split("_P0")[1].split("_")[0]}'
+        src_seg2 = f'P0{os.path.basename(src_strip).split("_P0")[2].split("_")[0]}'
+        src_base = f'{mosaic_dir}{os.path.basename(src_strip).split(src_seg2)[0]}{src_seg2}'
+        src_ext = os.path.splitext(src_strip)[1]
+        src_file = glob.glob(f'{src_base}*{src_ext}')[0]
+    else:
+        src_seg = f'seg{src_strip.split("seg")[1].split("_")[0]}'
+        src_base = f'{mosaic_dir}{os.path.splitext(src_strip.split("/")[-1].split(src_seg)[0])[0]}{src_seg}'
+        src_ext = os.path.splitext(src_strip)[1]
+        src_file = glob.glob(f'{src_base}*{src_ext}')[0]
     print(f'Linking {ref_strip_ID} ({ref_strip_sensor}) to {src_strip_ID} ({src_strip_sensor})...')
     geom_intersection = strip_shp_data.geometry[src_strip_ID].intersection(strip_shp_data.geometry[ref_strip_ID])
     x_masked_total,y_masked_total = populate_intersection(geom_intersection,gsw,landmask_c_file,X_SPACING,Y_SPACING)
@@ -1118,7 +1125,7 @@ def parallel_coregistration(ref_strip_ID,src_strip_ID,strip_shp_data,gsw,landmas
     coreg_stats.close()
 
 
-def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict,mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH,MOSAIC_TILE_SIZE,N_cpus):
+def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict,mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,dir_structure,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH,MOSAIC_TILE_SIZE,N_cpus):
     '''
     Build the mosaic, given list of indices of strips to co-register to each other
     Co-registering ref to src, by sampling src and treating that as truth
@@ -1143,7 +1150,7 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
         p.starmap(parallel_coregistration,zip(
             gen_ref_list,gen_src_list,
             ir(strip_shp_data),ir(gsw_main_sea_only_buffered),ir(landmask_c_file),
-            ir(mosaic_dir),ir(tmp_dir),ir(horizontal_flag),
+            ir(mosaic_dir),ir(tmp_dir),ir(horizontal_flag),ir(dir_structure),
             ir(X_SPACING),ir(Y_SPACING),ir(X_MAX_SEARCH),ir(Y_MAX_SEARCH)
             ))
         p.close()

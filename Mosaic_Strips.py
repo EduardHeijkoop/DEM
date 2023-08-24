@@ -43,16 +43,16 @@ def main():
     list_file = args.list
     single_output_dir = args.output_dir
     single_loc_name = args.loc_name
-    horizontal_flag = args.horizontal
     machine_name = args.machine
+    dir_structure = args.dir_structure
+    N_cpus = args.N_cpus
+    horizontal_flag = args.horizontal
     cloud_water_filter_flag = args.cloud_water_filter
     corrected_flag = args.corrected
     all_strips_flag = args.all_strips
     gsw_file = args.gsw
     no_gsw_flag = args.no_gsw
     simplify_flag = args.simplify
-    dir_structure = args.dir_structure
-    N_cpus = args.N_cpus
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
@@ -240,7 +240,7 @@ def main():
             
             mosaic_dict,singles_dict = find_mosaic(strip_shp_data,mst_weighted_array,strip_dates)
             for mosaic_number in range(len(mosaic_dict)):
-                merge_mosaic_output_file = build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict[mosaic_number],mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH,MOSAIC_TILE_SIZE,N_cpus)
+                merge_mosaic_output_file = build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosaic_dict[mosaic_number],mosaic_dir,tmp_dir,output_name,mosaic_number,epsg_code,horizontal_flag,dir_structure,X_SPACING,Y_SPACING,X_MAX_SEARCH,Y_MAX_SEARCH,MOSAIC_TILE_SIZE,N_cpus)
             singles_list = copy_single_strips(strip_shp_data,singles_dict,mosaic_dir,output_name,epsg_code)
             t_end = datetime.datetime.now()
             dt = t_end - t_start
