@@ -1159,10 +1159,17 @@ def build_mosaic(strip_shp_data,gsw_main_sea_only_buffered,landmask_c_file,mosai
             subprocess.run(f'cat {coreg_file} >> {mosaic_stats_file}',shell=True)
             subprocess.run(f'rm {coreg_file}',shell=True)
             ref_strip = strip_shp_data.strip[ref]
-            ref_seg = f'seg{ref_strip.split("seg")[1].split("_")[0]}'
-            ref_base = f'{mosaic_dir}{os.path.splitext(ref_strip.split("/")[-1].split(ref_seg)[0])[0]}{ref_seg}'
-            ref_ext = os.path.splitext(ref_strip)[1]
-            ref_file = glob.glob(f'{ref_base}*{ref_ext}')[0]
+            if dir_structure == 'scenes':
+                ref_seg1 = f'P0{os.path.basename(ref_strip).split("_P0")[1].split("_")[0]}'
+                ref_seg2 = f'P0{os.path.basename(ref_strip).split("_P0")[2].split("_")[0]}'
+                ref_base = f'{mosaic_dir}{os.path.basename(ref_strip).split(ref_seg2)[0]}{ref_seg2}'
+                ref_ext = os.path.splitext(ref_strip)[1]
+                ref_file = glob.glob(f'{ref_base}*{ref_ext}')[0]
+            else:
+                ref_seg = f'seg{ref_strip.split("seg")[1].split("_")[0]}'
+                ref_base = f'{mosaic_dir}{os.path.splitext(ref_strip.split("/")[-1].split(ref_seg)[0])[0]}{ref_seg}'
+                ref_ext = os.path.splitext(ref_strip)[1]
+                ref_file = glob.glob(f'{ref_base}*{ref_ext}')[0]
             strip_list_coregistered = np.append(strip_list_coregistered,ref_file)
             strip_sampled_file = f'{mosaic_dir}Mosaic_sampled_{src}_for_coregistering_{ref}.txt'
             full_strip_sampled_file = f'{mosaic_dir}{output_name}_Mosaic_{mosaic_number}_{epsg_code}_sampled_{src}_for_coregistering_{ref}.txt'
