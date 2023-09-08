@@ -652,7 +652,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         df_final['sigma'] = df_sampled_coregistered.sigma
     df_final['height_dsm_coregistered'] = df_sampled_coregistered.height_dsm
     if 'height_dsm_plane_jitter_corrected' in df_sampled_plane_jitter_corrected.columns:
-        df_final['height_dsm_plane_corrected'] = df_sampled_plane_jitter_corrected.height_dsm_plane_jitter_corrected
+        df_final['height_dsm_plane_jitter_corrected'] = df_sampled_plane_jitter_corrected.height_dsm_plane_jitter_corrected
     # if 'height_dsm_jitter_corrected' in df_sampled_jitter_corrected.columns:
         # df_final['height_dsm_jitter_corrected'] = df_sampled_jitter_corrected.height_dsm_jitter_corrected
     df_final.to_csv(final_output_file,index=False,float_format='%.6f')
