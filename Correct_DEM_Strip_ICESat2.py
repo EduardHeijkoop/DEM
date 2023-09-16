@@ -270,8 +270,8 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
     dem_base,dem_ext = os.path.splitext(os.path.basename(dem))
     print(f'Processing {dem_base}...')
     sampled_original_file = f'{tmp_dir}{icesat2_base}_Sampled_{dem_base}{icesat2_ext}'
-    plane_jitter_correction_file_coarse = f'{tmp_dir}{dem_base}_coarse_plane_correction{dem_ext}'
-    plane_jitter_correction_file = f'{tmp_dir}{dem_base}_plane_correction{dem_ext}'
+    plane_jitter_correction_file_coarse = f'{tmp_dir}{dem_base}_coarse_plane_jitter_correction{dem_ext}'
+    plane_jitter_correction_file = f'{tmp_dir}{dem_base}_plane_jitter_correction{dem_ext}'
 
     src_dem = gdal.Open(dem,gdalconst.GA_Update)
     src_dem_proj = src_dem.GetProjection()
