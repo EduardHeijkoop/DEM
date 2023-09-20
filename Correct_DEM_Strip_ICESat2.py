@@ -486,7 +486,7 @@ def main():
     elif input_dir is not None:
         if input_dir[-1] != '/':
             input_dir = f'{input_dir}/'
-        dem_array = get_strip_list(input_dir,input_type=2,corrected_flag=False,dir_structure=dir_structure)
+        dem_array = get_strip_list(input_dir,input_type=0,corrected_flag=False,dir_structure=dir_structure)
     
     if np.logical_xor(mean_mode,median_mode) == True:
         if mean_mode == True:
