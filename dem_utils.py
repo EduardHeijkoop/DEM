@@ -511,7 +511,7 @@ def landmask_dem(lon,lat,lon_coast,lat_coast,landmask_c_file,inside_flag):
     landmask = landmask == inside_flag #just to be consistent and return Boolean array
     return landmask
 
-def parallel_landmask(lon_pts,lat_pts,lon_boundary,lat_boundary,landmask_c_file,inside_flag,N_cpus):
+def parallel_landmask(lon_pts,lat_pts,lon_boundary,lat_boundary,landmask_c_file,inside_flag,N_cpus=1):
     '''
     Given lon/lat of points, and lon/lat of coast (or any other boundary),
     finds points inside the polygon. Boundary must be in the form of separate lon and lat arrays,
@@ -1350,7 +1350,7 @@ def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='me
     else:
         #case: input is *.tif
         raster_shifted = f'{output_dir}{raster_base}_Shifted_z_{"{:.2f}".format(vertical_shift).replace(".","p").replace("-","neg")}m{raster_ext}'
-    shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+    shift_command = f'gdal_calc.py --quiet -A {raster_path} --outfile={raster_shifted} --calc="A+{vertical_shift:.2f}" --NoDataValue={raster_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES" --overwrite'
     subprocess.run(shift_command,shell=True)
     rmse = np.sqrt(np.sum((df_new.h_primary-df_new.h_secondary)**2)/len(df_new))
     ratio_pts = len(df_new)/len(df_sampled)
