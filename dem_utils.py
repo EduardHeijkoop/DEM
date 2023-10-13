@@ -460,17 +460,42 @@ def find_corner_points_gdf(lon,lat,gdf):
     idx_corners_points = np.concatenate([idx_ne,idx_nw,idx_se,idx_sw])
     return idx_corners_points
 
-def buffer_gdf(gdf,buffer,AREA_THRESHOLD=1e6):
+def buffer_gdf(gdf,buffer_val,area_threshold=1e6,N_biggest=0,exterior_only=False):
     '''
     Given an input gdf, will return a buffered gdf.
+    Sub-areas smaller than area_threshold will be removed.
+    If N_biggest is non-zero, buffer will only be applied to the N_biggest polygons.
+    If exterior_only flag is toggled, only the outside will be buffered.
     '''
-    lon_center,lat_center = get_lonlat_gdf_center(gdf)
-    epsg_center = lonlat2epsg(lon_center,lat_center)
-    gdf_utm = gdf.to_crs(f'EPSG:{epsg_center}')
-    gdf_utm = gdf_utm[gdf_utm.area>AREA_THRESHOLD].reset_index(drop=True)
-    gdf_utm_buffered = gdf_utm.buffer(buffer)
-    gdf_buffered = gdf_utm_buffered.to_crs('EPSG:4326')
-    gdf_buffered = gpd.GeoDataFrame(geometry=[gdf_buffered.unary_union],crs='EPSG:4326')
+    orig_epsg = str(gdf.crs.to_epsg())
+    if orig_epsg is None:
+        orig_epsg = '4326'
+    if orig_epsg == '4326':
+        lon_center,lat_center = get_lonlat_gdf_center(gdf)
+        epsg_center = lonlat2epsg(lon_center,lat_center)
+        gdf_utm = gdf.to_crs(f'EPSG:{epsg_center}')
+    else:
+        gdf_utm = gdf
+    gdf_utm = gdf_utm[gdf_utm.area>area_threshold].reset_index(drop=True)
+    idx_biggest = np.argsort(gdf_utm.area)[::-1].reset_index(drop=True)
+    gdf_utm_buffered = gdf_utm.copy()
+    if N_biggest > 0:
+        for i in idx_biggest[:N_biggest]:
+            if exterior_only == True:
+                geom_exterior_buffer = gpd.GeoDataFrame(geometry=[shapely.geometry.Polygon(shell=gdf_utm.iloc[[i]].reset_index(drop=True).exterior[0],holes=None)],crs=f'EPSG:{epsg_center}').buffer(buffer_val)[0]
+                holes_list = [p for p in geom_exterior_buffer.interiors]
+                holes_list.extend(gdf_utm.iloc[[i]].reset_index(drop=True).interiors[0])
+                gdf_utm_buffered.geometry[i] = shapely.geometry.Polygon(shell=geom_exterior_buffer.exterior,holes=holes_list)
+            else:
+                gdf_utm_buffered.geometry[i] = gdf_utm_buffered.geometry[[i]].buffer(buffer_val)
+    else:
+        if exterior_only == True:
+            for i in range(len(gdf_utm_buffered)):
+                gdf_utm_buffered.geometry[i] = shapely.geometry.Polygon(shell=gpd.GeoDataFrame(geometry=[gdf_utm_buffered.geometry[i].exterior],crs=f'EPSG:{epsg_center}').buffer(buffer_val).unary_union.exterior,
+                                                                        holes=gdf_utm_buffered.geometry[i].interiors)
+        else:
+            gdf_utm_buffered = gpd.GeoDataFrame(geometry=[gdf_utm_buffered.buffer(buffer_val).unary_union],crs=f'EPSG:{epsg_center}')
+    gdf_buffered = gdf_utm_buffered.to_crs(f'EPSG:{orig_epsg}')
     return gdf_buffered
 
 def icesat2_df2array(df):
