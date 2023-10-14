@@ -498,6 +498,26 @@ def buffer_gdf(gdf,buffer_val,area_threshold=1e6,N_biggest=0,exterior_only=False
     gdf_buffered = gdf_utm_buffered.to_crs(f'EPSG:{orig_epsg}')
     return gdf_buffered
 
+def get_gdf_ext(gdf,area_threshold=1e6,check_containment=False):
+    if area_threshold is not None:
+        lon_center,lat_center = get_lonlat_gdf_center(gdf)
+        epsg_center = lonlat2epsg(lon_center,lat_center)
+        gdf_utm = gdf.to_crs(f'EPSG:{epsg_center}')
+        gdf = gdf[gdf_utm.area > area_threshold].reset_index(drop=True)
+    gdf_ext = gdf.copy()
+    for i in range(len(gdf)):
+        gdf_ext.geometry[i] = shapely.geometry.Polygon(shell=gdf_ext.geometry[i].exterior,holes=None)
+    if check_containment == True:
+        idx_contain = np.zeros((len(gdf_ext),len(gdf_ext)),dtype=bool)
+        for i in range(len(gdf_ext)):
+            for j in range(len(gdf_ext)):
+                if i == j:
+                    continue
+                idx_contain[i,j] = gdf_ext.geometry[i].contains(gdf_ext.geometry[j])
+        idx_contain = np.any(idx_contain,axis=0)
+        gdf_ext = gdf_ext[~idx_contain].reset_index(drop=True)
+    return gdf_ext
+
 def icesat2_df2array(df):
     '''
     Given an input df, will return a numpy array of the data.
