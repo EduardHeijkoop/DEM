@@ -246,6 +246,8 @@ def main():
             src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
         vlm_resampled_file = vlm_file.replace('.tif',f'_resampled.tif')
         resample_raster(vlm_file,dem_file,vlm_resampled_file,nodata=VLM_NODATA,quiet_flag=True)
+        unset_nodata_command = f'gdal_edit.py -unsetnodata {vlm_resampled_file}'
+        subprocess.run(unset_nodata_command,shell=True)
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
@@ -450,12 +452,18 @@ def main():
             resample_raster(sl_grid_file_intermediate_res,dem_file,sl_grid_file_full_res,quiet_flag=True)
             if vlm_file is not None:
                 dt = int(yr - t0)
-                inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+                inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={tmp_dir}tmp_inundation.tif --calc="A+B*{dt} < C+D" --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+                edit_nodata_command = f'gdal_calc.py --quiet -A {output_inundation_file} --outfile={output_inundation_file} --calc="A*(A<1E38) + {INUNDATION_NODATA}*(A>1E38)" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
             elif vlm_rate is not None:
                 inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+{vlm_rate}*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+                edit_nodata_command = None
             else:
                 inundation_command = f'gdal_calc.py --quiet -A {dem_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+                edit_nodata_command = None
             subprocess.run(inundation_command,shell=True)
+            if edit_nodata_command is not None:
+                subprocess.run(edit_nodata_command,shell=True)
+                subprocess.run(f'rm {tmp_dir}tmp_inundation.tif',shell=True)
             output_inundation_vec_file = output_inundation_file.replace('.tif',f'.{output_format}')
             polygonize_command = f'gdal_polygonize.py -q {output_inundation_file} {output_inundation_vec_file}'
             subprocess.run(polygonize_command,shell=True)
@@ -511,7 +519,7 @@ def main():
             np.savetxt(output_file_coastline_yr,np.c_[x_coast,y_coast,h_coast_yr],fmt='%f',delimiter=',',comments='')
             sl_grid_file_intermediate_res = csv_to_grid(output_file_coastline_yr,algorithm_dict,x_dem_resampled_min,x_dem_resampled_max,xres_dem_resampled,y_dem_resampled_min,y_dem_resampled_max,yres_dem_resampled,epsg_code)
             sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
-            resample_raster(sl_grid_file_intermediate_res,dem_file,sl_grid_file_full_res)
+            resample_raster(sl_grid_file_intermediate_res,dem_file,sl_grid_file_full_res,quiet_flag=True)
             if vlm_file is not None:
                 dt = int(yr - t0)
                 inundation_command = f'gdal_calc.py --quiet -A {dem_file} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
