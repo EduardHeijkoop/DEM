@@ -396,7 +396,7 @@ def parallel_corrections(dem,df_icesat2,icesat2_file,mean_median_mode,n_sigma_fi
         elif raster_stats_dict['plane_jitter_improvement'] == False:
             print(f'Plane-jitter correction did not improve RMSE. Did not apply correction.')
         else:
-            print(f'RMSE of plane-corrected DEM: {rmse_plane_jitter_corrected:.2f} m')
+            print(f'RMSE of plane-jitter-corrected DEM: {rmse_plane_jitter_corrected:.2f} m')
         
     if subset_flag == True:
         subprocess.run(f'rm {icesat2_file}',shell=True)
