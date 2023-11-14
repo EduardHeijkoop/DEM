@@ -682,7 +682,8 @@ def parallel_inundation_slr(slr_value,raster,loc_name,x_coast,y_coast,h_coast,
     t_end = datetime.datetime.now()
     delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
     delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
-    print(f'Inundation creation took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+    print(f'Inundation creation for {slr_value:.2f} m complete.')
+    print(f'It took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
     if connectivity_flag == True:
         print('Computing connectivity to the ocean...')
         t_start = datetime.datetime.now()
@@ -690,7 +691,8 @@ def parallel_inundation_slr(slr_value,raster,loc_name,x_coast,y_coast,h_coast,
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
-        print(f'Connectivity took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+        print(f'Connectivity for {slr_value:.2f} m complete.')
+        print(f'It took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
     subprocess.run(f'rm {output_file_coastline_slr}',shell=True)
     subprocess.run(f'rm {output_file_coastline_slr.replace(".csv",".vrt")}',shell=True)
     subprocess.run(f'rm {sl_grid_file_intermediate_res}',shell=True)
@@ -769,7 +771,13 @@ def parallel_inundation_ar6(year,quantile,ssp,raster,loc_name,x_coast,y_coast,h_
     t_end = datetime.datetime.now()
     delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
     delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
-    print(f'Inundation creation took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+    if quantile < 0.5:
+        print(f'\nInundation creation in {year} using SSP{ssp} (Median minus {sigma} sigma) complete.')
+    elif quantile > 0.5:
+        print(f'\nInundation creation in {year} using SSP{ssp} (Median plus {sigma} sigma) complete.')
+    else:
+        print(f'\nInundation creation in {year} using SSP{ssp} complete.')
+    print(f'It took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
     if connectivity_flag == True:
         print('Computing connectivity to the ocean...')
         t_start = datetime.datetime.now()
@@ -777,7 +785,13 @@ def parallel_inundation_ar6(year,quantile,ssp,raster,loc_name,x_coast,y_coast,h_
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
-        print(f'Connectivity took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+        if quantile < 0.5:
+            print(f'Connectivity in {year} using SSP{ssp} (Median minus {sigma} sigma) complete.')
+        elif quantile > 0.5:
+            print(f'Connectivity in {year} using SSP{ssp} (Median plus {sigma} sigma) complete.')
+        else:
+            print(f'Connectivity in {year} using SSP{ssp} complete.')
+        print(f'It took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
     subprocess.run(f'rm {output_file_coastline_yr}',shell=True)
     subprocess.run(f'rm {output_file_coastline_yr.replace(".csv",".vrt")}',shell=True)
     subprocess.run(f'rm {sl_grid_file_intermediate_res}',shell=True)
