@@ -608,6 +608,10 @@ def get_sealevel_high(raster,high_tide,return_period,fes2014_flag,mhhw_flag,loc_
         sealevel_csv_output = output_file_fes
         sealevel_high_grid_intermediate_res = fes_grid_intermediate_res
         sealevel_high_grid_full_res = fes_grid_full_res
+        if os.path.isfile(sealevel_csv_output):
+            subprocess.run(f'rm {sealevel_csv_output}',shell=True)
+            subprocess.run(f'rm {sealevel_csv_output.replace(".csv",".vrt")}',shell=True)
+        subprocess.run(f'rm {sealevel_high_grid_intermediate_res}',shell=True)
     return sealevel_high_grid_full_res
 
 
@@ -634,6 +638,7 @@ def inundate_loc(raster,slr,years,quantiles,loc_name,high_tide,ssp,
             ir(output_file_coastline),ir(epsg_code),ir(gdf_surface_water),ir(sealevel_high_grid_full_res)
             ))
     p.close()
+    subprocess.run(f'rm {sealevel_high_grid_full_res}',shell=True)
 
 
 def parallel_inundation_slr(slr_value,raster,loc_name,x_coast,y_coast,h_coast,
