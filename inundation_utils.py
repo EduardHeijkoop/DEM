@@ -74,7 +74,7 @@ def upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,raster,ssp,shp_file,t_selec
     if not os.path.isfile(AR6_file):
         print('No valid AR6 projection file found.')
         return None
-    tmp_shp = f'{tmp_dir}tmp_shp.shp'
+    tmp_shp = f'{tmp_dir}tmp_shp_{ssp}_{t_select}_{quantile_select}.shp'
     shp_subset_command = f'ogr2ogr {tmp_shp} {shp_file} -f "ESRI Shapefile" -clipsrc {lon_min-search_radius} {lat_min-search_radius} {lon_max+search_radius} {lat_max+search_radius}'
     subprocess.run(shp_subset_command,shell=True)
     gdf_coast_large = gpd.read_file(tmp_shp)
