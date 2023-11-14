@@ -475,7 +475,9 @@ def quantile_to_sigma(quantile):
     return sigma
 
 def sigma_to_quantiles(sigma,uncertainty_flag):
-    if uncertainty_flag == True:
+    if sigma is None:
+        quantiles = [0.5]
+    elif uncertainty_flag == True:
         if sigma == 1:
             quantiles = [0.16,0.5,0.84]
         elif sigma == 2:
