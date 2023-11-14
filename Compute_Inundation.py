@@ -25,7 +25,7 @@ def main():
     parser.add_argument('--loc_name',help='Name of location to run inundation on.')
     parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
     parser.add_argument('--N_cpus',help='Number of CPUs to use for parallel processing.',default=1,type=int)
-    parser.add_argument('--intermediate_res',help='Resolution at which to compute inundation.',default=None,type=float)
+    parser.add_argument('--downsample_res',help='Resolution at which to compute inundation.',default=None,type=float)
     parser.add_argument('--geoid',help='Path to geoid file to calculate orthometric heights with.',default=None)
     parser.add_argument('--vlm',help='Path to VLM file to propagate input file in time.',default=None)
     parser.add_argument('--clip_vlm',help='Clip DEM to VLM extents?',default=False,action='store_true')
@@ -53,6 +53,7 @@ def main():
     loc_name = args.loc_name
     machine_name = args.machine
     N_cpus = args.N_cpus
+    downsample_res = args.downsample_res
     geoid_file = args.geoid
     vlm_file = args.vlm
     clip_vlm_flag = args.clip_vlm
@@ -248,6 +249,17 @@ def main():
         'vlm_rate':vlm_rate,
         'vlm_resampled_file':vlm_resampled_file
     }
+
+    if downsample_res is not None:
+        xres = src.GetGeoTransform()[1]
+        if downsample_res < xres:
+            print('Intermediate resolution must be larger than default resolution!')
+        else:
+            downsample_res_str = f'{downsample_res:.1f}'.replace('.','p')
+            dem_downsampled_file = dem_file.replace('.tif',f'_resampled_{downsample_res_str}m.tif')
+            resample_command_downsampled_dem = f'gdalwarp -q -overwrite -tr {downsample_res:.1f} {downsample_res:.1f} -r bilinear {dem_file} {dem_downsampled_file}'
+            subprocess.run(resample_command_downsampled_dem,shell=True)
+            dem_file = dem_downsampled_file
     
     lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max = get_raster_extents(dem_file,'global')
 
