@@ -217,10 +217,11 @@ def main():
     dem_nodata = src.GetRasterBand(1).GetNoDataValue()
     epsg_code = osr.SpatialReference(wkt=src.GetProjection()).GetAttrValue('AUTHORITY',1)
 
-    ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
-    if ssp not in ['119','126','245','370','585']:
-        print('Invalid SSP pathway selected!')
-        sys.exit()
+    if ssp is not None:
+        ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
+        if ssp not in ['119','126','245','370','585']:
+            print('Invalid SSP pathway selected!')
+            sys.exit()
 
     quantiles = sigma_to_quantiles(sigma,uncertainty_flag)
 
