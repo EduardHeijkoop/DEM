@@ -185,8 +185,6 @@ def upscale_SROCC_grid(SROCC_dir,raster,rcp,t0,t_select,high_med_low_select='md'
     return lon_pts,lat_pts,slr_pts
 
 def resample_vlm(vlm_file,raster,clip_vlm_flag,vlm_nodata):
-    if vlm_file is None:
-        return raster,None
     t_start = datetime.datetime.now()
     print('Resampling VLM...')
     lon_vlm_min,lon_vlm_max,lat_vlm_min,lat_vlm_max = get_raster_extents(vlm_file,'global')
@@ -490,7 +488,7 @@ def sigma_to_quantiles(sigma,uncertainty_flag):
         quantiles = [0.5]
     return quantiles
 
-def get_coastal_sealevel(loc_name,sl_grid_extents,sl_grid_file,icesat2_file,dir_dict,constants_dict,epsg_code,geoid_file):
+def get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_extents,sl_grid_file,icesat2_file,dir_dict,constants_dict,epsg_code,geoid_file):
     tmp_dir = dir_dict['tmp_dir']
     GRID_NODATA = constants_dict['GRID_NODATA']
     REGGRID_INTERPOLATE_METHOD = constants_dict['REGGRID_INTERPOLATE_METHOD']
@@ -534,10 +532,10 @@ def get_coastal_sealevel(loc_name,sl_grid_extents,sl_grid_file,icesat2_file,dir_
     delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
     delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
     print(f'Generating coastal sea level took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
-    return x_coast,y_coast,h_coast,output_file_coastline
+    return x_coast,y_coast,lon_coast,lat_coast,h_coast,output_file_coastline
 
 def get_sealevel_high(raster,high_tide,return_period,fes2014_flag,mhhw_flag,loc_name,epsg_code,
-                      lon_coast,lat_coast,x_coast,y_coast,
+                      x_coast,y_coast,lon_coast,lat_coast,
                       dir_dict,constants_dict,dem_dict,algorithm_dict,resampled_dict):
     src_resampled = resampled_dict['src_resampled']
     dem_resampled_x_size = resampled_dict['dem_resampled_x_size']
@@ -627,7 +625,7 @@ def inundate_loc(raster,slr,years,quantiles,loc_name,high_tide,ssp,
     else:
         p = multiprocessing.Pool(np.min((len(quantiles)*len(years),N_cpus)))
         p.starmap(parallel_inundation_ar6,zip(
-            ip(quantiles,years),ir(ssp),ir(raster),ir(loc_name),ir(x_coast),ir(y_coast),ir(h_coast),
+            ip(years,quantiles),ir(ssp),ir(raster),ir(loc_name),ir(x_coast),ir(y_coast),ir(h_coast),
             ir(dir_dict),ir(flag_dict),ir(constants_dict),ir(dem_dict),ir(algorithm_dict),ir(vlm_dict),
             ir(output_file_coastline),ir(epsg_code),ir(gdf_surface_water),ir(sealevel_high_grid_full_res)
             ))

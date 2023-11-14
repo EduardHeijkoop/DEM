@@ -44,7 +44,7 @@ def main():
     parser.add_argument('--high_tide',help='Value to use for high tide.',default=None,type=float)
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
     parser.add_argument('--uncertainty',help='Calculate inundation uncertainty?',default=False,action='store_true')
-    parser.add_argument('--sigma',help='Sigma value to use for uncertainty calculation.')
+    parser.add_argument('--sigma',help='Sigma value to use for uncertainty calculation.',default=None)
     parser.add_argument('--of',help='Output format to use.',choices=['shp','geojson'],default='shp')
     args = parser.parse_args()
 
@@ -213,17 +213,22 @@ def main():
     dem_nodata = src.GetRasterBand(1).GetNoDataValue()
     epsg_code = osr.SpatialReference(wkt=src.GetProjection()).GetAttrValue('AUTHORITY',1)
 
-    if ssp is not None:
-        projection_select = 'AR6'
-        ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
-        if ssp not in ['119','126','245','370','585']:
-            print('Invalid SSP pathway selected!')
-            sys.exit()
-    elif rcp is not None:
-        projection_select = 'SROCC'
-        if rcp not in ['2.6','4.5','8.5']:
-            print('Invalid RCP pathway selected!')
-            sys.exit()
+    # if ssp is not None:
+    #     projection_select = 'AR6'
+    #     ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
+    #     if ssp not in ['119','126','245','370','585']:
+    #         print('Invalid SSP pathway selected!')
+    #         sys.exit()
+    # elif rcp is not None:
+    #     projection_select = 'SROCC'
+    #     if rcp not in ['2.6','4.5','8.5']:
+    #         print('Invalid RCP pathway selected!')
+    #         sys.exit()
+    ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
+    if ssp not in ['119','126','245','370','585']:
+        print('Invalid SSP pathway selected!')
+        sys.exit()
+
 
     quantiles = sigma_to_quantiles(sigma,uncertainty_flag)
 
@@ -244,6 +249,8 @@ def main():
 
     if vlm_file is not None:
         dem_file,vlm_resampled_file = resample_vlm(vlm_file,dem_file,clip_vlm_flag,VLM_NODATA)
+    else:
+        vlm_resampled_file = None
     if geoid_file is not None:
         dem_file = resample_geoid(geoid_file,dem_file,loc_name,dem_nodata)
     if clip_coast_flag == True:
@@ -335,9 +342,9 @@ def main():
     # print(f'Generating coastal sea level took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
 
 
-    x_coast,y_coast,h_coast,output_file_coastline = get_coastal_sealevel(loc_name,sl_grid_extents,sl_grid_file,icesat2_file,dir_dict,constants_dict,epsg_code,geoid_file)
+    x_coast,y_coast,lon_coast,lat_coast,h_coast,output_file_coastline = get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_extents,sl_grid_file,icesat2_file,dir_dict,constants_dict,epsg_code,geoid_file)
     sealevel_high_grid_full_res = get_sealevel_high(dem_file,high_tide,return_period,fes2014_flag,mhhw_flag,loc_name,epsg_code,
-                                                    lon_coast,lat_coast,x_coast,y_coast,
+                                                    x_coast,y_coast,lon_coast,lat_coast,
                                                     dir_dict,constants_dict,dem_dict,algorithm_dict,resampled_dict)
 
     if connectivity_flag == True:
