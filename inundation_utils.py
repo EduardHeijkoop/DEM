@@ -624,7 +624,7 @@ def inundate_loc(raster,slr,years,quantiles,loc_name,high_tide,ssp,
     if slr is not None:
         p = multiprocessing.Pool(np.min((len(slr),N_cpus)))
         p.starmap(parallel_inundation_slr,zip(
-            slr,ir(raster),ir(loc_name),ir(high_tide),ir(x_coast),ir(y_coast),ir(h_coast),
+            slr,ir(raster),ir(loc_name),ir(x_coast),ir(y_coast),ir(h_coast),
             ir(dir_dict),ir(flag_dict),ir(constants_dict),ir(dem_dict),ir(algorithm_dict),
             ir(output_file_coastline),ir(epsg_code),ir(gdf_surface_water),ir(sealevel_high_grid_full_res)
         ))
