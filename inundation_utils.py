@@ -745,7 +745,7 @@ def parallel_inundation_ar6(year,quantile,ssp,raster,loc_name,x_coast,y_coast,h_
         output_inundation_file = output_inundation_file.replace('_Inundation_','_Inundation_No_VLM_')
     h_projection_coast = interpolate_points(lon_projection,lat_projection,slr_projection,x_coast,y_coast,INTERPOLATE_METHOD)
     h_coast_yr = h_coast + h_projection_coast
-    output_file_coastline_yr = output_file_coastline.replace('.csv',f'_{year}.csv')
+    output_file_coastline_yr = output_file_coastline.replace('.csv',f'_{year}_SSP{ssp}_q{quantile.replace(".",""):.3f}.csv')
     np.savetxt(output_file_coastline_yr,np.c_[x_coast,y_coast,h_coast_yr],fmt='%f',delimiter=',',comments='')
     sl_grid_file_intermediate_res = csv_to_grid(output_file_coastline_yr,algorithm_dict,dem_dict,epsg_code)
     sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
