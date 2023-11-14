@@ -213,17 +213,6 @@ def main():
     dem_nodata = src.GetRasterBand(1).GetNoDataValue()
     epsg_code = osr.SpatialReference(wkt=src.GetProjection()).GetAttrValue('AUTHORITY',1)
 
-    # if ssp is not None:
-    #     projection_select = 'AR6'
-    #     ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
-    #     if ssp not in ['119','126','245','370','585']:
-    #         print('Invalid SSP pathway selected!')
-    #         sys.exit()
-    # elif rcp is not None:
-    #     projection_select = 'SROCC'
-    #     if rcp not in ['2.6','4.5','8.5']:
-    #         print('Invalid RCP pathway selected!')
-    #         sys.exit()
     ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
     if ssp not in ['119','126','245','370','585']:
         print('Invalid SSP pathway selected!')
