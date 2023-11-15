@@ -318,7 +318,7 @@ def main():
     inundate_loc(dem_file,slr,years,quantiles,loc_name,high_tide,ssp,
                  x_coast,y_coast,h_coast,
                  dir_dict,flag_dict,constants_dict,dem_dict,algorithm_dict,vlm_dict,
-                 output_file_coastline,epsg_code,gdf_surface_water,sealevel_high_grid_full_res,N_cpus)
+                 output_file_coastline,epsg_code,gdf_surface_water_buffered,sealevel_high_grid_full_res,N_cpus)
 
     print(f'Finished with {loc_name} at {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.')
 
