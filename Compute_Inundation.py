@@ -44,6 +44,7 @@ def main():
     parser.add_argument('--mhhw',help='Flag to use MHHW instead of max tidal heights.',default=False,action='store_true')
     parser.add_argument('--high_tide',help='Value to use for high tide.',default=None,type=float)
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
+    parser.add_argument('--surface_water',help='Path to surface water file to calculate connectivity with.')
     parser.add_argument('--uncertainty',help='Calculate inundation uncertainty?',default=False,action='store_true')
     parser.add_argument('--sigma',help='Sigma value to use for uncertainty calculation.',default=None)
     parser.add_argument('--of',help='Output format to use.',choices=['shp','geojson'],default='shp')
@@ -80,6 +81,7 @@ def main():
     mhhw_flag = args.mhhw
     high_tide = args.high_tide
     connectivity_flag = args.connectivity
+    surface_water_input_file = args.surface_water 
     uncertainty_flag = args.uncertainty
     output_format = args.of
 
@@ -303,7 +305,10 @@ def main():
                                                     dir_dict,constants_dict,dem_dict,algorithm_dict,resampled_dict)
 
     if connectivity_flag == True:
-        if 'NDWI' in coastline_file:
+        if surface_water_input_file is not None:
+            gdf_surface_water = gpd.read_file(surface_water_input_file)
+            gdf_surface_water = gdf_surface_water.to_crs(f'EPSG:{epsg_code}')
+        elif 'NDWI' in coastline_file:
             surface_water_file = coastline_file.replace('Coastline','Surface_Water')
             gdf_surface_water = gpd.read_file(surface_water_file)
             gdf_surface_water = gdf_surface_water.to_crs(f'EPSG:{epsg_code}')
