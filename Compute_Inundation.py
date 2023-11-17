@@ -306,6 +306,7 @@ def main():
 
     if connectivity_flag == True:
         if surface_water_input_file is not None:
+            surface_water_file = surface_water_input_file
             gdf_surface_water = gpd.read_file(surface_water_input_file)
             gdf_surface_water = gdf_surface_water.to_crs(f'EPSG:{epsg_code}')
         elif 'NDWI' in coastline_file:
