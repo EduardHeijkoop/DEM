@@ -176,7 +176,7 @@ def main():
     
     if vlm_file is not None:
         vlm_count = compute_exposure(vlm_file,tmp_dir,population_file=population_file,value_threshold=None)
-        print(f'Number of people exposed to VLM: {vlm_count}')
+        print(f'Number of people exposed to VLM: {vlm_count/population_divider:{pop_format_spec}}{pop_suffix}')
         if vlm_threshold is not None:
             vlm_count_threshold = compute_exposure(vlm_file,tmp_dir,population_file=population_file,value_threshold=vlm_threshold)
             if vlm_inverse_flag == True:
