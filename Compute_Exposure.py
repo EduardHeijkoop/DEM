@@ -107,6 +107,7 @@ def main():
     parser.add_argument('--vlm_inverse',help='Use inverse sign for threshold? Default is less than.',action='store_true',default=False)
     parser.add_argument('--inundation',help='Path to inundation file.',default=None,nargs='+')
     parser.add_argument('--population',help='Path to population dataset.',default=None)
+    parser.add_argument('--keep_pop',help='Keep population data.',action='store_true',default=False)
     parser.add_argument('--machine',help='Machine to run on.',default='t',choices=['t','b','local'])
 
     args = parser.parse_args()
@@ -115,6 +116,7 @@ def main():
     vlm_inverse_flag = args.vlm_inverse
     inundation_file_list = args.inundation
     population_file = args.population
+    keep_pop_flag = args.keep_pop
     machine_name = args.machine
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
@@ -159,9 +161,6 @@ def main():
     if population_file is None:
         print('Downloading population data...')
         population_file = get_population_data(lon_min,lon_max,lat_min,lat_max,tmp_dir)
-        delete_pop_flag = True
-    else:
-        delete_pop_flag = False
     
     if vlm_file is not None:
         vlm_count = compute_exposure(vlm_file,tmp_dir,population_file=population_file,value_threshold=None)
@@ -193,7 +192,7 @@ def main():
             print(f'Number of people exposed to inundation: {inundation_count}')
             subprocess.run(f'rm {inundation_raster_4326}',shell=True)
 
-    if delete_pop_flag == True:
+    if keep_pop_flag == False:
         subprocess.run(f'rm {population_file}',shell=True)
 
 
