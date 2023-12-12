@@ -108,6 +108,7 @@ def main():
     parser.add_argument('--inundation',help='Path to inundation file.',default=None,nargs='+')
     parser.add_argument('--population',help='Path to population dataset.',default=None)
     parser.add_argument('--keep_pop',help='Keep population data.',action='store_true',default=False)
+    parser.add_argument('--pop_divider',help='Divider for population data.',type=float,default=1.0,choices=[1E1,1E3,1E6])
     parser.add_argument('--machine',help='Machine to run on.',default='t',choices=['t','b','local'])
 
     args = parser.parse_args()
@@ -117,6 +118,7 @@ def main():
     inundation_file_list = args.inundation
     population_file = args.population
     keep_pop_flag = args.keep_pop
+    population_divider = args.pop_divider
     machine_name = args.machine
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
@@ -126,6 +128,16 @@ def main():
         tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
     elif machine_name == 'local':
         tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/EDUARD/','/home/heijkoop/Desktop/Projects/')
+
+    if population_divider == 1E1:
+        pop_suffix = ''
+        pop_format_spec = ''
+    elif population_divider == 1E3:
+        pop_suffix = 'k'
+        pop_format_spec = '.1f'
+    elif population_divider == 1E6:
+        pop_suffix = 'M'
+        pop_format_spec = '.1f'
 
     lon_min,lon_max,lat_min,lat_max = 180,-180,90,-90 #inverted on purpose
 
@@ -168,9 +180,9 @@ def main():
         if vlm_threshold is not None:
             vlm_count_threshold = compute_exposure(vlm_file,tmp_dir,population_file=population_file,value_threshold=vlm_threshold)
             if vlm_inverse_flag == True:
-                print(f'Number of people exposed to VLM > {1000*vlm_threshold:.1f} mm/yr: {vlm_count-vlm_count_threshold}')
+                print(f'Number of people exposed to VLM > {1000*vlm_threshold:.1f} mm/yr: {(vlm_count-vlm_count_threshold)/population_divider:{pop_format_spec}}{pop_suffix}')
             else:
-                print(f'Number of people exposed to VLM < {1000*vlm_threshold:.1f} mm/yr: {vlm_count_threshold}')
+                print(f'Number of people exposed to VLM < {1000*vlm_threshold:.1f} mm/yr: {vlm_count_threshold/population_divider:{pop_format_spec}}{pop_suffix}')
 
     if inundation_file_list is not None:
         for inundation_file in inundation_file_list:
@@ -189,7 +201,7 @@ def main():
                 inundation_raster_4326 = inundation_raster
             # resample_raster(inundation_raster,population_file,inundation_raster_resampled_pop,quiet_flag=True)
             inundation_count = compute_exposure(inundation_raster_4326,tmp_dir,population_file=population_file,value_threshold=None)
-            print(f'Number of people exposed to inundation: {inundation_count}')
+            print(f'Number of people exposed to inundation: {inundation_count/population_divider:{pop_format_spec}}{pop_suffix}')
             subprocess.run(f'rm {inundation_raster_4326}',shell=True)
 
     if keep_pop_flag == False:
