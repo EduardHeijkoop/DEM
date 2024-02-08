@@ -36,7 +36,8 @@ def main():
     parser.add_argument('--clip_coast',help='Clip DEM to coastline?',default=False,action='store_true')
     parser.add_argument('--years',help='Years to compute inundation for.',nargs='*',default='2020')
     parser.add_argument('--rcp',help='RCP to use.',choices=['2.6','4.5','8.5'])
-    parser.add_argument('--ssp',help='RCP to use.')
+    parser.add_argument('--ssp',help='SSP to use.',choices=['119','126','245','370','585'])
+    parser.add_argument('--confidence',help='Confidence level for which to to use SSP.',choices=['low','medium'],default='medium')
     parser.add_argument('--slr',help='Sea level rise to use.',nargs='*',default=None)
     parser.add_argument('--t0',help='Time to use as t0 to zero SLR.',default='2020')
     parser.add_argument('--return_period',help='Return period of CoDEC in years')
@@ -67,6 +68,7 @@ def main():
     years = [int(yr) for yr in np.atleast_1d(years)]
     rcp = args.rcp
     ssp = args.ssp
+    confidence_level = args.confidence
     slr = args.slr
     if slr is not None:
         slr = [float(s) for s in np.atleast_1d(slr)]
@@ -219,11 +221,11 @@ def main():
     dem_nodata = src.GetRasterBand(1).GetNoDataValue()
     epsg_code = osr.SpatialReference(wkt=src.GetProjection()).GetAttrValue('AUTHORITY',1)
 
-    if ssp is not None:
-        ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
-        if ssp not in ['119','126','245','370','585']:
-            print('Invalid SSP pathway selected!')
-            sys.exit()
+    # if ssp is not None:
+    #     ssp = ssp.replace('ssp','').replace('SSP','').replace('.','').replace('-','')
+    #     if ssp not in ['119','126','245','370','585']:
+    #         print('Invalid SSP pathway selected!')
+    #         sys.exit()
 
     quantiles = sigma_to_quantiles(sigma,uncertainty_flag)
 
@@ -321,7 +323,7 @@ def main():
         gdf_surface_water_buffered = gdf_surface_water.buffer(GSW_BUFFER)
         gdf_surface_water_buffered.to_file(surface_water_file_buffered)
 
-    inundate_loc(dem_file,slr,years,quantiles,loc_name,high_tide,ssp,
+    inundate_loc(dem_file,slr,years,quantiles,loc_name,high_tide,ssp,confidence_level,
                  x_coast,y_coast,h_coast,
                  dir_dict,flag_dict,constants_dict,dem_dict,algorithm_dict,vlm_dict,
                  output_file_coastline,epsg_code,gdf_surface_water_buffered,sealevel_high_grid_full_res,N_cpus)

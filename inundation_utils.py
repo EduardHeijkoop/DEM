@@ -615,7 +615,7 @@ def get_sealevel_high(raster,high_tide,return_period,fes2014_flag,mhhw_flag,loc_
     return sealevel_high_grid_full_res
 
 
-def inundate_loc(raster,slr,years,quantiles,loc_name,high_tide,ssp,
+def inundate_loc(raster,slr,years,quantiles,loc_name,high_tide,ssp,confidence_level,
                  x_coast,y_coast,h_coast,
                  dir_dict,flag_dict,constants_dict,dem_dict,algorithm_dict,vlm_dict,
                  output_file_coastline,epsg_code,gdf_surface_water,sealevel_high_grid_full_res,N_cpus):
@@ -633,7 +633,7 @@ def inundate_loc(raster,slr,years,quantiles,loc_name,high_tide,ssp,
         quantile_list = [x[1] for x in list(ip(years,quantiles))]
         p = multiprocessing.Pool(np.min((len(quantiles)*len(years),N_cpus)))
         p.starmap(parallel_inundation_ar6,zip(
-            year_list,quantile_list,ir(ssp),ir(raster),ir(loc_name),ir(x_coast),ir(y_coast),ir(h_coast),
+            year_list,quantile_list,ir(ssp),ir(confidence_level),ir(raster),ir(loc_name),ir(x_coast),ir(y_coast),ir(h_coast),
             ir(dir_dict),ir(flag_dict),ir(constants_dict),ir(dem_dict),ir(algorithm_dict),ir(vlm_dict),
             ir(output_file_coastline),ir(epsg_code),ir(gdf_surface_water),ir(sealevel_high_grid_full_res)
             ))
@@ -699,7 +699,7 @@ def parallel_inundation_slr(slr_value,raster,loc_name,x_coast,y_coast,h_coast,
     subprocess.run(f'rm {sl_grid_file_full_res}',shell=True)
 
 
-def parallel_inundation_ar6(year,quantile,ssp,raster,loc_name,x_coast,y_coast,h_coast,
+def parallel_inundation_ar6(year,quantile,ssp,confidence_level,raster,loc_name,x_coast,y_coast,h_coast,
                             dir_dict,flag_dict,constants_dict,dem_dict,algorithm_dict,vlm_dict,
                             output_file_coastline,epsg_code,gdf_surface_water,sealevel_high_grid_full_res):
     '''
@@ -739,13 +739,13 @@ def parallel_inundation_ar6(year,quantile,ssp,raster,loc_name,x_coast,y_coast,h_
     output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'AR6_SSP_{ssp}')
     if quantile < 0.5:
         output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Minus_{sigma}sigma_')
-        print(f'\nCreating inundation in {year} using SSP{ssp} (Median minus {sigma} sigma)...')
+        print(f'\nCreating inundation in {year} using SSP{ssp} ({confidence_level} confidence - Median minus {sigma} sigma)...')
     elif quantile > 0.5:
         output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Plus_{sigma}sigma_')
-        print(f'\nCreating inundation in {year} using SSP{ssp} (Median plus {sigma} sigma)...')
+        print(f'\nCreating inundation in {year} using SSP{ssp} ({confidence_level} confidence - Median plus {sigma} sigma)...')
     else:
-        print(f'\nCreating inundation in {year} using SSP{ssp}...')
-    lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,raster,ssp,osm_shp_file,year,quantile_select=quantile)
+        print(f'\nCreating inundation in {year} using SSP{ssp} ({confidence_level} confidence)...')
+    lon_projection,lat_projection,slr_projection = upscale_ar6_data(AR6_dir,tmp_dir,landmask_c_file,raster,ssp,osm_shp_file,year,quantile_select=quantile,conf_level=confidence_level)
     if geoid_file is not None:
         output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
     if vlm_resampled_file is None:
