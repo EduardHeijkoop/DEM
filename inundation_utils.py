@@ -737,6 +737,8 @@ def parallel_inundation_ar6(year,quantile,ssp,confidence_level,raster,loc_name,x
         if mhhw_flag == True:
             output_inundation_file = output_inundation_file.replace('FES2014','FES2014_MHHW')
     output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'AR6_SSP_{ssp}')
+    if confidence_level == 'low':
+        output_inundation_file = output_inundation_file.replace('AR6','AR6_Low_Conf')
     if quantile < 0.5:
         output_inundation_file = output_inundation_file.replace('_Inundation_',f'_Inundation_Minus_{sigma}sigma_')
         print(f'\nCreating inundation in {year} using SSP{ssp} ({confidence_level} confidence - Median minus {sigma} sigma)...')
