@@ -14,6 +14,16 @@ Requirements:
     -For SRTM and ASTER a NASA EarthData account is required
     -For Copernicus the AWS command line tool is required
 '''
+
+def copy_nan(old_raster,new_raster,old_nan_value,new_nan_value):
+    copy_nan_command = f'gdal_calc.py -A {old_raster} -B {new_raster} --outfile=tmp.tif --calc="numpy.where(numpy.equal(A,{old_nan_value}),{new_nan_value},B)" --NoDataValue={old_nan_value} --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
+    mv_command = f'mv tmp.tif {new_raster}'
+    set_nodata_command = f'gdal_edit.py -a_nodata {new_nan_value} {new_raster}'
+    subprocess.run(copy_nan_command,shell=True)
+    subprocess.run(mv_command,shell=True)
+    subprocess.run(set_nodata_command,shell=True)
+
+    
 def get_srtm_tiles(lon_min,lon_max,lat_min,lat_max):
     SRTM_list = []
     lon_range = range(int(np.floor(lon_min)),int(np.floor(lon_max))+1)
@@ -34,7 +44,7 @@ def get_srtm_tiles(lon_min,lon_max,lat_min,lat_max):
             SRTM_list.append(SRTM_id)
     return sorted(SRTM_list)
 
-def download_srtm(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,tmp_dir,output_file):
+def download_srtm(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,tmp_dir,output_file,copy_nan_flag=True):
     tile_array = get_srtm_tiles(lon_min,lon_max,lat_min,lat_max)
     srtm_usgs_base = 'https://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/2000.02.11/'
     srtm_suffix = 'SRTMGL1'
@@ -56,6 +66,8 @@ def download_srtm(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,t
         resample_raster(egm96_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM96_resampled.tif',quiet_flag=True)
         calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM96_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
         subprocess.run(calc_command,shell=True,cwd=tmp_dir)
+        if copy_nan_flag == True:
+            copy_nan(f'{tmp_dir}tmp_merged_clipped.tif',output_file,0,-9999)
         subprocess.run(f'rm tmp_merged_clipped.tif EGM96_resampled.tif',shell=True,cwd=tmp_dir)
     else:
         subprocess.run(f'mv tmp_merged_clipped.tif {output_file}',shell=True,cwd=tmp_dir)
@@ -80,7 +92,7 @@ def get_aster_tiles(lon_min,lon_max,lat_min,lat_max):
             ASTER_list.append(ASTER_id)
     return sorted(ASTER_list)
 
-def download_aster(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,tmp_dir,output_file):
+def download_aster(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,tmp_dir,output_file,copy_nan_flag=True):
     tile_array = get_aster_tiles(lon_min,lon_max,lat_min,lat_max)
     aster_earthdata_base = 'https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/ASTGTM.003/'
     merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
@@ -98,6 +110,8 @@ def download_aster(lon_min,lon_max,lat_min,lat_max,username,password,egm96_file,
         resample_raster(egm96_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM96_resampled.tif',quiet_flag=True)
         calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM96_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
         subprocess.run(calc_command,shell=True,cwd=tmp_dir)
+        if copy_nan_flag == True:
+            copy_nan(f'{tmp_dir}tmp_merged_clipped.tif',output_file,0,-9999)
         subprocess.run(f'rm tmp_merged_clipped.tif EGM96_resampled.tif',shell=True,cwd=tmp_dir)
     else:
         subprocess.run(f'mv tmp_merged_clipped.tif {output_file}',shell=True,cwd=tmp_dir)
@@ -122,7 +136,7 @@ def get_copernicus_tiles(lon_min,lon_max,lat_min,lat_max):
             COPERNICUS_list.append(COPERNICUS_id)
     return sorted(COPERNICUS_list)
 
-def download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,output_file):
+def download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,output_file,copy_nan_flag=True):
     tile_array = get_copernicus_tiles(lon_min,lon_max,lat_min,lat_max)
     copernicus_aws_base = 's3://copernicus-dem-30m/'
     merge_command = f'gdal_merge.py -q -o tmp_merged.tif '
@@ -140,6 +154,8 @@ def download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,out
         resample_raster(egm2008_file,f'{tmp_dir}tmp_merged_clipped.tif',f'{tmp_dir}EGM2008_resampled.tif',quiet_flag=True)
         calc_command = f'gdal_calc.py -A tmp_merged_clipped.tif -B EGM2008_resampled.tif --outfile={output_file} --calc=\"A+B\" --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
         subprocess.run(calc_command,shell=True,cwd=tmp_dir)
+        if copy_nan_flag == True:
+            copy_nan(f'{tmp_dir}tmp_merged_clipped.tif',output_file,0,-9999)
         subprocess.run(f'rm tmp_merged_clipped.tif EGM2008_resampled.tif',shell=True,cwd=tmp_dir)
     else:
         subprocess.run(f'mv tmp_merged_clipped.tif {output_file}',shell=True,cwd=tmp_dir)
