@@ -729,7 +729,8 @@ def parallel_inundation_ar6(year,quantile,ssp,confidence_level,raster,loc_name,x
     quantile_str = f'{quantile:.3f}'.replace('.','p')
     t_start = datetime.datetime.now()
     if high_tide is not None:
-        output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{year}_PROJECTION_METHOD_HT_{high_tide:.2f}.tif'.replace('.','p')
+        high_tide_str = f'{high_tide:.2f}m'.replace('.','p')
+        output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{year}_PROJECTION_METHOD_HT_{high_tide_str}.tif'
     elif return_period is not None:
         output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{year}_PROJECTION_METHOD_CoDEC_RP_{return_period}_yrs.tif'
     elif fes2014_flag == True:
