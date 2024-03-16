@@ -323,7 +323,7 @@ def main():
         gdf_surface_water_buffered = gdf_surface_water.buffer(GSW_BUFFER)
         gdf_surface_water_buffered.to_file(surface_water_file_buffered)
 
-    inundate_loc(dem_file,slr,years,quantiles,loc_name,high_tide,ssp,confidence_level,
+    inundate_loc(dem_file,slr,years,quantiles,loc_name,ssp,confidence_level,
                  x_coast,y_coast,h_coast,
                  dir_dict,flag_dict,constants_dict,dem_dict,algorithm_dict,vlm_dict,
                  output_file_coastline,epsg_code,gdf_surface_water_buffered,sealevel_high_grid_full_res,N_cpus)

@@ -237,8 +237,6 @@ def clip_coast(raster,coastline_file,epsg_code,grid_nodata):
     print(f'Clipping took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
     return raster
 
-
-
 def reshape_grid_array(grid):
     array = np.reshape(grid,(grid.shape[0]*grid.shape[1]))
     array = array[~np.isnan(array)]
@@ -267,7 +265,6 @@ def create_icesat2_grid(df_icesat2,epsg_code,geoid_file,tmp_dir,loc_name,grid_re
         lon = lon[idx_9999]
         lat = lat[idx_9999]
         height = height[idx_9999]
-
     x,y,zone = deg2utm(lon,lat)
     epsg_zone = utm2epsg(zone)
     idx_epsg = epsg_zone == epsg_code
@@ -615,7 +612,7 @@ def get_sealevel_high(raster,high_tide,return_period,fes2014_flag,mhhw_flag,loc_
     return sealevel_high_grid_full_res
 
 
-def inundate_loc(raster,slr,years,quantiles,loc_name,high_tide,ssp,confidence_level,
+def inundate_loc(raster,slr,years,quantiles,loc_name,ssp,confidence_level,
                  x_coast,y_coast,h_coast,
                  dir_dict,flag_dict,constants_dict,dem_dict,algorithm_dict,vlm_dict,
                  output_file_coastline,epsg_code,gdf_surface_water,sealevel_high_grid_full_res,N_cpus):
@@ -753,7 +750,8 @@ def parallel_inundation_ar6(year,quantile,ssp,confidence_level,raster,loc_name,x
         output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
     if vlm_resampled_file is None:
         output_inundation_file = output_inundation_file.replace('_Inundation_','_Inundation_No_VLM_')
-    h_projection_coast = interpolate_points(lon_projection,lat_projection,slr_projection,x_coast,y_coast,INTERPOLATE_METHOD)
+    x_projection,y_projection,zone_projection = deg2utm(lon_projection,lat_projection)
+    h_projection_coast = interpolate_points(x_projection,y_projection,slr_projection,x_coast,y_coast,INTERPOLATE_METHOD)
     h_coast_yr = h_coast + h_projection_coast
     output_file_coastline_yr = output_file_coastline.replace('.csv',f'_{year}_SSP{ssp}_q{quantile_str}.csv')
     np.savetxt(output_file_coastline_yr,np.c_[x_coast,y_coast,h_coast_yr],fmt='%f',delimiter=',',comments='')
