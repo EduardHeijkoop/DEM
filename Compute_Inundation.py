@@ -250,11 +250,6 @@ def main():
     if clip_coast_flag == True:
         dem_file = clip_coast(dem_file,coastline_file,epsg_code,GRID_NODATA)
 
-    vlm_dict = {'t0':t0,
-        'vlm_rate':vlm_rate,
-        'vlm_resampled_file':vlm_resampled_file
-    }
-
     if downsample_res is not None:
         xres = src.GetGeoTransform()[1]
         if downsample_res < xres:
@@ -271,6 +266,11 @@ def main():
                 subprocess.run(resample_command_downsampled_vlm,shell=True)
                 vlm_resampled_file = vlm_downsampled_file
     
+    vlm_dict = {'t0':t0,
+        'vlm_rate':vlm_rate,
+        'vlm_resampled_file':vlm_resampled_file
+    }
+
     lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max = get_raster_extents(dem_file,'global')
 
     t_start = datetime.datetime.now()
