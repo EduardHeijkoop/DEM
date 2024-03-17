@@ -161,7 +161,7 @@ def main():
             gdf_bbox = gpd.GeoDataFrame(geometry=[bbox],crs=f'EPSG:{epsg_code_inundation}')
             if epsg_code_inundation != '4326':
                 gdf_bbox_4326 = gdf_bbox.to_crs('EPSG:4326')
-                lon_min_inundation,lon_max_inundation,lat_min_inundation,lat_max_inundation = list(gdf_bbox_4326.bounds.to_numpy()[0])
+                lon_min_inundation,lat_min_inundation,lon_max_inundation,lat_max_inundation = list(gdf_bbox_4326.bounds.to_numpy()[0])
             else:
                 lon_min_inundation,lon_max_inundation,lat_min_inundation,lat_max_inundation = x_min,x_max,y_min,y_max
             # lon_min_inundation,lon_max_inundation,lat_min_inundation,lat_max_inundation = list(gdf_bbox_4326.bounds.to_numpy()[0])
