@@ -265,6 +265,11 @@ def main():
             resample_command_downsampled_dem = f'gdalwarp -q -overwrite -tr {downsample_res:.1f} {downsample_res:.1f} -r bilinear {dem_file} {dem_downsampled_file}'
             subprocess.run(resample_command_downsampled_dem,shell=True)
             dem_file = dem_downsampled_file
+            if vlm_resampled_file is not None:
+                vlm_downsampled_file = vlm_resampled_file.replace('.tif',f'_{downsample_res_str}m.tif')
+                resample_command_downsampled_vlm = f'gdalwarp -q -overwrite -tr {downsample_res:.1f} {downsample_res:.1f} -r bilinear {vlm_resampled_file} {vlm_downsampled_file}'
+                subprocess.run(resample_command_downsampled_vlm,shell=True)
+                vlm_resampled_file = vlm_downsampled_file
     
     lon_dem_min,lon_dem_max,lat_dem_min,lat_dem_max = get_raster_extents(dem_file,'global')
 
