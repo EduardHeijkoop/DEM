@@ -2,12 +2,14 @@ import matplotlib.pyplot as plt
 import xml.etree.ElementTree as ET
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import os
 import glob
 import argparse
 import shapely.geometry
 from mpl_toolkits.mplot3d import Axes3D
 
+from dem_utils import get_lonlat_gdf
 
 def get_angles(xml_file):
     tree = ET.parse(xml_file)
@@ -47,9 +49,18 @@ def az_el_to_xyz(az,el,r=1):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_file',help='Input file with paths to .NTF files to build DSM.',default=None)
+    parser.add_argument('--coast',help='Path to coast file to plot.',default=None)
     args = parser.parse_args()
 
     input_file = args.input_file
+    coast = args.coast
+
+    if coast is not None:
+        gdf_coast = gpd.read_file(coast)
+        lon_coast,lat_coast = get_lonlat_gdf(gdf_coast)
+    
+    #We want the xml files, but if NTFs are given, we need to convert them
+    input_file = input_file.replace('.NTF','.xml').replace('.ntf','.xml')
 
     if not os.path.isfile(input_file):
         file_list = np.asarray(sorted(glob.glob(input_file)))
@@ -60,14 +71,18 @@ def main():
         except:
             df_input = pd.read_csv(input_file,header=None,names=['filename'])
             file_list = np.asarray(df_input['filename'])
+            file_list = np.asarray([f.replace('.NTF','.xml').replace('.ntf','.xml') for f in file_list])
 
     colors = ['tab:blue','tab:orange','tab:green','tab:red','tab:purple','tab:brown','tab:pink','tab:gray','tab:olive','tab:cyan']
     linestyles = ['-','--','-.',':']
 
     fig = plt.figure(figsize=(10,10))
     ax = fig.add_subplot(projection='3d')
+    if coast is not None:
+        ax.plot(lon_coast,lat_coast,color='k',linewidth=0.5)
+
     for i,f in enumerate(file_list):
-        short_name = '_'.join(f.split('_')[:2])
+        short_name = '_'.join(f.split('/')[-1].split('_')[:2])
         color_coord = i % len(colors)
         linestyle_coord = int(np.floor(i/len(colors)))
         azimuth,elevation = get_angles(f)
