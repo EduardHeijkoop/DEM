@@ -45,6 +45,7 @@ def main():
     parser.add_argument('--mhhw',help='Flag to use MHHW instead of max tidal heights.',default=False,action='store_true')
     parser.add_argument('--high_tide',help='Value to use for high tide.',default=None,type=float)
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
+    parser.add_argument('--separate',help='Separate disconnected file?',default=False,action='store_true')
     parser.add_argument('--surface_water',help='Path to surface water file to calculate connectivity with.')
     parser.add_argument('--uncertainty',help='Calculate inundation uncertainty?',default=False,action='store_true')
     parser.add_argument('--sigma',help='Sigma value to use for uncertainty calculation.',default=None)
@@ -83,6 +84,7 @@ def main():
     mhhw_flag = args.mhhw
     high_tide = args.high_tide
     connectivity_flag = args.connectivity
+    separate_flag = args.separate
     surface_water_input_file = args.surface_water 
     uncertainty_flag = args.uncertainty
     output_format = args.of
@@ -212,6 +214,7 @@ def main():
         'mhhw_flag':mhhw_flag,
         'high_tide':high_tide,
         'connectivity_flag':connectivity_flag,
+        'separate_flag':separate_flag,
         'geoid_file':geoid_file
     }
 

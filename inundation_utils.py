@@ -436,7 +436,7 @@ def csv_to_grid(csv_file,algorithm_dict,raster_dict,epsg_code):
     subprocess.run(build_grid_command,shell=True)
     return grid_file
 
-def compute_connectivity(inundation_vec_file,gdf_surface_water):
+def compute_connectivity(inundation_vec_file,gdf_surface_water,separate_flag=False):
     '''
     Compute connectivty of inundation to the sea (defined as the gdf_surface_water)
     Surface water should be buffered already, if desired
@@ -459,6 +459,10 @@ def compute_connectivity(inundation_vec_file,gdf_surface_water):
         idx_connected = np.any((idx_intersects,idx_contains),axis=0)
     gdf_inundation_connected = gdf_inundation[idx_connected].reset_index(drop=True)
     gdf_inundation_connected.to_file(inundation_vec_file_connected)
+    if separate_flag == True:
+        gdf_inundation_disconnected = gdf_inundation[~idx_connected].reset_index(drop=True)
+        inundation_vec_file_disconnected = f'{inundation_vec_file_base}_disconnected{inundation_vec_file_ext}'
+        gdf_inundation_disconnected.to_file(inundation_vec_file_disconnected)
 
 def quantile_to_sigma(quantile):
     if quantile == 0.16 or quantile == 0.84:
@@ -646,6 +650,7 @@ def parallel_inundation_slr(slr_value,raster,loc_name,x_coast,y_coast,h_coast,
     fes2014_flag = flag_dict['fes2014_flag']
     mhhw_flag = flag_dict['mhhw_flag']
     connectivity_flag = flag_dict['connectivity_flag']
+    separate_flag = flag_dict['separate_flag']
     geoid_file = flag_dict['geoid_file']
     high_tide = flag_dict['high_tide']
     GRID_INTERMEDIATE_RES = constants_dict['GRID_INTERMEDIATE_RES']
@@ -684,7 +689,7 @@ def parallel_inundation_slr(slr_value,raster,loc_name,x_coast,y_coast,h_coast,
     if connectivity_flag == True:
         print('Computing connectivity to the ocean...')
         t_start = datetime.datetime.now()
-        compute_connectivity(output_inundation_vec_file,gdf_surface_water)
+        compute_connectivity(output_inundation_vec_file,gdf_surface_water,separate_flag=separate_flag)
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
@@ -710,6 +715,7 @@ def parallel_inundation_ar6(year,quantile,ssp,confidence_level,raster,loc_name,x
     fes2014_flag = flag_dict['fes2014_flag']
     mhhw_flag = flag_dict['mhhw_flag']
     connectivity_flag = flag_dict['connectivity_flag']
+    separate_flag = flag_dict['separate_flag']
     geoid_file = flag_dict['geoid_file']
     high_tide = flag_dict['high_tide']
     GRID_INTERMEDIATE_RES = constants_dict['GRID_INTERMEDIATE_RES']
@@ -782,7 +788,7 @@ def parallel_inundation_ar6(year,quantile,ssp,confidence_level,raster,loc_name,x
     if connectivity_flag == True:
         print('Computing connectivity to the ocean...')
         t_start = datetime.datetime.now()
-        compute_connectivity(output_inundation_vec_file,gdf_surface_water)
+        compute_connectivity(output_inundation_vec_file,gdf_surface_water,separate_flag=separate_flag)
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
