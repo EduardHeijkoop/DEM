@@ -13,6 +13,7 @@ import multiprocessing
 import itertools
 import datetime
 import getpass
+from scipy import ndimage
 
 from Global_DEMs import download_srtm,download_aster,download_copernicus
 from dem_utils import get_strip_list,get_list_extents,get_strip_extents,resample_raster,get_strip_shp,raster_to_geotiff
@@ -27,6 +28,8 @@ def find_cloudy_DEMs(strip,cloud_water_dict):
     keep_diff_flag = cloud_water_dict['keep_diff_flag']
     diff_threshold = cloud_water_dict['diff_threshold']
     intermediate_res = cloud_water_dict['intermediate_res']
+    remove_flag = cloud_water_dict['remove_flag']
+    N_dilations = cloud_water_dict['N_dilations']
     strip_name = os.path.splitext(os.path.basename(strip))[0]
     # if quiet_flag == False:
     #     print(f'Working on {strip_name}...')
@@ -43,12 +46,18 @@ def find_cloudy_DEMs(strip,cloud_water_dict):
     strip_ones_clipped = f'{tmp_dir}{strip_name}_Ones_Clipped{os.path.splitext(strip)[1]}'
     strip_outline = f'{tmp_dir}{strip_name}_Outline.shp'
     strip_resampled_clipped = f'{tmp_dir}{strip_name}_Resampled_to_{a_priori_dem}_Clipped{os.path.splitext(strip)[1]}'
+    strip_cloud_removed = f'{os.path.splitext(strip)[0]}_Clouds_Removed{os.path.splitext(strip)[1]}'
     diff_file = f'{os.path.splitext(a_priori_filename)[0]}_Minus_{strip_name}{os.path.splitext(strip)[1]}'
+    diff_file_threshold = f'{os.path.splitext(a_priori_filename)[0]}_Minus_{strip_name}_Threshold_{diff_threshold}m{os.path.splitext(strip)[1]}'
+    diff_file_threshold_buffered = f'{os.path.splitext(a_priori_filename)[0]}_Minus_{strip_name}_Threshold_{diff_threshold}m_Buffered{os.path.splitext(strip)[1]}'
+    diff_file_threshold_buffered_upsampled = f'{os.path.splitext(a_priori_filename)[0]}_Minus_{strip_name}_Threshold_{diff_threshold}m_Buffered_Upsampled{os.path.splitext(strip)[1]}'
     delete_list = [a_priori_subset,a_priori_clipped,strip_resampled,strip_resampled_intermediate,
                     strip_resampled_intermediate_4326,strip_resampled_clipped,strip_outline.replace('.shp','.*'),
                     strip_ones,strip_ones_clipped,strip_resampled_intermediate_nodata_removed]
     if keep_diff_flag == False:
         delete_list.append(diff_file)
+    if remove_flag == True:
+        delete_list.extend([diff_file_threshold,diff_file_threshold_buffered,diff_file_threshold_buffered_upsampled])
     #Subset a priori DEM to strip extents:
     lon_min_strip,lon_max_strip,lat_min_strip,lat_max_strip = get_strip_extents(strip,round_flag=True,N_round=4)
     a_priori_subset_command = f'gdalwarp -q -te {lon_min_strip} {lat_min_strip} {lon_max_strip} {lat_max_strip} {warp_comp_bigtiff} {a_priori_filename} {a_priori_subset}'
@@ -95,6 +104,38 @@ def find_cloudy_DEMs(strip,cloud_water_dict):
     #Subtract a priori from strip:
     calc_command = f'gdal_calc.py --quiet -A {a_priori_clipped} -B {strip_resampled_clipped} --calc="A-B" --outfile={diff_file} --NoDataValue=0 {calc_comp_bigtiff}'
     subprocess.run(calc_command,shell=True)
+    #Optionally, remove clouds from strip:
+    if remove_flag == True:
+        #Compute threshold of -diff_threshold because clouds are anomalously high so will appear as negative in a_priori - strip:
+        diff_threshold_command = f'gdal_calc.py --quiet -A {diff_file} --outfile={diff_file_threshold} --calc="A < -{diff_threshold}" --NoDataValue=0 {calc_comp_bigtiff}'
+        subprocess.run(diff_threshold_command,shell=True)
+        #Dilate clouds to make sure to fully cover them:
+        #Reshape 1s to 0s and 0s to 1s so mask is 1s where clouds are *not*:
+        src_diff_threshold = gdal.Open(diff_file_threshold,gdalconst.GA_ReadOnly)
+        diff_threshold_array = np.asarray(src_diff_threshold.GetRasterBand(1).ReadAsArray()).astype(int)
+        dilation_structure = ndimage.generate_binary_structure(2,2)
+        diff_threshold_array_dilated = ndimage.binary_dilation(diff_threshold_array,structure=dilation_structure,iterations=N_dilations).astype(int)
+        diff_threshold_array_dilated = 1 - diff_threshold_array_dilated
+        #Write to file:
+        geotransform_diff_threshold = src_diff_threshold.GetGeoTransform()
+        proj_diff_threshold = src_diff_threshold.GetProjection()
+        driver = gdal.GetDriverByName('GTiff')
+        dataset = driver.Create(diff_file_threshold_buffered,diff_threshold_array_dilated.shape[1],diff_threshold_array_dilated.shape[0],1,gdal.GDT_UInt16)
+        dataset.SetGeoTransform(geotransform_diff_threshold)
+        dataset.SetProjection(proj_diff_threshold)
+        dataset.GetRasterBand(1).WriteArray(diff_threshold_array_dilated)
+        dataset.GetRasterBand(1).SetNoDataValue(0)
+        dataset.FlushCache()
+        dataset = None
+        #Upsample cloud mask to strip resolution (uses nearest neighbor for speed):
+        resample_raster(diff_file_threshold_buffered,strip,diff_file_threshold_buffered_upsampled,resample_method='nearest',compress=True,nodata=None,quiet_flag=True,dtype='int')
+        #Mask strip with dilated cloud mask:
+        strip_cloud_mask_command = f'gdal_calc.py --quiet -A {strip} -B {diff_file_threshold_buffered_upsampled} --outfile={strip_cloud_removed} --calc="A*B" --NoDataValue=-9999 {calc_comp_bigtiff}'
+        # set_nodata_command = f'gdal_calc.py --overwrite --quiet -A {strip_cloud_removed} --outfile={strip_cloud_removed} --calc="A(A == 0)-9999" --NoDataValue=-9999 {calc_comp_bigtiff}'
+        set_nodata_command = f'gdal_calc.py --overwrite --quiet -A {strip_cloud_removed} --outfile={tmp_dir}tmp_cloudfree.tif --calc="A - 9999*(A==0)" --NoDataValue=-9999 {calc_comp_bigtiff}'
+        subprocess.run(strip_cloud_mask_command,shell=True)
+        subprocess.run(set_nodata_command,shell=True)
+
     #Load difference file and calculate statistics:
     src_diff = gdal.Open(diff_file,gdalconst.GA_ReadOnly)
     diff_array = np.asarray(src_diff.GetRasterBand(1).ReadAsArray())
@@ -141,13 +182,15 @@ def main():
     parser.add_argument('--vertical_threshold',default=50,type=float,help='Vertical threshold for exceedance.')
     parser.add_argument('--N_cpus',help='Number of CPUs to use.',default=1,type=int)
     parser.add_argument('--keep_diff',default=False,help='Keep DEM differences?',action='store_true')
+    parser.add_argument('--remove_clouds',default=False,help='Remove cloudy parts of DEMs?',action='store_true')
+    parser.add_argument('--N_dilations',default=2,type=int,help='Number of dilation iterations when removing clouds.')
     parser.add_argument('--quiet',default=False,help='Suppress output.',action='store_true')
 
     args = parser.parse_args()
+    input_file = args.input_file
     input_dir = args.input_dir
     list_file = args.list
     loc_name = args.loc_name
-    input_file = args.input_file
     a_priori_dem = args.a_priori
     coastline_file = args.coastline
     diff_threshold = args.vertical_threshold
@@ -155,6 +198,8 @@ def main():
     dir_structure = args.dir_structure
     N_cpus = args.N_cpus
     keep_diff_flag = args.keep_diff
+    remove_flag = args.remove_clouds
+    N_dilations = args.N_dilations
     quiet_flag = args.quiet
 
     if input_dir is None and list_file is None and input_file is None:
@@ -281,6 +326,8 @@ def main():
             'keep_diff_flag':keep_diff_flag,
             'diff_threshold':diff_threshold,
             'intermediate_res':intermediate_res,
+            'remove_flag':remove_flag,
+            'N_dilations':N_dilations
         }
 
         ir = itertools.repeat
