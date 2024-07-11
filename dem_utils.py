@@ -294,7 +294,7 @@ def sample_raster(raster_path, csv_path, output_file,nodata='-9999',header=None,
     subprocess.run(f"rm tmp_{raster_base}.txt tmp2_{raster_base}.txt",shell=True,cwd=output_dir)
     return None
 
-def resample_raster(src_filename,match_filename,dst_filename,resample_method='bilinear',compress=True,nodata=-9999,quiet_flag=False):
+def resample_raster(src_filename,match_filename,dst_filename,resample_method='bilinear',compress=True,nodata=-9999,quiet_flag=False,dtype='float'):
     '''
     src = what you want to resample
     match = resample to this one's resolution
@@ -310,7 +310,10 @@ def resample_raster(src_filename,match_filename,dst_filename,resample_method='bi
     match_geotrans = match_ds.GetGeoTransform()
     wide = match_ds.RasterXSize
     high = match_ds.RasterYSize
-    dst = gdal.GetDriverByName('GTiff').Create(dst_filename,wide,high,1,gdalconst.GDT_Float32)
+    if dtype == 'float':
+        dst = gdal.GetDriverByName('GTiff').Create(dst_filename,wide,high,1,gdalconst.GDT_Float32)
+    elif dtype == 'int':
+        dst = gdal.GetDriverByName('GTiff').Create(dst_filename,wide,high,1,gdalconst.GDT_UInt16)
     dst.SetGeoTransform(match_geotrans)
     dst.SetProjection(match_proj)
     if resample_method == 'nearest':
@@ -326,7 +329,7 @@ def resample_raster(src_filename,match_filename,dst_filename,resample_method='bi
         compress_raster(dst_filename,nodata,quiet_flag)
     return None
 
-def compress_raster(filename,nodata=-9999,quiet_flag = False):
+def compress_raster(filename,nodata=-9999,quiet_flag=False):
     '''
     Compress a raster using gdal_translate
     '''
