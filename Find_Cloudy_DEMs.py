@@ -47,6 +47,7 @@ def find_cloudy_DEMs(strip,cloud_water_dict):
     strip_outline = f'{tmp_dir}{strip_name}_Outline.shp'
     strip_resampled_clipped = f'{tmp_dir}{strip_name}_Resampled_to_{a_priori_dem}_Clipped{os.path.splitext(strip)[1]}'
     strip_cloud_removed = f'{os.path.splitext(strip)[0]}_Clouds_Removed{os.path.splitext(strip)[1]}'
+    tmp_strip_cloud_removed = f'{os.path.splitext(a_priori_filename)[0]}_Subset_{strip_name}_tmp_Clouds_Removed{os.path.splitext(strip)[1]}'
     diff_file = f'{os.path.splitext(a_priori_filename)[0]}_Minus_{strip_name}{os.path.splitext(strip)[1]}'
     diff_file_threshold = f'{os.path.splitext(a_priori_filename)[0]}_Minus_{strip_name}_Threshold_{diff_threshold}m{os.path.splitext(strip)[1]}'
     diff_file_threshold_buffered = f'{os.path.splitext(a_priori_filename)[0]}_Minus_{strip_name}_Threshold_{diff_threshold}m_Buffered{os.path.splitext(strip)[1]}'
@@ -132,9 +133,11 @@ def find_cloudy_DEMs(strip,cloud_water_dict):
         #Mask strip with dilated cloud mask:
         strip_cloud_mask_command = f'gdal_calc.py --quiet -A {strip} -B {diff_file_threshold_buffered_upsampled} --outfile={strip_cloud_removed} --calc="A*B" --NoDataValue=-9999 {calc_comp_bigtiff}'
         # set_nodata_command = f'gdal_calc.py --overwrite --quiet -A {strip_cloud_removed} --outfile={strip_cloud_removed} --calc="A(A == 0)-9999" --NoDataValue=-9999 {calc_comp_bigtiff}'
-        set_nodata_command = f'gdal_calc.py --overwrite --quiet -A {strip_cloud_removed} --outfile={tmp_dir}tmp_cloudfree.tif --calc="A - 9999*(A==0)" --NoDataValue=-9999 {calc_comp_bigtiff}'
+        set_nodata_command = f'gdal_calc.py --overwrite --quiet -A {strip_cloud_removed} --outfile={tmp_strip_cloud_removed} --calc="A - 9999*(A==0)" --NoDataValue=-9999 {calc_comp_bigtiff}'
+        mv_command = f'mv {tmp_strip_cloud_removed} {strip_cloud_removed}'
         subprocess.run(strip_cloud_mask_command,shell=True)
         subprocess.run(set_nodata_command,shell=True)
+        subprocess.run(mv_command,shell=True)
 
     #Load difference file and calculate statistics:
     src_diff = gdal.Open(diff_file,gdalconst.GA_ReadOnly)
