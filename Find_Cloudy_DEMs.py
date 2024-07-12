@@ -242,6 +242,7 @@ def main():
             loc_name_array = np.atleast_1d(loc_name)
         output_file_array = np.atleast_1d(list_file.replace(os.path.splitext(list_file)[1],f'_Threshold_Exceedance_Values{os.path.splitext(list_file)[1]}'))
         coastline_array = np.atleast_1d(coastline_file)
+        input_dir_array = np.atleast_1d(None)
     elif input_dir is not None:
         if input_dir[-1] != '/':
             input_dir += '/'
