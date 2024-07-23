@@ -139,6 +139,13 @@ def main():
 
     if not os.path.exists(inundation_dir):
         os.mkdir(inundation_dir)
+
+    write_file = f'{inundation_dir}{loc_name}_Input_{datetime.datetime.strftime(datetime.datetime.now(),"%Y%m%dT%H%M%S")}.txt'
+    f_write = open(write_file,'w')
+    args_dict = vars(args)
+    for k in args_dict.keys():
+        f_write.write(f'{k}: {args_dict[k]}\n')
+    f_write.close()
     
     SROCC_dir = config.get('INUNDATION_PATHS','SROCC_dir')
     AR6_dir = config.get('INUNDATION_PATHS','AR6_dir')
