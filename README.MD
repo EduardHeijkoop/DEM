@@ -1,5 +1,9 @@
 A repository to work with high resolution Digital Elevation Models  
-  
+
+
+Test words to check if repo migration to Mac worked.
+
+
 Mosaic_Strips:  
   
 To run: python Mosaic_Strips.py [--input_file </path/to/input_file.txt>]  
