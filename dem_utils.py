@@ -6,12 +6,13 @@ from osgeo import gdal,gdalconst,osr
 from scipy import ndimage
 from scipy.sparse.csgraph import minimum_spanning_tree, depth_first_tree
 import glob
-import os
+import os,sys
 import subprocess
 import datetime
 import ctypes as c
 import multiprocessing
 import itertools
+import shutil
 
 def reinsert_nan(array_clean,array_nan):
     '''
@@ -275,22 +276,30 @@ def mean_absolute_deviation(x):
     return np.mean(np.abs(x-np.mean(x)))
 
 def sample_raster(raster_path, csv_path, output_file,nodata='-9999',header=None,proj='wgs84'):
+    '''
+    Requires gnu-sed (gsed) for MacOS, install with homebrew: brew install gnu-sed
+    '''
     output_dir = os.path.dirname(output_file)
     raster_base = os.path.splitext(raster_path.split('/')[-1])[0]
+    if sys.platform.lower() == 'darwin':
+        sed_var = 'gsed'
+    elif sys.platform.lower() == 'linux':
+        sed_var = 'sed'
+    sed_check = check_installed(sed_var)
     if header is not None:
-        cat_command = f"tail -n+2 {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -{proj} {raster_path} > tmp_{raster_base}.txt"
+        cat_command = f"tail -n+2 {csv_path} | cut -d, -f1-2 | {sed_var} 's/,/ /g' | gdallocationinfo -valonly -{proj} {raster_path} > tmp_{raster_base}.txt"
     else:
-        cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -{proj} {raster_path} > tmp_{raster_base}.txt"
+        cat_command = f"cat {csv_path} | cut -d, -f1-2 | {sed_var} 's/,/ /g' | gdallocationinfo -valonly -{proj} {raster_path} > tmp_{raster_base}.txt"
     subprocess.run(cat_command,shell=True,cwd=output_dir)
     fill_nan_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_{raster_base}.txt > tmp2_{raster_base}.txt"
     subprocess.run(fill_nan_command,shell=True,cwd=output_dir)
     if header is not None:
-        subprocess.run(f"sed -i '1i {header}' tmp2_{raster_base}.txt",shell=True,cwd=output_dir)
+        subprocess.run(f"{sed_var} -i '1i {header}' tmp2_{raster_base}.txt",shell=True,cwd=output_dir)
     paste_command = f"paste -d , {csv_path} tmp2_{raster_base}.txt > {output_file}"
     subprocess.run(paste_command,shell=True,cwd=output_dir)
-    subprocess.run(f"sed -i '/{nodata}/d' {output_file}",shell=True,cwd=output_dir)
-    subprocess.run(f"sed -i '/NaN/d' {output_file}",shell=True,cwd=output_dir)
-    subprocess.run(f"sed -i '/nan/d' {output_file}",shell=True,cwd=output_dir)
+    subprocess.run(f"{sed_var} -i '/{nodata}/d' {output_file}",shell=True,cwd=output_dir)
+    subprocess.run(f"{sed_var} -i '/NaN/d' {output_file}",shell=True,cwd=output_dir)
+    subprocess.run(f"{sed_var} -i '/nan/d' {output_file}",shell=True,cwd=output_dir)
     subprocess.run(f"rm tmp_{raster_base}.txt tmp2_{raster_base}.txt",shell=True,cwd=output_dir)
     return None
 
@@ -1436,3 +1445,12 @@ def find_cloud_water(gdf_strips,df_cloud_water):
     gdf_strips['Percent Water'] = water_array
     return gdf_strips
 
+def check_installed(software):
+    '''
+    Checks if a particular software is installed.
+    '''
+    software_check = shutil.which(software)
+    if software_check is None:
+        raise Exception(f'{software} is not installed. Please install it before running this script.')
+    else:
+        return True
