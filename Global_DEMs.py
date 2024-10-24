@@ -234,6 +234,7 @@ def check_password_nasa_earthdata(user,pw):
         raise Exception('Unknown code returned by NASA EarthData. Can\'t continue.')
     
 def main():
+    gdal.DontUseExceptions()
     parser = argparse.ArgumentParser()
     parser.add_argument('--config',default='dem_config.ini',help='Path to configuration file.')
     parser.add_argument('--product',choices=['srtm','aster','copernicus'])
