@@ -132,6 +132,7 @@ def vertical_shift_raster(raster_path,df_sampled,output_dir,mean_median_mode='me
 
 
 def main():
+    gdal.DontUseExceptions()
     parser = argparse.ArgumentParser()
     parser.add_argument('--raster', help="Path to DEM file")
     parser.add_argument('--csv', help="Path to txt/csv file")
