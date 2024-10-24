@@ -6,27 +6,7 @@ import os
 import sys
 from osgeo import gdal,gdalconst,osr
 
-
-
-def sample_raster(raster_path, csv_path, output_file,nodata='-9999',header=None,proj='wgs84'):
-    output_dir = os.path.dirname(output_file)
-    raster_base = os.path.splitext(raster_path.split('/')[-1])[0]
-    if header is not None:
-        cat_command = f"tail -n+2 {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -{proj} {raster_path} > tmp_{raster_base}.txt"
-    else:
-        cat_command = f"cat {csv_path} | cut -d, -f1-2 | sed 's/,/ /g' | gdallocationinfo -valonly -{proj} {raster_path} > tmp_{raster_base}.txt"
-    subprocess.run(cat_command,shell=True,cwd=output_dir)
-    fill_nan_command = f"awk '!NF{{$0=\"NaN\"}}1' tmp_{raster_base}.txt > tmp2_{raster_base}.txt"
-    subprocess.run(fill_nan_command,shell=True,cwd=output_dir)
-    if header is not None:
-        subprocess.run(f"sed -i '1i {header}' tmp2_{raster_base}.txt",shell=True,cwd=output_dir)
-    paste_command = f"paste -d , {csv_path} tmp2_{raster_base}.txt > {output_file}"
-    subprocess.run(paste_command,shell=True,cwd=output_dir)
-    subprocess.run(f"sed -i '/{nodata}/d' {output_file}",shell=True,cwd=output_dir)
-    subprocess.run(f"sed -i '/NaN/d' {output_file}",shell=True,cwd=output_dir)
-    subprocess.run(f"sed -i '/nan/d' {output_file}",shell=True,cwd=output_dir)
-    subprocess.run(f"rm tmp_{raster_base}.txt tmp2_{raster_base}.txt",shell=True,cwd=output_dir)
-    return None
+from dem_utils import sample_raster
 
 def filter_outliers(dh,mean_median_mode='mean',n_sigma_filter=2):
     dh_mean = np.nanmean(dh)
