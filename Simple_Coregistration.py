@@ -155,7 +155,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--raster', help="Path to DEM file")
     parser.add_argument('--csv', help="Path to txt/csv file")
-    parser.add_argument('--mean',default=False,action='store_true')
+    parser.add_argument('--mean',default=False,action='store_true',default=True)
     parser.add_argument('--median',default=False,action='store_true')
     parser.add_argument('--sigma', nargs='?', type=int, default=2)
     parser.add_argument('--threshold', nargs='?', type=float, default=0.05)
