@@ -272,3 +272,6 @@ def main():
         download_aster(lon_min,lon_max,lat_min,lat_max,username,pw,egm96_file,tmp_dir,output_file,copy_nan_flag)
     elif dem_product == 'copernicus':
         download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,output_file,copy_nan_flag)
+
+if __name__ == '__main__':
+    main()
