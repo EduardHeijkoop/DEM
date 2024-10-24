@@ -2,6 +2,11 @@ import numpy as np
 import subprocess
 import os
 from osgeo import gdal,gdalconst,osr
+import configparser
+import argparse
+import getpass
+import requests
+import base64
 
 '''
 Given a longitude and latitude extent, download global DEM tiles from:
@@ -208,3 +213,61 @@ def compress_raster(filename,nodata=-9999,quiet_flag = False):
     subprocess.run(compress_command,shell=True)
     subprocess.run(move_command,shell=True)
     return None
+
+def check_password_nasa_earthdata(user,pw):
+    url = 'https://urs.earthdata.nasa.gov/api/users/find_or_create_token'
+    #url = 'https://urs.earthdata.nasa.gov'
+    credentials = f'{user}:{pw}'
+    encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
+    headers = {'Authorization': f'Basic {encoded_credentials}'}
+    response = requests.post(url, headers=headers)
+    status_code = response.status_code
+    if status_code == 200:
+        return True
+    elif status_code == 401:
+        raise Exception('Unauthorized! User + password likely incorrect.')
+    elif status_code == 403:
+        raise Exception('Forbidden!')
+    elif status_code >= 500:
+        raise Exception('NASA EarthData may be down. Try again later.')
+    else:
+        raise Exception('Unknown code returned by NASA EarthData. Can\'t continue.')
+    
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config',default='dem_config.ini',help='Path to configuration file.')
+    parser.add_argument('--product',choices=['srtm','aster','copernicus'])
+    parser.add_argument('--extents',nargs=4,help='Extents in format: lon_min,lon_max,lat_min,lat_max')
+    parser.add_argument('--copy_nan',default=False,help='Copy NaN from original product when resampling to WGS 84')
+    parser.add_argument('--datum',choices=['geoid','wgs84'],default='wgs84')
+    parser.add_argument('--output_file',default='tmp.tif',help='Full path of output file.')
+    args = parser.parse_args()
+    config_file = args.config
+    dem_product = args.product
+    lon_min,lon_max,lat_min,lat_max = args.extents
+    copy_nan_flag = args.copy_nan
+    datum = args.datum
+    output_file = args.output_file
+
+    config = configparser.ConfigParser()
+    config.read(config_file)
+
+    tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
+    if datum == 'wgs84':
+        egm96_file = config.get('GENERAL_PATHS','EGM96_path')
+        egm2008_file = config.get('GENERAL_PATHS','EGM2008_path')
+    else:
+        egm96_file = None
+        egm2008_file = None
+
+    username = config.get('GENERAL_CONSTANTS','earthdata_username')
+    pw = getpass.getpass('Enter your NASA EarthData password:')
+
+    pw_check = check_password_nasa_earthdata(username,pw)
+
+    if dem_product == 'srtm':
+        download_srtm(lon_min,lon_max,lat_min,lat_max,username,pw,egm96_file,tmp_dir,output_file,copy_nan_flag)
+    elif dem_product == 'aster':
+        download_aster(lon_min,lon_max,lat_min,lat_max,username,pw,egm96_file,tmp_dir,output_file,copy_nan_flag)
+    elif dem_product == 'copernicus':
+        download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,output_file,copy_nan_flag)
