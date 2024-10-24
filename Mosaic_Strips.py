@@ -19,16 +19,14 @@ from dem_utils import find_mosaic,build_mosaic,copy_single_strips
 
 def main():
     warnings.simplefilter(action='ignore')
-    config_file = 'dem_config.ini'
-    config = configparser.ConfigParser()
-    config.read(config_file)
     
     parser = argparse.ArgumentParser()
+    parser.add_argument('--config',default='dem_config.ini',help='Path to configuration file.')
     parser.add_argument('--input_file',default=config.get('MOSAIC_PATHS','input_file'),help='Path to input file containing directories of strips.')
     parser.add_argument('--list',default=None,help='Path to list of strips to mosaic.')
     parser.add_argument('--output_dir',default=None,help='Path to output directory.')
     parser.add_argument('--loc_name',default=None,help='Name of location.')
-    parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
+    # parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel, simple or scenes)',choices=['sealevel','simple','scenes'])
     parser.add_argument('--N_cpus',help='Number of CPUs to use',default=1,type=int)
     parser.add_argument('--horizontal',default=False,help='Incorperate horizontal alignment in mosaic?',action='store_true')
@@ -39,11 +37,12 @@ def main():
     parser.add_argument('--no_gsw',default=False,help='Skip GSW filter?',action='store_true')
     parser.add_argument('--simplify',default=False,help='Apply simplify operation to shapefile of strips?',action='store_true')
     args = parser.parse_args()
+    config_file = args.config
     input_file = args.input_file
     list_file = args.list
     single_output_dir = args.output_dir
     single_loc_name = args.loc_name
-    machine_name = args.machine
+    # machine_name = args.machine
     dir_structure = args.dir_structure
     N_cpus = args.N_cpus
     horizontal_flag = args.horizontal
@@ -53,6 +52,9 @@ def main():
     gsw_file = args.gsw
     no_gsw_flag = args.no_gsw
     simplify_flag = args.simplify
+
+    config = configparser.ConfigParser()
+    config.read(config_file)
 
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
@@ -72,14 +74,14 @@ def main():
     else:
         df_list = None
     
-    if machine_name == 'b':
-        tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-        gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-        if df_list is not None:
-            df_list.strip = [s.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/') for s in df_list.strip]
-    elif machine_name == 'local':
-        tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/EDUARD/','/home/heijkoop/Desktop/Projects/')
-        gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/').replace('Extent/','')
+    # if machine_name == 'b':
+    #     tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+    #     gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+    #     if df_list is not None:
+    #         df_list.strip = [s.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/') for s in df_list.strip]
+    # elif machine_name == 'local':
+    #     tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/EDUARD/','/home/heijkoop/Desktop/Projects/')
+    #     gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/').replace('Extent/','')
 
     POLYGON_AREA_THRESHOLD = config.getfloat('MOSAIC_CONSTANTS','POLYGON_AREA_THRESHOLD') #in m^2
     POLYGON_SIMPLIFY_VALUE = config.getfloat('MOSAIC_CONSTANTS','POLYGON_SIMPLIFY_VALUE') #in m^2
