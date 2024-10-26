@@ -22,10 +22,11 @@ def main():
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--config',default='dem_config.ini',help='Path to configuration file.')
-    parser.add_argument('--input_file',default=config.get('MOSAIC_PATHS','input_file'),help='Path to input file containing directories of strips.')
+    # parser.add_argument('--input_file',default=config.get('MOSAIC_PATHS','input_file'),help='Path to input file containing directories of strips.')
     parser.add_argument('--list',default=None,help='Path to list of strips to mosaic.')
     parser.add_argument('--output_dir',default=None,help='Path to output directory.')
     parser.add_argument('--loc_name',default=None,help='Name of location.')
+    parser.add_argument('--gsw',default=None,help='Path to GSW shapefile')
     # parser.add_argument('--machine',default='t',help='Machine to run on.',choices=['t','b','local'])
     parser.add_argument('--dir_structure',default='sealevel',help='Directory structure of input strips (sealevel, simple or scenes)',choices=['sealevel','simple','scenes'])
     parser.add_argument('--N_cpus',help='Number of CPUs to use',default=1,type=int)
@@ -33,12 +34,11 @@ def main():
     parser.add_argument('--cloud_water_filter',default='default',nargs='?',help='Use cloud and water filter?')
     parser.add_argument('--corrected',default=False,help='Find corrected strips instead?',action='store_true')
     parser.add_argument('--all_strips',default=False,help='Mosaic all strips in directory? (No geometry filtering.)',action='store_true')
-    parser.add_argument('--gsw',default=None,help='Path to GSW shapefile')
     parser.add_argument('--no_gsw',default=False,help='Skip GSW filter?',action='store_true')
     parser.add_argument('--simplify',default=False,help='Apply simplify operation to shapefile of strips?',action='store_true')
     args = parser.parse_args()
     config_file = args.config
-    input_file = args.input_file
+    # input_file = args.input_file
     list_file = args.list
     single_output_dir = args.output_dir
     single_loc_name = args.loc_name
@@ -56,6 +56,7 @@ def main():
     config = configparser.ConfigParser()
     config.read(config_file)
 
+    input_file = config.get('MOSAIC_PATHS','input_file')
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
     landmask_c_file = config.get('GENERAL_PATHS','landmask_c_file')
