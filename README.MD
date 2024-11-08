@@ -121,19 +121,19 @@ Given a set of overlapping DEM tiles (often called strips), this script will sti
 
 #### Optional Flags
 
-    --config <configuration_file> : Path to configuration file. Default is dem_config.ini in the script's directory.
-    --list <list_file> : Specify a list of files to be turned into a mosaic. This can be useful for testing or using a subset of a directory's files. This can be used with an empty input file, as it effectively appends the list as an extra row to the input file.
-    --output_dir <output_dir> : To be used in conjunction with a list_file. Specifies the output directory of the mosaic to be created from the list file.
-    --loc_name <loc_name> : To be used in conjunction with a list file. Specifies the name of the mosaic to be created from the list file.
-    --dir_structure <dir_structure> : Specifies the directory structure that should be expected. The input directory can either all be in the input directory (use "simple"), in the "sealevel" structure (explained below), or when "scenes" is used all files named "*dem.tif" in the subdirectories are used.
-    --gsw <gsw_path> : Point to a specific (global) surface water product to use. Note, this product will be selected for all entries in the input file, so best to use with either a single entry or with the manual input.
-    --N_cpus <N_cpus> : How many CPU cores to use. Each generation of alignment may include independent steps, which can be run in parallel.
-    --horizontal : This flag will turn on horizontal shifting. There may be geolocation errors in each individual strip, and incorporating relative shift in x and y directions may improve the fit of the alignment, at the cost of (significantly) increased run time.
-    --cloud_water_filter : This will include results from Find_Cloudy_DEMs.py. This allows for exclusion of strips that are too cloudy or too much over open water.
-    --corrected : This flag is used to select corrected strips only. If Correct_DEM_Strip_ICESat2.py was run on the strips, this flag will use the corrected strips rather than the original ones.
-    --all_strips : This flag will use all strips to create a mosaic and not perform any geometric filtering.
-    --no_gsw : Skip the (global) surface water filtering. Applicable when a mosaic is built (almost) entirely over land, rather than a coastal region.
-    --simplify : Simplify the geometry used to populate points for strip-to-strip alignment. If the POLYGON_SIMPLIFY_VALUE in the configuration file is smaller than X_SPACING/Y_SPACING, this should not lead to accuracy loss. 
+- --config <configuration_file> : Path to configuration file. Default is dem_config.ini in the script's directory.
+- --list <list_file> : Specify a list of files to be turned into a mosaic. This can be useful for testing or using a subset of a directory's files. This can be used with an empty input file, as it effectively appends the list as an extra row to the input file.
+- --output_dir <output_dir> : To be used in conjunction with a list_file. Specifies the output directory of the mosaic to be created from the list file.
+- --loc_name <loc_name> : To be used in conjunction with a list file. Specifies the name of the mosaic to be created from the list file.
+- --dir_structure <dir_structure> : Specifies the directory structure that should be expected. The input directory can either all be in the input directory (use "simple"), in the "sealevel" structure (explained below), or when "scenes" is used all files named "*dem.tif" in the subdirectories are used.
+- --gsw <gsw_path> : Point to a specific (global) surface water product to use. Note, this product will be selected for all entries in the input file, so best to use with either a single entry or with the manual input.
+- --N_cpus <N_cpus> : How many CPU cores to use. Each generation of alignment may include independent steps, which can be run in parallel.
+- --horizontal : This flag will turn on horizontal shifting. There may be geolocation errors in each individual strip, and incorporating relative shift in x and y directions may improve the fit of the alignment, at the cost of (significantly) increased run time.
+- --cloud_water_filter : This will include results from Find_Cloudy_DEMs.py. This allows for exclusion of strips that are too cloudy or too much over open water.
+- --corrected : This flag is used to select corrected strips only. If Correct_DEM_Strip_ICESat2.py was run on the strips, this flag will use the corrected strips rather than the original ones.
+- --all_strips : This flag will use all strips to create a mosaic and not perform any geometric filtering.
+- --no_gsw : Skip the (global) surface water filtering. Applicable when a mosaic is built (almost) entirely over land, rather than a coastal region.
+- --simplify : Simplify the geometry used to populate points for strip-to-strip alignment. If the POLYGON_SIMPLIFY_VALUE in the configuration file is smaller than X_SPACING/Y_SPACING, this should not lead to accuracy loss. 
 
 #### Configuration
 
@@ -147,9 +147,9 @@ The first step is to create an input file (with its path listed in the configura
 
 The following list briefly explains the functionality of each relevant parameter in the configuration file.
 
-    GENERAL_PATHS/gsw_dir : Directory where extent tiles of the Global Surface Water [Pekel et al., 2016] are located. [This link](https://global-surface-water.appspot.com/download) has a number of ways to download the dataset.
-    MOSAIC_PATHS/input_file : 
-    POLYGON_AREA_THRESHOLD : 
+- GENERAL_PATHS/gsw_dir : Directory where extent tiles of the Global Surface Water [Pekel et al., 2016] are located. [This link](https://global-surface-water.appspot.com/download) has a number of ways to download the dataset.
+- MOSAIC_PATHS/input_file : 
+- POLYGON_AREA_THRESHOLD : 
 
 When the `sealevel` option is used for the `--dir_structure` flag, the following directory structure is required:
 
@@ -175,8 +175,8 @@ This script iteratively co-registers a raster to a csv. The most relevant use he
 
 Mandatory flags:
 
-    --raster <raster path> : Path to raster that is to be co-registered to the csv. 
-    --csv <csv path> : Path to csv with ground truth. Currently, the csv lon, lat and height values must be relative to the WGS 84 ellipsoid. First to columns of the csv must be longitude and latitude, in that order.
+- --raster <raster path> : Path to raster that is to be co-registered to the csv. 
+- --csv <csv path> : Path to csv with ground truth. Currently, the csv lon, lat and height values must be relative to the WGS 84 ellipsoid. First to columns of the csv must be longitude and latitude, in that order.
 
 The output file will be a co-registered product in the same directory as the input raster file, with the amount shifted appended to its name. For example, a mosaic `Sudan_PortSudan_Full_Mosaic_0_32637.tif` will yield `Sudan_PortSudan_Full_Mosaic_0_32637_Shifted_z_2p07m.tif`.
 
@@ -188,17 +188,17 @@ The output file will be a co-registered product in the same directory as the inp
 
 #### Optional Flags
 
-    --median : Flag to select zero median rather than zero mean as target for the co-registration.
-    --sigma <value> : How many standard deviations to use to detect outliers. Value must be an integer. Default is 2. 
-    --threshold <value> : Iterative threshold to detect when convergence has been achieved. Default value is 0.05 m.
-    --resample : Flag to sample the newly co-registered raster with the original input csv; this is in addition to the sampling of the points after outlier removal.
-    --keep_original_sample : Keep csv file that samples the original raster.
-    --no_writing : Don't sample the newly co-registered file with the csv after outlier removal.
-    --nodata <nodata value> : Define value for nodata in the raster. Default is -9999.
-    --print : Print statistics results to the screen.
-    --write_file <file to write statistics to> : Write statistics results to a file.
-    --output_dir <output directory> : Create file in this directory. Default is the directory the raster is in.
-    --N_iterations <number of iterations> : Define maximum number of iterations, before iteration is stopped if convergence is not achieved. Default is 15.
+- `--median` : Flag to select zero median rather than zero mean as target for the co-registration.
+- `--sigma` `<value>` : How many standard deviations to use to detect outliers. Value must be an integer. Default is 2. 
+- `--threshold` `<value>` : Iterative threshold to detect when convergence has been achieved. Default value is 0.05 m.
+- `--resample` : Flag to sample the newly co-registered raster with the original input csv; this is in addition to the sampling of the points after outlier removal.
+- `--keep_original_sample` : Keep csv file that samples the original raster.
+- `--no_writing` : Don't sample the newly co-registered file with the csv after outlier removal.
+- `--nodata`` <nodata value>` : Define value for nodata in the raster. Default is -9999.
+- `--print` : Print statistics results to the screen.
+- `--write_file` `<file to write statistics to>` : Write statistics results to a file.
+- `--output_dir` `<output directory>` : Create file in this directory. Default is the directory the raster is in.
+- `--N_iterations` `<number of iterations>` : Define maximum number of iterations, before iteration is stopped if convergence is not achieved. Default is 15.
 
 ### Compute Inundation
 
@@ -206,7 +206,8 @@ Once a DSM has been aligned in the vertical, it can be used to compute inundatio
 
 Usage
 
-    python Compute_Inundation.py
+    python Compute_Inundation.py --input_file <> --grid_extents <> --coastline <> [optional flags]
+
 
 
 
@@ -225,15 +226,15 @@ Optional pre-processing step before creating a mosaic.
 
 Mandatory flags:
 
-    --product <dem product> : Select which DEM product to download. Options are "srtm", "aster" or "copernicus".
-    --extents <lon_min lon_max lat_min lat_max> : Define the spatial extents of the requested DEM.
+- `--product` `<dem product>` : Select which DEM product to download. Options are "srtm", "aster" or "copernicus".
+- `--extents` `<lon_min lon_max lat_min lat_max>` : Define the spatial extents of the requested DEM.
 
 #### Optional Flags
 
-    --config <configuration_file> : Path to configuration file. Default is dem_config.ini in the script's directory.
-    --copy_nan : Flag to copy NaN values from the DEM when converting to WGS 84 heights; this is particularly useful when working in coastal regions.
-    --datum <dem datum> : Select which vertical datum to use for the DEM. Geoid heights are EGM96 for SRTM and ASTER, and EGM2008 for Copernicus. Options are "geoid" or "wgs84".  Default is "wgs84". 
-    --output_file <output file> : Define output file. Default is "tmp.tif".
+- `--config` `<configuration_file>` : Path to configuration file. Default is dem_config.ini in the script's directory.
+- `--copy_nan` : Flag to copy NaN values from the DEM when converting to WGS 84 heights; this is particularly useful when working in coastal regions.
+- `--datum` `<dem datum>` : Select which vertical datum to use for the DEM. Geoid heights are EGM96 for SRTM and ASTER, and EGM2008 for Copernicus. Options are "geoid" or "wgs84".  Default is "wgs84". 
+- `--output_file` `<output file>` : Define output file. Default is "tmp.tif".
 
 #### Configuration
 
