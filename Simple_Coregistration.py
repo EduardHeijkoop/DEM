@@ -136,7 +136,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--raster', help="Path to DEM file")
     parser.add_argument('--csv', help="Path to txt/csv file")
-    parser.add_argument('--mean',default=True,action='store_true')
+    # parser.add_argument('--mean',default=True,action='store_true')
     parser.add_argument('--median',default=False,action='store_true')
     parser.add_argument('--sigma', nargs='?', type=int, default=2)
     parser.add_argument('--threshold', nargs='?', type=float, default=0.05)
@@ -152,7 +152,7 @@ def main():
     args = parser.parse_args()
     raster_path = args.raster
     csv_path = args.csv
-    mean_mode = args.mean
+    # mean_mode = args.mean
     median_mode = args.median
     n_sigma_filter = args.sigma
     vertical_shift_iterative_threshold = args.threshold
@@ -164,14 +164,10 @@ def main():
     write_file = args.write_file
     output_dir = args.output_dir
     N_iterations = args.N_iterations
-    if np.logical_xor(mean_mode,median_mode) == True:
-        if mean_mode == True:
-            mean_median_mode = 'mean'
-        elif median_mode == True:
-            mean_median_mode = 'median'
+    if median_mode == True:
+        mean_median_mode = 'median'
     else:
-        print('Please choose exactly one mode: mean or median.')
-        sys.exit()
+        mean_median_mode = 'mean'
 
     if output_dir is None:
         output_dir = f'{os.path.dirname(raster_path)}/'
