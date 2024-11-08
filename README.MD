@@ -4,6 +4,23 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen)](https://opensource.org/license/mit)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/numpy)](https://python.org)
 
+Contents
+- [Funding & Support](#funding---support)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Scripts](#scripts)
+  * [Mosaic Strips](#mosaic-strips)
+  * [Running](#running)
+  * [Coregistration of DEM to csv](#coregistration-of-dem-to-csv)
+  * [Compute Inundation](#compute-inundation)
+  * [Correct DEMs with ICESat-2.py](#correct-dems-with-icesat-2py)
+  * [Find Cloudy DEMs](#find-cloudy-dems)
+  * [Global DEMs](#global-dems)
+    <!-- + [Plot_Angles.py](#plot-anglespy) -->
+- [Citation](#citation)
+- [Acknowledgments](#acknowledgments)
+- [To Do](#to-do)
+
 ## Funding & Support
 
 This work was funded by the NASA Sea Level Change Team (N-SLCT) and performed at the Colorado Center for Astrodynamics Research (CCAR), part of the Ann & H.J. Smead Department of Aerospace Engineering at the University of Colorado Boulder.
@@ -23,6 +40,7 @@ This work was funded by the NASA Sea Level Change Team (N-SLCT) and performed at
         <img src="https://raw.githubusercontent.com/EduardHeijkoop/EduardHeijkoop.github.io/refs/heads/main/Assets/Images/NSLCT_Logo.png" height=200 alt="NASA Sea Level Change Team" />
     </a>
 </p>
+
 
 ## Installation
 
@@ -85,8 +103,9 @@ General Paths & Constants
 - `osm_shp_file` : OpenStreetMap's land polygons are used to define the boundary between land and water. Click [here](https://osmdata.openstreetmap.de/download/land-polygons-complete-4326.zip) to download the zip file. Extract this and point to the `land_polygons.shp` file.
 - `landmask_c_file` : Point to the `pnpoly_function.c` file that is used to run the landmask algorithm. This repository comes with a file in the `C_Code` directory, so easiest is to point to that. A corresponding `.so` file will be made, ***do not*** point to that.
 
+## Scripts
 
-## Mosaic_Strips.py
+### Mosaic Strips
 
 Given a set of overlapping DEM tiles (often called strips), this script will stitch them all together into a (vertically) coherent product.
 
@@ -100,7 +119,7 @@ Given a set of overlapping DEM tiles (often called strips), this script will sti
     </a>
 </p>
 
-### Optional Flags
+#### Optional Flags
 
     --config <configuration_file> : Path to configuration file. Default is dem_config.ini in the script's directory.
     --list <list_file> : Specify a list of files to be turned into a mosaic. This can be useful for testing or using a subset of a directory's files. This can be used with an empty input file, as it effectively appends the list as an extra row to the input file.
@@ -116,7 +135,7 @@ Given a set of overlapping DEM tiles (often called strips), this script will sti
     --no_gsw : Skip the (global) surface water filtering. Applicable when a mosaic is built (almost) entirely over land, rather than a coastal region.
     --simplify : Simplify the geometry used to populate points for strip-to-strip alignment. If the POLYGON_SIMPLIFY_VALUE in the configuration file is smaller than X_SPACING/Y_SPACING, this should not lead to accuracy loss. 
 
-### Configuration
+#### Configuration
 
 The first step is to create an input file (with its path listed in the configuration file), which gives the location of the files to build the mosaic and the location where to output the final product:
 
@@ -146,11 +165,11 @@ When `simple` is used for this flag, only files in the input directory will be u
 The strips used to build the mosaic must satisfy a few conditions in terms of filenames. They must start with `WV0N` (where `N` is 1, 2 or 3, denoting the WorldView satellite used to acquire the images). Alternatively, they can start with `GE01` when GeoEye-1 was used for the acquisition. Next, the date of acquisition must be attached to the satellite idenitifier with one underscore and in the YYYYMMDD format. A filename that starts with `WV02_20210507` then represents a strip acquired by WorldView-2 on May 7th. The timestamp is required to apply the appropriate weights to the minimum spanning tree when building the mosaic.
 
 
-## Simple_Coregistration.py
+### Coregistration of DEM to csv
 
 This script iteratively co-registers a raster to a csv. The most relevant use here is to co-register a previously built mosaic to ICESat-2 data. 
 
-### Running
+#### Running
 
     python Simple_Coregistration.py --raster </path/to/raster> --csv </path/to/csv> [optional flags]
 
@@ -167,7 +186,7 @@ The output file will be a co-registered product in the same directory as the inp
     </a>
 </p>
 
-### Optional Flags
+#### Optional Flags
 
     --median : Flag to select zero median rather than zero mean as target for the co-registration.
     --sigma <value> : How many standard deviations to use to detect outliers. Value must be an integer. Default is 2. 
@@ -181,7 +200,7 @@ The output file will be a co-registered product in the same directory as the inp
     --output_dir <output directory> : Create file in this directory. Default is the directory the raster is in.
     --N_iterations <number of iterations> : Define maximum number of iterations, before iteration is stopped if convergence is not achieved. Default is 15.
 
-## Compute_Inundation.py
+### Compute Inundation
 
 Once a DSM has been aligned in the vertical, it can be used to compute inundation projections.
 
@@ -191,16 +210,16 @@ Usage
 
 
 
-## Correct_DEM_Strip_ICESat2.py
+### Correct DEMs with ICESat-2.py
 
 Optional pre-processing step before creating a mosaic.
 
-## Find_Cloudy_DEMs.py 
+### Find Cloudy DEMs 
 
 
-## Global_DEMs.py
+### Global DEMs
 
-### Running
+#### Running
 
     python Global_DEMs.py --product <> --extents <lon_min lon_max lat_min lat_max> [optional flags]
 
@@ -209,22 +228,18 @@ Mandatory flags:
     --product <dem product> : Select which DEM product to download. Options are "srtm", "aster" or "copernicus".
     --extents <lon_min lon_max lat_min lat_max> : Define the spatial extents of the requested DEM.
 
-### Optional Flags
+#### Optional Flags
 
     --config <configuration_file> : Path to configuration file. Default is dem_config.ini in the script's directory.
     --copy_nan : Flag to copy NaN values from the DEM when converting to WGS 84 heights; this is particularly useful when working in coastal regions.
     --datum <dem datum> : Select which vertical datum to use for the DEM. Geoid heights are EGM96 for SRTM and ASTER, and EGM2008 for Copernicus. Options are "geoid" or "wgs84".  Default is "wgs84". 
     --output_file <output file> : Define output file. Default is "tmp.tif".
 
-### Configuration
+#### Configuration
 
 If the Copernicus DEM is selected, the AWS CLI tool must be installed, as individual tiles are obtained from `s3://copernicus-dem-30m/`.
 
-
-## Interpolate_VLM.py
-
-
-## Plot_Angles.py
+<!-- ### Plot_Angles.py
 
 Given a set of .ntf and their associated xml files, will plot spatial extent of the image and the satellite's look angle. This can be a visual aid to get the best set of files to build a DSM.
 
@@ -232,7 +247,7 @@ Usage:
 
     python Plot_Angles.py --input_file <input file> [--coast <coastline file>]
 
-The input file will contain a list of full paths to the different NTF files to be plotted, without a header line. This requires each .ntf/.NTF file to have an associated .xml file with the same file name in the same directory. Adding a coastline is optional, but may aid in visualization.
+The input file will contain a list of full paths to the different NTF files to be plotted, without a header line. This requires each .ntf/.NTF file to have an associated .xml file with the same file name in the same directory. Adding a coastline is optional, but may aid in visualization. -->
 
 
 
