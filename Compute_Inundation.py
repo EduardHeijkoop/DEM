@@ -30,7 +30,7 @@ def main():
     parser.add_argument('--vlm',help='Path to VLM file to propagate input file in time.',default=None)
     parser.add_argument('--clip_vlm',help='Clip DEM to VLM extents?',default=False,action='store_true')
     parser.add_argument('--icesat2',help='Path to ICESat-2 file to calculate coastal sea level with.')
-    parser.add_argument('--sealevel_grid',help='Path to sea level grid to calculate coastal sea level with.')
+    parser.add_argument('--sealevel_grid',help='Path to sea level grid to calculate coastal sea level with.') #move to config file
     parser.add_argument('--grid_extents',help='Extents of grid to be used in calculation (x_min x_max y_min y_max)',nargs=4)
     parser.add_argument('--coastline',help='Path to coastline file to calculate coastal sea level on.')
     parser.add_argument('--clip_coast',help='Clip DEM to coastline?',default=False,action='store_true')
@@ -131,7 +131,10 @@ def main():
             vlm_rate = None
     else:
         vlm_rate = None
-    
+
+    if loc_name is None:
+        loc_name = '_'.join(dem_file.split('/')[-1].split('_')[0:2])
+
     if os.path.dirname(os.path.abspath(dem_file)).split('/')[-1] == 'Mosaic':
         inundation_dir = f'{"/".join(os.path.dirname(os.path.abspath(dem_file)).split("/")[:-1])}/Inundation/'
     else:
@@ -225,8 +228,6 @@ def main():
         'geoid_file':geoid_file
     }
 
-    if loc_name is None:
-        loc_name = '_'.join(dem_file.split('/')[-1].split('_')[0:2])
     src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)
     dem_nodata = src.GetRasterBand(1).GetNoDataValue()
     epsg_code = osr.SpatialReference(wkt=src.GetProjection()).GetAttrValue('AUTHORITY',1)
