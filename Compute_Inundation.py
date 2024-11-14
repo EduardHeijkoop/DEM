@@ -29,19 +29,20 @@ def main():
     parser.add_argument('--geoid',help='Path to geoid file to calculate orthometric heights with.',default=None)
     parser.add_argument('--vlm',help='Path to VLM file to propagate input file in time.',default=None)
     parser.add_argument('--clip_vlm',help='Clip DEM to VLM extents?',default=False,action='store_true')
-    parser.add_argument('--icesat2',help='Path to ICESat-2 file to calculate coastal sea level with.')
+    # parser.add_argument('--icesat2',help='Path to ICESat-2 file to calculate coastal sea level with.')
     parser.add_argument('--sealevel_grid',help='Path to sea level grid to calculate coastal sea level with.') #move to config file
     parser.add_argument('--grid_extents',help='Extents of grid to be used in calculation (x_min x_max y_min y_max)',nargs=4)
     parser.add_argument('--coastline',help='Path to coastline file to calculate coastal sea level on.')
     parser.add_argument('--clip_coast',help='Clip DEM to coastline?',default=False,action='store_true')
     parser.add_argument('--years',help='Years to compute inundation for.',nargs='*',default='2020')
-    parser.add_argument('--rcp',help='RCP to use.',choices=['2.6','4.5','8.5'])
+    # parser.add_argument('--rcp',help='RCP to use.',choices=['2.6','4.5','8.5'])
     parser.add_argument('--ssp',help='SSP to use.',choices=['119','126','245','370','585'])
     parser.add_argument('--confidence',help='Confidence level for which to to use SSP.',choices=['low','medium'],default='medium')
     parser.add_argument('--slr',help='Sea level rise to use.',nargs='*',default=None)
     parser.add_argument('--t0',help='Time to use as t0 to zero SLR.',default='2020')
     parser.add_argument('--return_period',help='Return period of CoDEC in years')
     parser.add_argument('--fes2014',help='Flag to use FES2014 max tidal heights.',default=False,action='store_true')
+    parser.add_argument('--fes2022',help='Flag to use FES2022 max tidal heights.',default=False,action='store_true')
     parser.add_argument('--mhhw',help='Flag to use MHHW instead of max tidal heights.',default=False,action='store_true')
     parser.add_argument('--high_tide',help='Value to use for high tide.',default=None,type=float)
     parser.add_argument('--connectivity',help='Calculate inundation connectivity to sea?',default=False,action='store_true')
@@ -60,14 +61,14 @@ def main():
     geoid_file = args.geoid
     vlm_file = args.vlm
     clip_vlm_flag = args.clip_vlm
-    icesat2_file = args.icesat2
+    # icesat2_file = args.icesat2
     sl_grid_file = args.sealevel_grid
     sl_grid_extents = args.grid_extents
     coastline_file = args.coastline
     clip_coast_flag = args.clip_coast
     years = args.years
     years = [int(yr) for yr in np.atleast_1d(years)]
-    rcp = args.rcp
+    # rcp = args.rcp
     ssp = args.ssp
     confidence_level = args.confidence
     slr = args.slr
@@ -81,6 +82,7 @@ def main():
         return_period = None
     return_period_options = np.asarray([2,5,10,25,50,100,250,500,1000])
     fes2014_flag = args.fes2014
+    fes2022_flag = args.fes2022
     mhhw_flag = args.mhhw
     high_tide = args.high_tide
     connectivity_flag = args.connectivity
@@ -89,29 +91,29 @@ def main():
     uncertainty_flag = args.uncertainty
     output_format = args.of
 
-    if icesat2_file is not None and sl_grid_file is not None:
-        print('ICESat-2 file and sea level grid given, cannot handle both!')
-        sys.exit()
+    # if icesat2_file is not None and sl_grid_file is not None:
+    #     print('ICESat-2 file and sea level grid given, cannot handle both!')
+    #     sys.exit()
     if vlm_file is None:
         print('No VLM file supplied to propagate in time!')
         print('Still running inundation with sea level rise.')
     if sl_grid_file is not None and sl_grid_extents is None:
         print('Warning, selecting whole grid as input!')
-        src_sl_grid = gdal.Open(sl_grid_file,gdalconst.GA_ReadOnly)
+        # src_sl_grid = gdal.Open(sl_grid_file,gdalconst.GA_ReadOnly)
         sl_grid_extents = get_raster_extents(sl_grid_file,'global')
     if vlm_file is None and clip_vlm_flag == True:
         print('No VLM file supplied, but clipping desired!')
         sys.exit()
-    if np.sum((ssp is not None, rcp is not None, slr is not None)) > 1:
-        print('Please only select SSP, RCP or SLR!')
+    if np.sum((ssp is not None, slr is not None)) > 1:
+        print('Please only select SSP or SLR!')
         sys.exit()
-    if np.sum((ssp is not None, rcp is not None, slr is not None)) < 1:
-        print('Please select one of SSP, RCP or SLR!')
+    if np.sum((ssp is not None, slr is not None)) < 1:
+        print('Please select either SSP or SLR!')
         sys.exit()
-    if np.sum((fes2014_flag == True, return_period is not None, high_tide is not None)) > 1:
+    if np.sum((fes2014_flag == True, fes2022_flag == True, return_period is not None, high_tide is not None)) > 1:
         print('Cannot use FES2014, CoDEC and/or high tide together!')
         sys.exit()
-    if (high_tide is None and fes2014_flag == False) and return_period not in return_period_options:
+    if (high_tide is None and fes2014_flag == False and fes2022_flag == False) and return_period not in return_period_options:
         print('Invalid return period selected!')
         print('Must be 2, 5, 10, 25, 50, 100, 250, 500 or 1000 years.')
         sys.exit()
@@ -150,37 +152,40 @@ def main():
         f_write.write(f'{k}: {args_dict[k]}\n')
     f_write.close()
     
-    SROCC_dir = config.get('INUNDATION_PATHS','SROCC_dir')
+    # SROCC_dir = config.get('INUNDATION_PATHS','SROCC_dir')
     AR6_dir = config.get('INUNDATION_PATHS','AR6_dir')
     CODEC_file = config.get('INUNDATION_PATHS','CODEC_file')
-    fes2014_file = config.get('INUNDATION_PATHS','fes2014_file')
+    if fes2014_flag is not None:
+        fes_file = config.get('INUNDATION_PATHS','fes2014_file')
+    elif fes2022_flag is not None:
+        fes_file = config.get('INUNDATION_PATHS','fes2022_file')
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
     landmask_c_file = config.get('GENERAL_PATHS','landmask_c_file')
     osm_shp_file = config.get('GENERAL_PATHS','osm_shp_file')
 
-    if machine_name == 'b':
-        SROCC_dir = SROCC_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-        AR6_dir = AR6_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-        CODEC_file = CODEC_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-        fes2014_file = fes2014_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-        tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-        gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-        osm_shp_file = osm_shp_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-    elif machine_name == 'local':
-        AR6_dir = AR6_dir.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
-        CODEC_file = CODEC_file.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
-        fes2014_file = fes2014_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
-        tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/EDUARD/','/home/heijkoop/Desktop/Projects/')
-        gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
-        landmask_c_file = landmask_c_file.replace('/home/eheijkoop/Scripts/','/media/heijkoop/DATA/Dropbox/TU/PhD/Github/')
-        osm_shp_file = osm_shp_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
+    # if machine_name == 'b':
+    #     SROCC_dir = SROCC_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+    #     AR6_dir = AR6_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+    #     CODEC_file = CODEC_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+    #     fes2014_file = fes2014_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+    #     tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+    #     gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+    #     osm_shp_file = osm_shp_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
+    # elif machine_name == 'local':
+    #     AR6_dir = AR6_dir.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
+    #     CODEC_file = CODEC_file.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
+    #     fes2014_file = fes2014_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
+    #     tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/EDUARD/','/home/heijkoop/Desktop/Projects/')
+    #     gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
+    #     landmask_c_file = landmask_c_file.replace('/home/eheijkoop/Scripts/','/media/heijkoop/DATA/Dropbox/TU/PhD/Github/')
+    #     osm_shp_file = osm_shp_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
 
     VLM_NODATA = config.getfloat('VLM_CONSTANTS','VLM_NODATA')
     N_PTS = config.getint('INUNDATION_CONSTANTS','N_PTS')
     INTERPOLATE_METHOD = config.get('INUNDATION_CONSTANTS','INTERPOLATE_METHOD')
     REGGRID_INTERPOLATE_METHOD = config.get('INUNDATION_CONSTANTS','REGGRID_INTERPOLATE_METHOD')
-    ICESAT2_GRID_RESOLUTION = config.getfloat('INUNDATION_CONSTANTS','ICESAT2_GRID_RESOLUTION')
+    # ICESAT2_GRID_RESOLUTION = config.getfloat('INUNDATION_CONSTANTS','ICESAT2_GRID_RESOLUTION')
     GRID_ALGORITHM = config.get('INUNDATION_CONSTANTS','GRID_ALGORITHM')
     GRID_NODATA = config.getint('INUNDATION_CONSTANTS','GRID_NODATA')
     GRID_SMOOTHING = config.getfloat('INUNDATION_CONSTANTS','GRID_SMOOTHING')
@@ -208,12 +213,12 @@ def main():
     constants_dict = {'GRID_NODATA':GRID_NODATA,
         'REGGRID_INTERPOLATE_METHOD':REGGRID_INTERPOLATE_METHOD,
         'INTERPOLATE_METHOD':INTERPOLATE_METHOD,
-        'ICESAT2_GRID_RESOLUTION':ICESAT2_GRID_RESOLUTION,
+        # 'ICESAT2_GRID_RESOLUTION':ICESAT2_GRID_RESOLUTION,
         'N_PTS':N_PTS,
         'GRID_INTERMEDIATE_RES':GRID_INTERMEDIATE_RES,
         'INUNDATION_NODATA':INUNDATION_NODATA,
         'CODEC_file':CODEC_file,
-        'fes2014_file':fes2014_file,
+        'fes_file':fes_file,
         'output_format':output_format,
         'landmask_c_file':landmask_c_file,
         'osm_shp_file':osm_shp_file
@@ -317,7 +322,7 @@ def main():
         'dem_resampled_y_size':dem_resampled_y_size
     }
 
-    x_coast,y_coast,lon_coast,lat_coast,h_coast,output_file_coastline = get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_extents,sl_grid_file,icesat2_file,dir_dict,constants_dict,epsg_code,geoid_file)
+    x_coast,y_coast,lon_coast,lat_coast,h_coast,output_file_coastline = get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_extents,sl_grid_file,dir_dict,constants_dict,geoid_file)
     sealevel_high_grid_full_res = get_sealevel_high(dem_file,high_tide,return_period,fes2014_flag,mhhw_flag,loc_name,epsg_code,
                                                     x_coast,y_coast,lon_coast,lat_coast,
                                                     dir_dict,constants_dict,dem_dict,algorithm_dict,resampled_dict)

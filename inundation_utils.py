@@ -381,10 +381,10 @@ def get_codec(lon,lat,codec_file,return_period=10):
     rps_input = interpolate_points(lon_codec_select,lat_codec_select,rps_select,lon,lat,'Smooth',2)
     return rps_input
 
-def get_fes(lon,lat,fes2014_file,search_radius=3.0,mhhw_flag=False):
+def get_fes(lon,lat,fes_file,search_radius=3.0,mhhw_flag=False):
     lon = lon[~np.isnan(lon)]
     lat = lat[~np.isnan(lat)]
-    df_fes = pd.read_csv(fes2014_file)
+    df_fes = pd.read_csv(fes_file)
     lon[lon<0] += 360
     lon_fes = np.asarray(df_fes['lon'])
     lat_fes = np.asarray(df_fes['lat'])
@@ -491,12 +491,12 @@ def sigma_to_quantiles(sigma,uncertainty_flag):
         quantiles = [0.5]
     return quantiles
 
-def get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_extents,sl_grid_file,icesat2_file,dir_dict,constants_dict,epsg_code,geoid_file):
+def get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_extents,sl_grid_file,dir_dict,constants_dict,geoid_file):
     tmp_dir = dir_dict['tmp_dir']
     GRID_NODATA = constants_dict['GRID_NODATA']
     REGGRID_INTERPOLATE_METHOD = constants_dict['REGGRID_INTERPOLATE_METHOD']
     INTERPOLATE_METHOD = constants_dict['INTERPOLATE_METHOD']
-    ICESAT2_GRID_RESOLUTION = constants_dict['ICESAT2_GRID_RESOLUTION']
+    # ICESAT2_GRID_RESOLUTION = constants_dict['ICESAT2_GRID_RESOLUTION']
     N_PTS = constants_dict['N_PTS']
     t_start = datetime.datetime.now()
     print('Generating coastal sea level grid...')
@@ -518,19 +518,19 @@ def get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_ex
             h_geoid = h_geoid[idx_keep]
             h_coast = h_coast - h_geoid
             output_file_coastline = output_file_coastline.replace('.csv','_orthometric.csv')
-    elif icesat2_file is not None:
-        df_icesat2 = pd.read_csv(icesat2_file,header=None,names=['lon','lat','height','time'],dtype={'lon':'float','lat':'float','height':'float','time':'str'})
-        x_icesat2_grid_array,y_icesat2_grid_array,h_icesat2_grid_array = create_icesat2_grid(df_icesat2,epsg_code,geoid_file,tmp_dir,loc_name,ICESAT2_GRID_RESOLUTION,N_PTS)
-        h_coast = interpolate_points(x_icesat2_grid_array,y_icesat2_grid_array,h_icesat2_grid_array,x_coast,y_coast,INTERPOLATE_METHOD)
-        idx_keep = ~np.isnan(x_coast)
-        x_coast = x_coast[idx_keep]
-        y_coast = y_coast[idx_keep]
-        if loc_name in icesat2_file:
-            output_file_coastline = f'{tmp_dir}{os.path.basename(icesat2_file).replace(".txt",f"_subset_{INTERPOLATE_METHOD}BivariateSpline_coastline.csv")}'
-        else:
-            output_file_coastline = f'{tmp_dir}{loc_name}_{os.path.basename(icesat2_file).replace(".txt",f"_subset_{INTERPOLATE_METHOD}BivariateSpline_coastline.csv")}'
-        if geoid_file is not None:
-            output_file_coastline = output_file_coastline.replace('.csv','_orthometric.csv')
+    # elif icesat2_file is not None:
+    #     df_icesat2 = pd.read_csv(icesat2_file,header=None,names=['lon','lat','height','time'],dtype={'lon':'float','lat':'float','height':'float','time':'str'})
+    #     x_icesat2_grid_array,y_icesat2_grid_array,h_icesat2_grid_array = create_icesat2_grid(df_icesat2,epsg_code,geoid_file,tmp_dir,loc_name,ICESAT2_GRID_RESOLUTION,N_PTS)
+    #     h_coast = interpolate_points(x_icesat2_grid_array,y_icesat2_grid_array,h_icesat2_grid_array,x_coast,y_coast,INTERPOLATE_METHOD)
+    #     idx_keep = ~np.isnan(x_coast)
+    #     x_coast = x_coast[idx_keep]
+    #     y_coast = y_coast[idx_keep]
+    #     if loc_name in icesat2_file:
+    #         output_file_coastline = f'{tmp_dir}{os.path.basename(icesat2_file).replace(".txt",f"_subset_{INTERPOLATE_METHOD}BivariateSpline_coastline.csv")}'
+    #     else:
+    #         output_file_coastline = f'{tmp_dir}{loc_name}_{os.path.basename(icesat2_file).replace(".txt",f"_subset_{INTERPOLATE_METHOD}BivariateSpline_coastline.csv")}'
+    #     if geoid_file is not None:
+    #         output_file_coastline = output_file_coastline.replace('.csv','_orthometric.csv')
     t_end = datetime.datetime.now()
     delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
     delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
@@ -547,7 +547,7 @@ def get_sealevel_high(raster,high_tide,return_period,fes2014_flag,mhhw_flag,loc_
     src_resampled_proj = src_resampled.GetProjection()
     tmp_dir = dir_dict['tmp_dir']
     CODEC_file = constants_dict['CODEC_file']
-    fes2014_file = constants_dict['fes2014_file']
+    fes_file = constants_dict['fes_file']
     GRID_INTERMEDIATE_RES = constants_dict['GRID_INTERMEDIATE_RES']
     if high_tide is not None:
         '''
@@ -596,7 +596,7 @@ def get_sealevel_high(raster,high_tide,return_period,fes2014_flag,mhhw_flag,loc_
             print(f'Finding FES2014 max tidal heights...')
         else:
             print(f'Finding FES2014 MHHW values...')
-        fes_heights_coast = get_fes(lon_coast,lat_coast,fes2014_file,mhhw_flag=mhhw_flag)
+        fes_heights_coast = get_fes(lon_coast,lat_coast,fes_file,mhhw_flag=mhhw_flag)
         output_file_fes = f'{tmp_dir}{loc_name}_FES2014_coastline.csv'
         np.savetxt(output_file_fes,np.c_[x_coast,y_coast,fes_heights_coast],fmt='%f',delimiter=',',comments='')
         fes_grid_intermediate_res = csv_to_grid(output_file_fes,algorithm_dict,dem_dict,epsg_code)
