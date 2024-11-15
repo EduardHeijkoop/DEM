@@ -537,9 +537,14 @@ def get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_ex
     print(f'Generating coastal sea level took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
     return x_coast,y_coast,lon_coast,lat_coast,h_coast,output_file_coastline
 
-def get_sealevel_high(raster,high_tide,return_period,fes2014_flag,mhhw_flag,loc_name,epsg_code,
+def get_sealevel_high(raster,flag_dict,loc_name,epsg_code,
                       x_coast,y_coast,lon_coast,lat_coast,
                       dir_dict,constants_dict,dem_dict,algorithm_dict,resampled_dict):
+    high_tide = flag_dict['high_tide']
+    return_period = flag_dict['return_period']
+    fes2014_flag = flag_dict['fes2014_flag']
+    fes2022_flag = flag_dict['fes2022_flag']
+    mhhw_flag = flag_dict['mhhw_flag']
     src_resampled = resampled_dict['src_resampled']
     dem_resampled_x_size = resampled_dict['dem_resampled_x_size']
     dem_resampled_y_size = resampled_dict['dem_resampled_y_size']
@@ -549,6 +554,12 @@ def get_sealevel_high(raster,high_tide,return_period,fes2014_flag,mhhw_flag,loc_
     CODEC_file = constants_dict['CODEC_file']
     fes_file = constants_dict['fes_file']
     GRID_INTERMEDIATE_RES = constants_dict['GRID_INTERMEDIATE_RES']
+    if fes2014_flag == True:
+        fes_name = 'FES2014'
+    elif fes2022_flag == True:
+        fes_name = 'FES2022'
+    else:
+        fes_name = None
     if high_tide is not None:
         '''
         Implement manual high tide value here
@@ -590,14 +601,15 @@ def get_sealevel_high(raster,high_tide,return_period,fes2014_flag,mhhw_flag,loc_
         sealevel_csv_output = output_file_codec
         sealevel_high_grid_intermediate_res = codec_grid_intermediate_res
         sealevel_high_grid_full_res = codec_grid_full_res
-    elif fes2014_flag == True:
+    # elif fes2014_flag == True:
+    elif fes_name is not None:
         t_start = datetime.datetime.now()
         if mhhw_flag == False:
-            print(f'Finding FES2014 max tidal heights...')
+            print(f'Finding {fes_name} max tidal heights...')
         else:
-            print(f'Finding FES2014 MHHW values...')
+            print(f'Finding {fes_name} MHHW values...')
         fes_heights_coast = get_fes(lon_coast,lat_coast,fes_file,mhhw_flag=mhhw_flag)
-        output_file_fes = f'{tmp_dir}{loc_name}_FES2014_coastline.csv'
+        output_file_fes = f'{tmp_dir}{loc_name}_{fes_name}_coastline.csv'
         np.savetxt(output_file_fes,np.c_[x_coast,y_coast,fes_heights_coast],fmt='%f',delimiter=',',comments='')
         fes_grid_intermediate_res = csv_to_grid(output_file_fes,algorithm_dict,dem_dict,epsg_code)
         fes_grid_full_res = fes_grid_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
@@ -605,7 +617,7 @@ def get_sealevel_high(raster,high_tide,return_period,fes2014_flag,mhhw_flag,loc_
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
         delta_time_secs = np.mod((t_end - t_start).total_seconds(),60)
-        print(f'Generating FES2014 values took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
+        print(f'Generating {fes_name} values took {delta_time_mins} minutes, {delta_time_secs:.1f} seconds.')
         sealevel_csv_output = output_file_fes
         sealevel_high_grid_intermediate_res = fes_grid_intermediate_res
         sealevel_high_grid_full_res = fes_grid_full_res
@@ -614,7 +626,6 @@ def get_sealevel_high(raster,high_tide,return_period,fes2014_flag,mhhw_flag,loc_
             subprocess.run(f'rm {sealevel_csv_output.replace(".csv",".vrt")}',shell=True)
         subprocess.run(f'rm {sealevel_high_grid_intermediate_res}',shell=True)
     return sealevel_high_grid_full_res
-
 
 def inundate_loc(raster,slr,years,quantiles,loc_name,ssp,confidence_level,
                  x_coast,y_coast,h_coast,

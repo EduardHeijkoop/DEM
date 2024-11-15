@@ -327,7 +327,7 @@ def main():
     }
 
     x_coast,y_coast,lon_coast,lat_coast,h_coast,output_file_coastline = get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_extents,sl_grid_file,dir_dict,constants_dict,geoid_file)
-    sealevel_high_grid_full_res = get_sealevel_high(dem_file,high_tide,return_period,fes2014_flag,mhhw_flag,loc_name,epsg_code,
+    sealevel_high_grid_full_res = get_sealevel_high(dem_file,flag_dict,loc_name,epsg_code,
                                                     x_coast,y_coast,lon_coast,lat_coast,
                                                     dir_dict,constants_dict,dem_dict,algorithm_dict,resampled_dict)
 
