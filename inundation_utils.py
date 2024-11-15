@@ -443,7 +443,7 @@ def compute_connectivity(inundation_vec_file,gdf_surface_water,separate_flag=Fal
     '''
     gdf_inundation = gpd.read_file(inundation_vec_file)
     inundation_vec_file_base,inundation_vec_file_ext = os.path.splitext(inundation_vec_file)
-    inundation_vec_file_connected = f'{inundation_vec_file_base}_connectivity{inundation_vec_file_ext}'
+    inundation_vec_file_connected = f'{inundation_vec_file_base}_connected{inundation_vec_file_ext}'
     if len(gdf_surface_water) == 1:
         idx_intersects = np.asarray([gdf_surface_water.geometry[0].intersects(geom) for geom in gdf_inundation.geometry])
         idx_contains = np.asarray([gdf_surface_water.geometry[0].contains(geom) for geom in gdf_inundation.geometry])
