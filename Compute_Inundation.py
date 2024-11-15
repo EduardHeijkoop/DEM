@@ -56,7 +56,7 @@ def main():
 
     dem_file = args.input_file
     loc_name = args.loc_name
-    machine_name = args.machine
+    # machine_name = args.machine
     N_cpus = args.N_cpus
     downsample_res = args.downsample_res
     geoid_file = args.geoid
@@ -149,6 +149,10 @@ def main():
         f_write.write(f'{k}: {args_dict[k]}\n')
     f_write.close()
     
+    tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
+    gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
+    landmask_c_file = config.get('GENERAL_PATHS','landmask_c_file')
+    osm_shp_file = config.get('GENERAL_PATHS','osm_shp_file')
     # SROCC_dir = config.get('INUNDATION_PATHS','SROCC_dir')
     sl_grid_file = config.get('INUNDATION_PATHS','sealevel_grid')
     AR6_dir = config.get('INUNDATION_PATHS','AR6_dir')
@@ -157,84 +161,64 @@ def main():
         fes_file = config.get('INUNDATION_PATHS','fes2014_file')
     elif fes2022_flag is not None:
         fes_file = config.get('INUNDATION_PATHS','fes2022_file')
-    tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
-    gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
-    landmask_c_file = config.get('GENERAL_PATHS','landmask_c_file')
-    osm_shp_file = config.get('GENERAL_PATHS','osm_shp_file')
+    VLM_NODATA = config.getfloat('VLM_CONSTANTS','VLM_NODATA')
+    # ICESAT2_GRID_RESOLUTION = config.getfloat('INUNDATION_CONSTANTS','ICESAT2_GRID_RESOLUTION')
+    # N_PTS = config.getint('INUNDATION_CONSTANTS','N_PTS')
+    INTERPOLATE_METHOD = config.get('INUNDATION_CONSTANTS','INTERPOLATE_METHOD')
+    GRID_NUM_THREADS = config.getint('INUNDATION_CONSTANTS','GRID_NUM_THREADS')
+    GRID_INTERMEDIATE_RES = config.getint('INUNDATION_CONSTANTS','GRID_INTERMEDIATE_RES')
+    GRID_ALGORITHM = config.get('INUNDATION_CONSTANTS','GRID_ALGORITHM')
+    GRID_SMOOTHING = config.getfloat('INUNDATION_CONSTANTS','GRID_SMOOTHING')
+    GRID_POWER = config.getfloat('INUNDATION_CONSTANTS','GRID_POWER')
+    GRID_NODATA = config.getint('INUNDATION_CONSTANTS','GRID_NODATA')
+    GRID_MAX_PTS = config.getint('INUNDATION_CONSTANTS','GRID_MAX_PTS')
+    INUNDATION_NODATA = config.getfloat('INUNDATION_CONSTANTS','INUNDATION_NODATA')
+    GSW_BUFFER = config.getfloat('INUNDATION_CONSTANTS','GSW_BUFFER')
+    REGGRID_INTERPOLATE_METHOD = config.get('INUNDATION_CONSTANTS','REGGRID_INTERPOLATE_METHOD')
 
     if sl_grid_extents is None:
         print('Warning, selecting whole grid as input!')
         # src_sl_grid = gdal.Open(sl_grid_file,gdalconst.GA_ReadOnly)
         sl_grid_extents = get_raster_extents(sl_grid_file,'global')
 
-    # if machine_name == 'b':
-    #     SROCC_dir = SROCC_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-    #     AR6_dir = AR6_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-    #     CODEC_file = CODEC_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-    #     fes2014_file = fes2014_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-    #     tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-    #     gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-    #     osm_shp_file = osm_shp_file.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
-    # elif machine_name == 'local':
-    #     AR6_dir = AR6_dir.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
-    #     CODEC_file = CODEC_file.replace('/BhaltosMount/Bhaltos/EDUARD/NASA_SEALEVEL/DATABASE/','/media/heijkoop/DATA/')
-    #     fes2014_file = fes2014_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
-    #     tmp_dir = tmp_dir.replace('/BhaltosMount/Bhaltos/EDUARD/','/home/heijkoop/Desktop/Projects/')
-    #     gsw_dir = gsw_dir.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
-    #     landmask_c_file = landmask_c_file.replace('/home/eheijkoop/Scripts/','/media/heijkoop/DATA/Dropbox/TU/PhD/Github/')
-    #     osm_shp_file = osm_shp_file.replace('/BhaltosMount/Bhaltos/EDUARD/DATA_REPOSITORY/','/media/heijkoop/DATA/')
-
-    VLM_NODATA = config.getfloat('VLM_CONSTANTS','VLM_NODATA')
-    N_PTS = config.getint('INUNDATION_CONSTANTS','N_PTS')
-    INTERPOLATE_METHOD = config.get('INUNDATION_CONSTANTS','INTERPOLATE_METHOD')
-    REGGRID_INTERPOLATE_METHOD = config.get('INUNDATION_CONSTANTS','REGGRID_INTERPOLATE_METHOD')
-    # ICESAT2_GRID_RESOLUTION = config.getfloat('INUNDATION_CONSTANTS','ICESAT2_GRID_RESOLUTION')
-    GRID_ALGORITHM = config.get('INUNDATION_CONSTANTS','GRID_ALGORITHM')
-    GRID_NODATA = config.getint('INUNDATION_CONSTANTS','GRID_NODATA')
-    GRID_SMOOTHING = config.getfloat('INUNDATION_CONSTANTS','GRID_SMOOTHING')
-    GRID_POWER = config.getfloat('INUNDATION_CONSTANTS','GRID_POWER')
-    GRID_MAX_PTS = config.getint('INUNDATION_CONSTANTS','GRID_MAX_PTS')
-    GRID_NUM_THREADS = config.getint('INUNDATION_CONSTANTS','GRID_NUM_THREADS')
-    GRID_INTERMEDIATE_RES = config.getint('INUNDATION_CONSTANTS','GRID_INTERMEDIATE_RES')
-    INUNDATION_NODATA = config.getfloat('INUNDATION_CONSTANTS','INUNDATION_NODATA')
-    GSW_BUFFER = config.getfloat('INUNDATION_CONSTANTS','GSW_BUFFER')
-
-    algorithm_dict = {'grid_algorithm':GRID_ALGORITHM,
-        'grid_nodata':GRID_NODATA,
+    algorithm_dict = {
+        'grid_num_threads':GRID_NUM_THREADS,
+        'grid_res':GRID_INTERMEDIATE_RES,
+        'grid_algorithm':GRID_ALGORITHM,
         'grid_smoothing':GRID_SMOOTHING,
         'grid_power':GRID_POWER,
-        'grid_max_pts':GRID_MAX_PTS,
-        'grid_num_threads':GRID_NUM_THREADS,
-        'grid_res':GRID_INTERMEDIATE_RES
+        'grid_nodata':GRID_NODATA,
+        'grid_max_pts':GRID_MAX_PTS
     }
     
-    dir_dict = {'tmp_dir':tmp_dir,
+    dir_dict = {
         'inundation_dir':inundation_dir,
+        'tmp_dir':tmp_dir,
         'AR6_dir':AR6_dir
     }
 
-    constants_dict = {'GRID_NODATA':GRID_NODATA,
-        'REGGRID_INTERPOLATE_METHOD':REGGRID_INTERPOLATE_METHOD,
-        'INTERPOLATE_METHOD':INTERPOLATE_METHOD,
-        # 'ICESAT2_GRID_RESOLUTION':ICESAT2_GRID_RESOLUTION,
-        'N_PTS':N_PTS,
-        'GRID_INTERMEDIATE_RES':GRID_INTERMEDIATE_RES,
-        'INUNDATION_NODATA':INUNDATION_NODATA,
-        'CODEC_file':CODEC_file,
-        'fes_file':fes_file,
-        'output_format':output_format,
+    constants_dict = {
         'landmask_c_file':landmask_c_file,
-        'osm_shp_file':osm_shp_file
+        'osm_shp_file':osm_shp_file,
+        'codec_file':CODEC_file,
+        'fes_file':fes_file,
+        'interpolate_method':INTERPOLATE_METHOD,
+        'grid_intermediate_res':GRID_INTERMEDIATE_RES,
+        'grid_nodata':GRID_NODATA,
+        'inundation_nodata':INUNDATION_NODATA,
+        'reggrid_interpolate_method':REGGRID_INTERPOLATE_METHOD,
+        'output_format':output_format
     }
 
-    flag_dict = {'return_period':return_period,
+    flag_dict = {
+        'geoid_file':geoid_file,
+        'return_period':return_period,
         'fes2014_flag':fes2014_flag,
         'fes2022_flag':fes2022_flag,
         'mhhw_flag':mhhw_flag,
         'high_tide':high_tide,
         'connectivity_flag':connectivity_flag,
-        'separate_flag':separate_flag,
-        'geoid_file':geoid_file
+        'separate_flag':separate_flag
     }
 
     src = gdal.Open(dem_file,gdalconst.GA_ReadOnly)

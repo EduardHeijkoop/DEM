@@ -381,7 +381,7 @@ def get_codec(lon,lat,codec_file,interpolate_method='Smooth',return_period=10):
     rps_input = interpolate_points(lon_codec_select,lat_codec_select,rps_select,lon,lat,interpolate_method,3)
     return rps_input
 
-def get_fes(lon,lat,fes_file,search_radius=3.0,mhhw_flag=False):
+def get_fes(lon,lat,fes_file,interpolate_method,search_radius=3.0,mhhw_flag=False):
     lon = lon[~np.isnan(lon)]
     lat = lat[~np.isnan(lat)]
     df_fes = pd.read_csv(fes_file)
@@ -400,7 +400,7 @@ def get_fes(lon,lat,fes_file,search_radius=3.0,mhhw_flag=False):
     lon_fes = lon_fes[idx_fes_lonlat_close]
     lat_fes = lat_fes[idx_fes_lonlat_close]
     max_tide_fes = max_tide_fes[idx_fes_lonlat_close]
-    height_fes_coast = interpolate_points(lon_fes,lat_fes,max_tide_fes,lon,lat,'Smooth',3)
+    height_fes_coast = interpolate_points(lon_fes,lat_fes,max_tide_fes,lon,lat,interpolate_method,3)
     return height_fes_coast
 
 def csv_to_grid(csv_file,algorithm_dict,raster_dict,epsg_code):
@@ -493,16 +493,16 @@ def sigma_to_quantiles(sigma,uncertainty_flag):
 
 def get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_extents,sl_grid_file,dir_dict,constants_dict,geoid_file):
     tmp_dir = dir_dict['tmp_dir']
-    GRID_NODATA = constants_dict['GRID_NODATA']
-    REGGRID_INTERPOLATE_METHOD = constants_dict['REGGRID_INTERPOLATE_METHOD']
+    grid_nodata = constants_dict['grid_nodata']
+    reggrid_interpolate_method = constants_dict['reggrid_interpolate_method']
     # INTERPOLATE_METHOD = constants_dict['INTERPOLATE_METHOD']
     # ICESAT2_GRID_RESOLUTION = constants_dict['ICESAT2_GRID_RESOLUTION']
     # N_PTS = constants_dict['N_PTS']
     t_start = datetime.datetime.now()
     print('Generating coastal sea level grid...')
     if sl_grid_extents is not None:
-        h_coast = interpolate_grid(lon_coast,lat_coast,sl_grid_file,sl_grid_extents,loc_name,tmp_dir,grid_nodata=GRID_NODATA,method=REGGRID_INTERPOLATE_METHOD)
-        idx_fillvalue = h_coast==GRID_NODATA
+        h_coast = interpolate_grid(lon_coast,lat_coast,sl_grid_file,sl_grid_extents,loc_name,tmp_dir,grid_nodata=grid_nodata,method=reggrid_interpolate_method)
+        idx_fillvalue = h_coast==grid_nodata
         idx_keep = ~np.logical_or(idx_fillvalue,np.isnan(h_coast))
         x_coast = x_coast[idx_keep]
         y_coast = y_coast[idx_keep]
@@ -514,7 +514,7 @@ def get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_ex
         else:
             output_file_coastline = f'{tmp_dir}{loc_name}_{os.path.basename(sl_grid_file).replace(".tif","_subset_interpolated_coastline.csv")}'
         if geoid_file is not None:
-            h_geoid = interpolate_grid(lon_coast,lat_coast,geoid_file,None,loc_name,tmp_dir,grid_nodata=GRID_NODATA,method=REGGRID_INTERPOLATE_METHOD)
+            h_geoid = interpolate_grid(lon_coast,lat_coast,geoid_file,None,loc_name,tmp_dir,grid_nodata=grid_nodata,method=reggrid_interpolate_method)
             h_geoid = h_geoid[idx_keep]
             h_coast = h_coast - h_geoid
             output_file_coastline = output_file_coastline.replace('.csv','_orthometric.csv')
@@ -553,8 +553,8 @@ def get_sealevel_high(raster,flag_dict,loc_name,epsg_code,
     tmp_dir = dir_dict['tmp_dir']
     CODEC_file = constants_dict['CODEC_file']
     fes_file = constants_dict['fes_file']
-    GRID_INTERMEDIATE_RES = constants_dict['GRID_INTERMEDIATE_RES']
-    INTERPOLATE_METHOD = constants_dict['INTERPOLATE_METHOD']
+    grid_intermediate_res = constants_dict['grid_intermediate_res']
+    interpolate_method = constants_dict['interpolate_method']
     if fes2014_flag == True:
         fes_name = 'FES2014'
     elif fes2022_flag == True:
@@ -589,11 +589,11 @@ def get_sealevel_high(raster,flag_dict,loc_name,epsg_code,
     elif return_period is not None:
         t_start = datetime.datetime.now()
         print(f'Finding CoDEC sea level extremes for return period of {return_period} years...')
-        rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,INTERPOLATE_METHOD,return_period)
+        rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,interpolate_method,return_period)
         output_file_codec = f'{tmp_dir}{loc_name}_CoDEC_{return_period}_yrs_coastline.csv'
         np.savetxt(output_file_codec,np.c_[x_coast,y_coast,rps_coast],fmt='%f',delimiter=',',comments='')
         codec_grid_intermediate_res = csv_to_grid(output_file_codec,algorithm_dict,dem_dict,epsg_code)
-        codec_grid_full_res = codec_grid_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
+        codec_grid_full_res = codec_grid_intermediate_res.replace(f'_{grid_intermediate_res}m','')
         resample_raster(codec_grid_intermediate_res,raster,codec_grid_full_res,quiet_flag=True)
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
@@ -609,11 +609,11 @@ def get_sealevel_high(raster,flag_dict,loc_name,epsg_code,
             print(f'Finding {fes_name} max tidal heights...')
         else:
             print(f'Finding {fes_name} MHHW values...')
-        fes_heights_coast = get_fes(lon_coast,lat_coast,fes_file,mhhw_flag=mhhw_flag)
+        fes_heights_coast = get_fes(lon_coast,lat_coast,fes_file,interpolate_method,mhhw_flag=mhhw_flag)
         output_file_fes = f'{tmp_dir}{loc_name}_{fes_name}_coastline.csv'
         np.savetxt(output_file_fes,np.c_[x_coast,y_coast,fes_heights_coast],fmt='%f',delimiter=',',comments='')
         fes_grid_intermediate_res = csv_to_grid(output_file_fes,algorithm_dict,dem_dict,epsg_code)
-        fes_grid_full_res = fes_grid_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
+        fes_grid_full_res = fes_grid_intermediate_res.replace(f'_{grid_intermediate_res}m','')
         resample_raster(fes_grid_intermediate_res,raster,fes_grid_full_res,quiet_flag=True)
         t_end = datetime.datetime.now()
         delta_time_mins = np.floor((t_end - t_start).total_seconds()/60).astype(int)
@@ -666,8 +666,8 @@ def parallel_inundation_slr(slr_value,raster,loc_name,x_coast,y_coast,h_coast,
     separate_flag = flag_dict['separate_flag']
     geoid_file = flag_dict['geoid_file']
     high_tide = flag_dict['high_tide']
-    GRID_INTERMEDIATE_RES = constants_dict['GRID_INTERMEDIATE_RES']
-    INUNDATION_NODATA = constants_dict['INUNDATION_NODATA']
+    grid_intermediate_res = constants_dict['grid_intermediate_res']
+    inundation_nodata = constants_dict['inundation_nodata']
     output_format = constants_dict['output_format']
     t_start = datetime.datetime.now()
     print(f'\nCreating inundation for {slr_value:.2f} m...')
@@ -691,9 +691,9 @@ def parallel_inundation_slr(slr_value,raster,loc_name,x_coast,y_coast,h_coast,
     output_file_coastline_slr = output_file_coastline.replace('.csv',f'_{slr_value_str}.csv')
     np.savetxt(output_file_coastline_slr,np.c_[x_coast,y_coast,h_coast_slr],fmt='%f',delimiter=',',comments='')
     sl_grid_file_intermediate_res = csv_to_grid(output_file_coastline_slr,algorithm_dict,dem_dict,epsg_code)
-    sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
+    sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{grid_intermediate_res}m','')
     resample_raster(sl_grid_file_intermediate_res,raster,sl_grid_file_full_res,quiet_flag=True)
-    inundation_command = f'gdal_calc.py --quiet -A {raster} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+    inundation_command = f'gdal_calc.py --quiet -A {raster} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={inundation_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
     subprocess.run(inundation_command,shell=True)
     output_inundation_vec_file = output_inundation_file.replace('.tif',f'.{output_format}')
     polygonize_command = f'gdal_polygonize.py -q {output_inundation_file} {output_inundation_vec_file}'
@@ -736,9 +736,9 @@ def parallel_inundation_ar6(year,quantile,ssp,confidence_level,raster,loc_name,x
     separate_flag = flag_dict['separate_flag']
     geoid_file = flag_dict['geoid_file']
     high_tide = flag_dict['high_tide']
-    GRID_INTERMEDIATE_RES = constants_dict['GRID_INTERMEDIATE_RES']
-    INUNDATION_NODATA = constants_dict['INUNDATION_NODATA']
-    INTERPOLATE_METHOD = constants_dict['INTERPOLATE_METHOD']
+    grid_intermediate_res = constants_dict['grid_intermediate_res']
+    inundation_nodata = constants_dict['inundation_nodata']
+    interpolate_method = constants_dict['interpolate_method']
     output_format = constants_dict['output_format']
     # projection_select = constants_dict['projection_select']
     landmask_c_file = constants_dict['landmask_c_file']
@@ -779,20 +779,20 @@ def parallel_inundation_ar6(year,quantile,ssp,confidence_level,raster,loc_name,x
     if vlm_resampled_file is None:
         output_inundation_file = output_inundation_file.replace('_Inundation_','_Inundation_No_VLM_')
     x_projection,y_projection,zone_projection = deg2utm(lon_projection,lat_projection)
-    h_projection_coast = interpolate_points(x_projection,y_projection,slr_projection,x_coast,y_coast,INTERPOLATE_METHOD)
+    h_projection_coast = interpolate_points(x_projection,y_projection,slr_projection,x_coast,y_coast,interpolate_method)
     h_coast_yr = h_coast + h_projection_coast
     output_file_coastline_yr = output_file_coastline.replace('.csv',f'_{year}_SSP{ssp}_q{quantile_str}.csv')
     np.savetxt(output_file_coastline_yr,np.c_[x_coast,y_coast,h_coast_yr],fmt='%f',delimiter=',',comments='')
     sl_grid_file_intermediate_res = csv_to_grid(output_file_coastline_yr,algorithm_dict,dem_dict,epsg_code)
-    sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{GRID_INTERMEDIATE_RES}m','')
+    sl_grid_file_full_res = sl_grid_file_intermediate_res.replace(f'_{grid_intermediate_res}m','')
     resample_raster(sl_grid_file_intermediate_res,raster,sl_grid_file_full_res,quiet_flag=True)
     if vlm_resampled_file is not None:
         dt = int(year - t0)
-        inundation_command = f'gdal_calc.py --quiet -A {raster} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+        inundation_command = f'gdal_calc.py --quiet -A {raster} -B {vlm_resampled_file} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+B*{dt} < C+D" --NoDataValue={inundation_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
     elif vlm_rate is not None:
-        inundation_command = f'gdal_calc.py --quiet -A {raster} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+{vlm_rate}*{dt} < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+        inundation_command = f'gdal_calc.py --quiet -A {raster} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A+{vlm_rate}*{dt} < C+D" --NoDataValue={inundation_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
     else:
-        inundation_command = f'gdal_calc.py --quiet -A {raster} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={INUNDATION_NODATA} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
+        inundation_command = f'gdal_calc.py --quiet -A {raster} -C {sl_grid_file_full_res} -D {sealevel_high_grid_full_res} --outfile={output_inundation_file} --calc="A < C+D" --NoDataValue={inundation_nodata} --co "COMPRESS=LZW" --co "BIGTIFF=IF_SAFER" --co "TILED=YES"'
     subprocess.run(inundation_command,shell=True)
     output_inundation_vec_file = output_inundation_file.replace('.tif',f'.{output_format}')
     polygonize_command = f'gdal_polygonize.py -q {output_inundation_file} {output_inundation_vec_file}'
