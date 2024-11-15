@@ -226,6 +226,7 @@ def main():
 
     flag_dict = {'return_period':return_period,
         'fes2014_flag':fes2014_flag,
+        'fes2022_flag':fes2022_flag,
         'mhhw_flag':mhhw_flag,
         'high_tide':high_tide,
         'connectivity_flag':connectivity_flag,

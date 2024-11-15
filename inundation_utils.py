@@ -495,9 +495,9 @@ def get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_ex
     tmp_dir = dir_dict['tmp_dir']
     GRID_NODATA = constants_dict['GRID_NODATA']
     REGGRID_INTERPOLATE_METHOD = constants_dict['REGGRID_INTERPOLATE_METHOD']
-    INTERPOLATE_METHOD = constants_dict['INTERPOLATE_METHOD']
+    # INTERPOLATE_METHOD = constants_dict['INTERPOLATE_METHOD']
     # ICESAT2_GRID_RESOLUTION = constants_dict['ICESAT2_GRID_RESOLUTION']
-    N_PTS = constants_dict['N_PTS']
+    # N_PTS = constants_dict['N_PTS']
     t_start = datetime.datetime.now()
     print('Generating coastal sea level grid...')
     if sl_grid_extents is not None:
@@ -648,6 +648,7 @@ def parallel_inundation_slr(slr_value,raster,loc_name,x_coast,y_coast,h_coast,
     inundation_dir = dir_dict['inundation_dir']
     return_period = flag_dict['return_period']
     fes2014_flag = flag_dict['fes2014_flag']
+    fes2022_flag = flag_dict['fes2022_flag']
     mhhw_flag = flag_dict['mhhw_flag']
     connectivity_flag = flag_dict['connectivity_flag']
     separate_flag = flag_dict['separate_flag']
@@ -668,6 +669,10 @@ def parallel_inundation_slr(slr_value,raster,loc_name,x_coast,y_coast,h_coast,
         output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{slr_value_str}_FES2014.tif'
         if mhhw_flag == True:
             output_inundation_file = output_inundation_file.replace('FES2014','FES2014_MHHW')
+    elif fes2022_flag == True:
+        output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{slr_value_str}_FES2022.tif'
+        if mhhw_flag == True:
+            output_inundation_file = output_inundation_file.replace('FES2022','FES2022_MHHW')
     if geoid_file is not None:
         output_inundation_file = output_inundation_file.replace('_Inundation_','_Orthometric_Inundation_')
     h_coast_slr = h_coast + slr_value
@@ -713,6 +718,7 @@ def parallel_inundation_ar6(year,quantile,ssp,confidence_level,raster,loc_name,x
     AR6_dir = dir_dict['AR6_dir']
     return_period = flag_dict['return_period']
     fes2014_flag = flag_dict['fes2014_flag']
+    fes2022_flag = flag_dict['fes2022_flag']
     mhhw_flag = flag_dict['mhhw_flag']
     connectivity_flag = flag_dict['connectivity_flag']
     separate_flag = flag_dict['separate_flag']
@@ -740,6 +746,10 @@ def parallel_inundation_ar6(year,quantile,ssp,confidence_level,raster,loc_name,x
         output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{year}_PROJECTION_METHOD_FES2014.tif'
         if mhhw_flag == True:
             output_inundation_file = output_inundation_file.replace('FES2014','FES2014_MHHW')
+    elif fes2022_flag == True:
+        output_inundation_file = f'{inundation_dir}{loc_name}_Inundation_{year}_PROJECTION_METHOD_FES2022.tif'
+        if mhhw_flag == True:
+            output_inundation_file = output_inundation_file.replace('FES2022','FES2022_MHHW')
     output_inundation_file = output_inundation_file.replace('PROJECTION_METHOD',f'AR6_SSP_{ssp}')
     if confidence_level == 'low':
         output_inundation_file = output_inundation_file.replace('AR6','AR6_Low_Conf')
