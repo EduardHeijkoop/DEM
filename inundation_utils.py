@@ -355,7 +355,7 @@ def create_csv_vrt(vrt_name,file_name,layer_name):
     tree.write(vrt_name)
     return None
 
-def get_codec(lon,lat,codec_file,return_period=10):
+def get_codec(lon,lat,codec_file,interpolate_method='Smooth',return_period=10):
     '''
     Returns sea level extremes from CoDEC dataset.
     '''
@@ -378,7 +378,7 @@ def get_codec(lon,lat,codec_file,return_period=10):
     lon_codec_select = lon_codec[idx_lonlat]
     lat_codec_select = lat_codec[idx_lonlat]
     rps_select = rps[idx_lonlat,idx_return_period]
-    rps_input = interpolate_points(lon_codec_select,lat_codec_select,rps_select,lon,lat,'Smooth',2)
+    rps_input = interpolate_points(lon_codec_select,lat_codec_select,rps_select,lon,lat,interpolate_method,3)
     return rps_input
 
 def get_fes(lon,lat,fes_file,search_radius=3.0,mhhw_flag=False):
@@ -554,6 +554,7 @@ def get_sealevel_high(raster,flag_dict,loc_name,epsg_code,
     CODEC_file = constants_dict['CODEC_file']
     fes_file = constants_dict['fes_file']
     GRID_INTERMEDIATE_RES = constants_dict['GRID_INTERMEDIATE_RES']
+    INTERPOLATE_METHOD = constants_dict['INTERPOLATE_METHOD']
     if fes2014_flag == True:
         fes_name = 'FES2014'
     elif fes2022_flag == True:
@@ -588,7 +589,7 @@ def get_sealevel_high(raster,flag_dict,loc_name,epsg_code,
     elif return_period is not None:
         t_start = datetime.datetime.now()
         print(f'Finding CoDEC sea level extremes for return period of {return_period} years...')
-        rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,return_period)
+        rps_coast = get_codec(lon_coast,lat_coast,CODEC_file,INTERPOLATE_METHOD,return_period)
         output_file_codec = f'{tmp_dir}{loc_name}_CoDEC_{return_period}_yrs_coastline.csv'
         np.savetxt(output_file_codec,np.c_[x_coast,y_coast,rps_coast],fmt='%f',delimiter=',',comments='')
         codec_grid_intermediate_res = csv_to_grid(output_file_codec,algorithm_dict,dem_dict,epsg_code)
