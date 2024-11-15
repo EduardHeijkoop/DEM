@@ -23,14 +23,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_file',help='Path to input DEM to run inundation on.')
     parser.add_argument('--loc_name',help='Name of location to run inundation on.')
-    parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
+    # parser.add_argument('--machine',default='t',help='Machine to run on (t, b or local)')
+    parser.add_argument('--config',default='dem_config.ini',help='Path to configuration file.')
     parser.add_argument('--N_cpus',help='Number of CPUs to use for parallel processing.',default=1,type=int)
     parser.add_argument('--downsample_res',help='Resolution at which to compute inundation.',default=None,type=float)
     parser.add_argument('--geoid',help='Path to geoid file to calculate orthometric heights with.',default=None)
     parser.add_argument('--vlm',help='Path to VLM file to propagate input file in time.',default=None)
     parser.add_argument('--clip_vlm',help='Clip DEM to VLM extents?',default=False,action='store_true')
     # parser.add_argument('--icesat2',help='Path to ICESat-2 file to calculate coastal sea level with.')
-    parser.add_argument('--sealevel_grid',help='Path to sea level grid to calculate coastal sea level with.') #move to config file
+    # parser.add_argument('--sealevel_grid',help='Path to sea level grid to calculate coastal sea level with.') #move to config file
     parser.add_argument('--grid_extents',help='Extents of grid to be used in calculation (x_min x_max y_min y_max)',nargs=4)
     parser.add_argument('--coastline',help='Path to coastline file to calculate coastal sea level on.')
     parser.add_argument('--clip_coast',help='Clip DEM to coastline?',default=False,action='store_true')
@@ -62,7 +63,7 @@ def main():
     vlm_file = args.vlm
     clip_vlm_flag = args.clip_vlm
     # icesat2_file = args.icesat2
-    sl_grid_file = args.sealevel_grid
+    # sl_grid_file = args.sealevel_grid
     sl_grid_extents = args.grid_extents
     coastline_file = args.coastline
     clip_coast_flag = args.clip_coast
@@ -97,10 +98,6 @@ def main():
     if vlm_file is None:
         print('No VLM file supplied to propagate in time!')
         print('Still running inundation with sea level rise.')
-    if sl_grid_file is not None and sl_grid_extents is None:
-        print('Warning, selecting whole grid as input!')
-        # src_sl_grid = gdal.Open(sl_grid_file,gdalconst.GA_ReadOnly)
-        sl_grid_extents = get_raster_extents(sl_grid_file,'global')
     if vlm_file is None and clip_vlm_flag == True:
         print('No VLM file supplied, but clipping desired!')
         sys.exit()
@@ -153,6 +150,7 @@ def main():
     f_write.close()
     
     # SROCC_dir = config.get('INUNDATION_PATHS','SROCC_dir')
+    sl_grid_file = config.get('INUNDATION_PATHS','sealevel_grid')
     AR6_dir = config.get('INUNDATION_PATHS','AR6_dir')
     CODEC_file = config.get('INUNDATION_PATHS','CODEC_file')
     if fes2014_flag is not None:
@@ -163,6 +161,11 @@ def main():
     gsw_dir = config.get('GENERAL_PATHS','gsw_dir')
     landmask_c_file = config.get('GENERAL_PATHS','landmask_c_file')
     osm_shp_file = config.get('GENERAL_PATHS','osm_shp_file')
+
+    if sl_grid_extents is None:
+        print('Warning, selecting whole grid as input!')
+        # src_sl_grid = gdal.Open(sl_grid_file,gdalconst.GA_ReadOnly)
+        sl_grid_extents = get_raster_extents(sl_grid_file,'global')
 
     # if machine_name == 'b':
     #     SROCC_dir = SROCC_dir.replace('/BhaltosMount/Bhaltos/','/Bhaltos/willismi/')
