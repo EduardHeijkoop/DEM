@@ -1,0 +1,14 @@
+name: dem
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - gdal=3
+  - geopandas=1
+  - matplotlib=3
+  - numpy=2
+  - pandas=2
+  - scipy
+  - shapely
+prefix: /opt/miniconda3/envs/dem
