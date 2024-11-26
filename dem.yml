@@ -11,6 +11,5 @@ dependencies:
   - pandas=2
   - scipy
   - shapely
-  - netCDF4
-  - scipy
+  - netcdf4
 prefix: /opt/miniconda3/envs/dem
