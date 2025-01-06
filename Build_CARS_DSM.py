@@ -80,7 +80,7 @@ def create_config_file(cars_config_file,extents_file_list,output_dir,config_dict
     cars_config_data['output']['resolution'] = config_dict['resolution']
     if config_dict['N_overlap'] > 1:
         cars_config_output_file = cars_config_file.replace('.json',f'_{config_dict["i_overlap"]}.json')
-    if config_dict['bulldoze_flag'] == True:
+    if config_dict['bulldozer_flag'] == True:
         cars_config_data['applications'] = {}
         cars_config_data['applications']['dsm_filling'] = {}
         cars_config_data['applications']['dsm_filling']['method'] = 'bulldozer'
