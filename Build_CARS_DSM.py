@@ -89,7 +89,7 @@ def create_config_file(cars_config_file,extents_file_list,output_dir,config_dict
         cars_config_data['applications']['dsm_filling']['activated'] = 'true'
         cars_config_data['applications']['dsm_filling']['save_intermediate_data'] = 'true'  #or True to hang on to DSM? Does it delete DSM??
     with open(cars_config_output_file,'w') as f:
-        json.write(cars_config_data,f)
+        json.dump(cars_config_data,f)
     return cars_config_output_file    
 
 def get_roi_bounds(geom_overlap,roi_buffer=0.001):
