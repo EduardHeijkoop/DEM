@@ -1,0 +1,16 @@
+name: cars_dem
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy
+  - rasterio
+  - gdal=3
+  - geopandas=1
+  - pandas=2
+  - pip
+  - pip:
+    - cars
+
+prefix: /opt/miniconda3/envs/cars_dem

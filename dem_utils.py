@@ -463,6 +463,16 @@ def get_lonlat_gdf_center(gdf):
     lat_center = (lat_min + lat_max) / 2
     return lon_center,lat_center
 
+def get_lonlat_bounds_gdf(gdf):
+    '''
+    
+    '''
+    lon_min = np.min(gdf.bounds.minx)
+    lon_max = np.max(gdf.bounds.maxx)
+    lat_min = np.min(gdf.bounds.miny)
+    lat_max = np.max(gdf.bounds.maxy)
+    return lon_min,lon_max,lat_min,lat_max
+
 def find_corner_points_gdf(lon,lat,gdf):
     lon_min,lat_min,lon_max,lat_max = gdf.total_bounds
     idx_ne = np.atleast_1d(np.argwhere(np.logical_and(lon == lon_max,lat == lat_max)).squeeze())
