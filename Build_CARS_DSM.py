@@ -196,7 +196,6 @@ def main():
     parser.add_argument('--bulldozer',help='Use bulldozer method for DSM to DTM conversion.',action='store_true',default=False)
     parser.add_argument('--a_priori',help='Use Copernicus DEM as a priori.',action='store_true',default=False)
     parser.add_argument('--interpolation',help='Apply interpolation to holes?',action='store_true',default=False)
-    parser.add_argument('--bulldozer',help='Bulldoze resulting DSM, creating a DTM too?',action='store_true',default=False)
 
     args = parser.parse_args()
     project_name = args.project_name
