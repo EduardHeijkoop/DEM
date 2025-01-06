@@ -80,14 +80,14 @@ def create_config_file(cars_config_file,extents_file_list,output_dir,config_dict
     cars_config_data['output']['resolution'] = config_dict['resolution']
     if config_dict['N_overlap'] > 1:
         cars_config_output_file = cars_config_file.replace('.json',f'_{config_dict["i_overlap"]}.json')
+    else:
+        cars_config_output_file = cars_config_file
     if config_dict['bulldozer_flag'] == True:
         cars_config_data['applications'] = {}
         cars_config_data['applications']['dsm_filling'] = {}
         cars_config_data['applications']['dsm_filling']['method'] = 'bulldozer'
         cars_config_data['applications']['dsm_filling']['activated'] = 'true'
         cars_config_data['applications']['dsm_filling']['save_intermediate_data'] = 'true'  #or True to hang on to DSM? Does it delete DSM??
-    
-
     with open(cars_config_output_file,'w') as f:
         json.write(cars_config_data,f)
     return cars_config_output_file    
