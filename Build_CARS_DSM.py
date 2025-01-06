@@ -201,7 +201,7 @@ def main():
     project_name = args.project_name
     input_file = args.input_file
     output_dir = args.output_dir
-    output_resolution = args.resolution
+    output_resolution = float(args.resolution)
     extents = args.extents
     a_priori_flag = args.a_priori
     interpolation_flag = args.interpolation
