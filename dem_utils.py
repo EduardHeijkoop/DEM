@@ -402,7 +402,7 @@ def df_to_gdf(df,dt_threshold=0.01):
     return gdf
 
 
-def get_lonlat_geometry(geom):
+def get_lonlat_geometry(geom,append_nan=True):
     '''
     Returns lon/lat of all exteriors and interiors of a Shapely geomery:
         -Polygon
@@ -427,9 +427,12 @@ def get_lonlat_geometry(geom):
             lon_geom,lat_geom = get_lonlat_polygon(polygon)
             lon = np.append(lon,lon_geom)
             lat = np.append(lat,lat_geom)
+    if append_nan == False:
+        lon = lon[~np.isnan(lon)]
+        lat = lat[~np.isnan(lat)]
     return lon,lat
 
-def get_lonlat_polygon(polygon):
+def get_lonlat_polygon(polygon,append_nan=True):
     lon = np.empty([0,1],dtype=float)
     lat = np.empty([0,1],dtype=float)
     exterior_xy = np.asarray(polygon.exterior.xy)
@@ -443,9 +446,12 @@ def get_lonlat_polygon(polygon):
         lon = np.append(lon,np.nan)
         lat = np.append(lat,interior_xy[1,:])
         lat = np.append(lat,np.nan)
+    if append_nan == False:
+        lon = lon[~np.isnan(lon)]
+        lat = lat[~np.isnan(lat)]
     return lon,lat
 
-def get_lonlat_gdf(gdf):
+def get_lonlat_gdf(gdf,append_nan=True):
     '''
     Returns lon/lat of all exteriors and interiors of a GeoDataFrame.
     '''
@@ -455,6 +461,9 @@ def get_lonlat_gdf(gdf):
         lon_geom,lat_geom = get_lonlat_geometry(geom)
         lon = np.append(lon,lon_geom)
         lat = np.append(lat,lat_geom)
+    if append_nan == False:
+        lon = lon[~np.isnan(lon)]
+        lat = lat[~np.isnan(lat)]
     return lon,lat
 
 def get_lonlat_gdf_center(gdf):
