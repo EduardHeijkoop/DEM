@@ -15,7 +15,8 @@ import affine
 import datetime
 import json
 
-from dem_utils import get_lonlat_geometry,get_lonlat_bounds_gdf
+from max_rect import get_maximal_rectangle
+from dem_utils import get_lonlat_bounds_gdf
 
 
 def get_window_from_roi(src, roi):
@@ -90,24 +91,7 @@ def create_config_file(cars_config_file,extents_file_list,output_dir,config_dict
         cars_config_data['applications']['dsm_filling']['save_intermediate_data'] = True  #or True to hang on to DSM? Does it delete DSM??
     with open(cars_config_output_file,'w') as f:
         json.dump(cars_config_data,f)
-    return cars_config_output_file    
-
-def get_roi_bounds(geom_overlap,roi_buffer=0.001):
-    '''
-    Computes rectangle of bounds that fits within overlap geometry
-    Uses highest/lowest value smaller/greater than the centroid (lon/lat)
-    Not necessarily optimum, but fast
-    '''
-    centroid_geom = geom_overlap.centroid
-    lon_centroid = centroid_geom.x
-    lat_centroid = centroid_geom.y
-    lon_overlap,lat_overlap = get_lonlat_geometry(geom_overlap)
-    lon_min_roi = np.max(lon_overlap[lon_overlap < lon_centroid]) + roi_buffer
-    lon_max_roi = np.min(lon_overlap[lon_overlap > lon_centroid]) - roi_buffer
-    lat_min_roi = np.max(lat_overlap[lat_overlap < lat_centroid]) + roi_buffer
-    lat_max_roi = np.min(lat_overlap[lat_overlap > lat_centroid]) - roi_buffer
-    roi_bounds = (lon_min_roi,lat_min_roi,lon_max_roi,lat_max_roi)
-    return roi_bounds
+    return cars_config_output_file
 
 def get_outline(xml_file):
     tree = ET.parse(xml_file)
@@ -254,9 +238,8 @@ def main():
         extents_file_list = []
         idx_select = [geom.contains(gdf_overlap.geometry[i].buffer(-1e-10)) for geom in gdf_geometry.geometry]
         df_select = df_input.loc[idx_select]
-        gdf_geometry_select = gdf_geometry.loc[idx_select]
-        roi_bounds = get_roi_bounds(gdf_overlap.geometry[i])
-        # roi_bounds = gdf_overlap.geometry[i].bounds
+        # gdf_geometry_select = gdf_geometry.loc[idx_select]
+        roi_bounds = get_maximal_rectangle(gdf_overlap.geometry[i])
         for j in range(len(df_select)):
             ntf_file = df_select['ntf_file'].iloc[j]
             extents_file = create_extents_file(ntf_file,output_dir,roi_bounds)
@@ -264,7 +247,6 @@ def main():
         if a_priori_flag == True:
             download_copernicus(roi_bounds[0],roi_bounds[2],roi_bounds[1],roi_bounds[3],)
         cars_config_file_new = create_config_file(cars_config_file,extents_file_list,output_dir,config_dict)
-
         cars_run_command = f'cars {cars_config_file_new}'
         subprocess.run(cars_run_command,shell=True)
         if len(gdf_overlap) > 1:
