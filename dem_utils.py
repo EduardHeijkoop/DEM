@@ -376,6 +376,24 @@ def raster_to_geotiff(x,y,arr,epsg_code,output_file):
     dataset = None
     return None
 
+def raster_to_geotiff_w_src(src,new_arr,output_file,flip=False,dtype=gdal.GDT_Float32):
+    '''
+    Uses the geotransform and projection from the source raster to create a new geotiff
+    Useful when array is derived from the src raster
+    '''
+    if flip:
+        new_arr = np.flipud(new_arr)
+    geotransform = src.GetGeoTransform()
+    projection = src.GetProjection()
+    driver = gdal.GetDriverByName('GTiff')
+    dataset = driver.Create(output_file,new_arr.shape[1],new_arr.shape[0],1,dtype)
+    dataset.SetGeoTransform(geotransform)
+    dataset.SetProjection(projection)
+    dataset.GetRasterBand(1).WriteArray(new_arr)
+    dataset.FlushCache()
+    dataset = None
+    return None
+
 def df_to_gdf(df,dt_threshold=0.01):
     '''
     dt_threshold given in seconds, then converted to ns
