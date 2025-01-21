@@ -260,11 +260,12 @@ def main():
     else:
         egm96_file = None
         egm2008_file = None
+    
 
-    username = config.get('GENERAL_CONSTANTS','earthdata_username')
-    pw = getpass.getpass('Enter your NASA EarthData password:')
-
-    pw_check = check_password_nasa_earthdata(username,pw)
+    if dem_product != 'copernicus':
+        username = config.get('GENERAL_CONSTANTS','earthdata_username')
+        pw = getpass.getpass('Enter your NASA EarthData password:')
+        pw_check = check_password_nasa_earthdata(username,pw)
 
     if dem_product == 'srtm':
         download_srtm(lon_min,lon_max,lat_min,lat_max,username,pw,egm96_file,tmp_dir,output_file,copy_nan_flag)
