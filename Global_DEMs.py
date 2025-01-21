@@ -241,7 +241,7 @@ def main():
     parser.add_argument('--extents',nargs=4,help='Extents in format: lon_min,lon_max,lat_min,lat_max',type=float)
     parser.add_argument('--copy_nan',action='store_true',default=False,help='Copy NaN from original product when resampling to WGS 84')
     parser.add_argument('--datum',choices=['geoid','wgs84'],default='wgs84')
-    parser.add_argument('--output_file',default='tmp.tif',help='Full path of output file.')
+    parser.add_argument('--output_file',default=f'{os.getcwd()}/tmp.tif',help='Full path of output file.')
     args = parser.parse_args()
     config_file = args.config
     dem_product = args.product
