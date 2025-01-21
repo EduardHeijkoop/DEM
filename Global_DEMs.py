@@ -21,8 +21,8 @@ Requirements:
 '''
 
 def copy_nan(old_raster,new_raster,old_nan_value,new_nan_value):
-    copy_nan_command = f'gdal_calc.py -A {old_raster} -B {new_raster} --outfile=tmp.tif --calc="numpy.where(numpy.equal(A,{old_nan_value}),{new_nan_value},B)" --NoDataValue={old_nan_value} --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
-    mv_command = f'mv tmp.tif {new_raster}'
+    copy_nan_command = f'gdal_calc.py -A {old_raster} -B {new_raster} --outfile=tmp_nan.tif --calc="numpy.where(numpy.equal(A,{old_nan_value}),{new_nan_value},B)" --NoDataValue={old_nan_value} --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
+    mv_command = f'mv tmp_nan.tif {new_raster}'
     set_nodata_command = f'gdal_edit.py -a_nodata {new_nan_value} {new_raster}'
     subprocess.run(copy_nan_command,shell=True)
     subprocess.run(mv_command,shell=True)
