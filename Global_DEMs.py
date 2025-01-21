@@ -253,6 +253,8 @@ def main():
     config = configparser.ConfigParser()
     config.read(config_file)
 
+    output_file = os.path.abspath(output_file)
+
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     if datum == 'wgs84':
         egm96_file = config.get('GENERAL_PATHS','EGM96_path')
