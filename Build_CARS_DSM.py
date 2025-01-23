@@ -14,9 +14,12 @@ import os
 import affine
 import datetime
 import json
+from osgeo import gdal,gdalconst,osr
+import skimage
+from scipy import ndimage
 
 from max_rect import get_maximal_rectangle
-from dem_utils import get_lonlat_bounds_gdf
+from dem_utils import get_lonlat_bounds_gdf,raster_to_geotiff_w_src
 
 
 def get_window_from_roi(src, roi):
@@ -156,6 +159,44 @@ def get_xml_list(df_input):
         raise Exception('XML files do not exist for all NTF files.')
     return xml_file_list
 
+def arr_float_to_int(arr):
+    arr_int = arr.copy()
+    arr_int -= np.nanmin(arr_int)
+    arr_int /= np.nanmax(arr_int)
+    arr_int *= 255
+    arr_int[np.isnan(arr_int)] = 0
+    arr_int = arr_int.astype(np.uint8)
+    return arr_int
+
+def entropy_filter(arr,entropy_threshold,size_threshold):
+    arr_int = arr_float_to_int(arr)
+    entropy = skimage.filters.rank.entropy(arr_int,skimage.morphology.disk(10))
+    entropy_binary = entropy >= entropy_threshold
+    label,num_label = ndimage.label(entropy_binary == 1)
+    size = np.bincount(label.ravel())
+    label_IDs_sorted = np.argsort(size)[::-1] #sort the labels by size (descending, so biggest first), then remove label=0, because that one is land
+    label_IDs_sorted = label_IDs_sorted[label_IDs_sorted != 0]
+    entr_clump = np.zeros(entropy_binary.shape,dtype=int)
+    for label_id in label_IDs_sorted:
+        if size[label_id]/entropy_binary.size < size_threshold:
+            break
+        entr_clump = entr_clump + np.asarray(label==label_id,dtype=int)
+    entr_clump_filled = ndimage.binary_fill_holes(entr_clump)
+    arr_filtered = arr.copy()
+    arr_filtered[entr_clump_filled == 1] = np.nan
+    return arr_filtered
+
+def cloud_filter(dsm_file,cloud_filter_dict):
+    entropy_threshold = cloud_filter_dict['entropy_threshold']
+    n_pixel_threshold = cloud_filter_dict['n_pixel_threshold']
+    src = gdal.Open(dsm_file, gdalconst.GA_ReadOnly)
+    dsm_nodata = src.GetRasterBand(1).GetNoDataValue()
+    dsm_arr = np.array(src.GetRasterBand(1).ReadAsArray())
+    dsm_arr[dsm_arr == dsm_nodata] = np.nan
+    dsm_arr_filtered = entropy_filter(dsm_arr,entropy_threshold,n_pixel_threshold)
+    dsm_filtered_file = dsm_file.replace('.tif','_filtered.tif')
+    raster_to_geotiff_w_src(src,dsm_arr_filtered,dsm_filtered_file)
+    return dsm_filtered_file
 
 def main():
     '''
@@ -176,7 +217,11 @@ def main():
     parser.add_argument('--input_file',help='File with full paths of image NTFs to build DSM from.')
     parser.add_argument('--extents',help='Extents (lon_min,lon_max,lat_min,lat_max) or overlapping (overlap) area to build DSM.',nargs='*',default='overlap')
     parser.add_argument('--output_dir',help='Output directory for DSM.')
-    parser.add_argument('--resolution',help='Resolution of DSM.',default=1.0)
+    parser.add_argument('--resolution',help='Resolution of DSM.',default=2.0)
+    # Processing options
+    parser.add_argument('--coast',help='Use coastline file to clip DSM.',default=None)
+    parser.add_argument('--crop_coast',help='Crop DSM extents to that of coastline?',action='store_true',default=False)
+    parser.add_argument('--cloud_filter',help='Use entropy-based cloud filter to remove cloudy patches.',action='store_true',default=False)
     parser.add_argument('--bulldozer',help='Use bulldozer method for DSM to DTM conversion.',action='store_true',default=False)
     parser.add_argument('--a_priori',help='Use Copernicus DEM as a priori.',action='store_true',default=False)
     parser.add_argument('--interpolation',help='Apply interpolation to holes?',action='store_true',default=False)
@@ -184,12 +229,15 @@ def main():
     args = parser.parse_args()
     project_name = args.project_name
     input_file = args.input_file
+    extents = args.extents
     output_dir = args.output_dir
     output_resolution = float(args.resolution)
-    extents = args.extents
+    coast_file = args.coast
+    crop_coast_flag = args.crop_coast #this just adds the crop_to_cutline flag to gdalwarp
+    cloud_filter_flag = args.cloud_filter
+    bulldozer_flag = args.bulldozer
     a_priori_flag = args.a_priori
     interpolation_flag = args.interpolation
-    bulldozer_flag = args.bulldozer
 
     if output_dir[-1] != '/':
         output_dir = f'{output_dir}/'
@@ -203,7 +251,6 @@ def main():
     if extents != 'overlap':
         extents = [float(e) for e in extents]
 
-
     cars_config_file = f'{output_dir}cars_config_{datetime.datetime.now().strftime('%Y%m%dT%H%M%S')}.json'
 
     df_input = pd.read_csv(input_file,header=None,names=['ntf_file'])
@@ -211,9 +258,6 @@ def main():
     gdf_geometry = get_outline_geom(df_input)
     gdf_overlap = get_overlap(gdf_geometry,extents)
 
-    #from dem_utils import get_lonlat_bounds_gdf
-    #write a function to return lon/lat min/max based on np.min(gdf.bounds.minx), etc
-    
     if a_priori_flag == True:
         from Global_DEMs import download_copernicus
         lon_min,lon_max,lat_min,lat_max = get_lonlat_bounds_gdf(gdf_overlap)
@@ -230,6 +274,13 @@ def main():
         'N_overlap':len(gdf_overlap),
         'i_overlap':0,
     }
+
+    if cloud_filter_flag == True:
+        cloud_filter_dict = {
+            'entropy_threshold':config.getfloat('CLOUD_FILTER','entropy_threshold'),
+            'n_pixel_threshold':config.getfloat('CLOUD_FILTER','n_pixel_threshold'),
+        }
+    
     #Build DSMs for each overlapping area
     for i in range(len(gdf_overlap)):
         #Find images that correspond with particular overlap
@@ -239,7 +290,10 @@ def main():
         idx_select = [geom.contains(gdf_overlap.geometry[i].buffer(-1e-10)) for geom in gdf_geometry.geometry]
         df_select = df_input.loc[idx_select]
         # gdf_geometry_select = gdf_geometry.loc[idx_select]
-        roi_bounds = get_maximal_rectangle(gdf_overlap.geometry[i])
+        if extents == 'overlap':
+            roi_bounds = get_maximal_rectangle(gdf_overlap.geometry[i])
+        else:
+            roi_bounds = [extents[0],extents[2],extents[1],extents[3]]
         for j in range(len(df_select)):
             ntf_file = df_select['ntf_file'].iloc[j]
             extents_file = create_extents_file(ntf_file,output_dir,roi_bounds)
@@ -252,7 +306,13 @@ def main():
         if len(gdf_overlap) > 1:
             subprocess.run(f'mv {output_dir} {output_dir[:-1]}_{i}',shell=True)
         #do some stuff to move dsm.tif to a real filename
-
+        if cloud_filter_flag is not None:
+            cloud_filter(dsm_file,cloud_filter_dict)
+        if coast_file is not None:
+            clip_command = f'gdalwarp -cutline {coast_file} {output_dir}dsm.tif {output_dir}dsm_clipped.tif'
+            if crop_coast_flag == True:
+                clip_command = clip_command.replace('gdalwarp','gdalwarp -crop_to_cutline')
+            subprocess.run(clip_command,shell=True)
 
 
     ##################
