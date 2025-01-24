@@ -11,6 +11,7 @@ dependencies:
   - pandas=2
   - pip
   - cvxpy
+  - scikit-image
   - pip:
     - cars
 
