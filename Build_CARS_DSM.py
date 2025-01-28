@@ -366,9 +366,9 @@ def main():
     parser.add_argument('--coast',help='Use coastline file to clip DSM.',default=None)
     parser.add_argument('--crop_coast',help='Crop DSM extents to that of coastline?',action='store_true',default=False)
     parser.add_argument('--cloud_filter',help='Use entropy-based cloud filter to remove cloudy patches.',action='store_true',default=False)
-    parser.add_argument('--a_priori',help='Use Copernicus DEM as a priori.',action='store_true',default=False)
-    parser.add_argument('--interpolation',help='Apply interpolation to holes?',action='store_true',default=False)
     # To implement next:
+    # parser.add_argument('--interpolation',help='Apply interpolation to holes?',action='store_true',default=False)
+    # parser.add_argument('--a_priori',help='Use Copernicus DEM as a priori.',action='store_true',default=False)
     # parser.add_argument('--bulldozer',help='Use bulldozer method for DSM to DTM conversion.',action='store_true',default=False)
 
     args = parser.parse_args()
@@ -380,9 +380,9 @@ def main():
     coast_file = args.coast
     crop_coast_flag = args.crop_coast #this just adds the crop_to_cutline flag to gdalwarp
     cloud_filter_flag = args.cloud_filter
+    # interpolation_flag = args.interpolation
     # bulldozer_flag = args.bulldozer
-    a_priori_flag = args.a_priori
-    interpolation_flag = args.interpolation
+    # a_priori_flag = args.a_priori
 
     output_dir = build_dirs(output_dir,project_name)
 
@@ -398,22 +398,22 @@ def main():
     gdf_geometry = get_outline_geom(df_input)
     gdf_overlap = get_overlap(gdf_geometry,extents)
 
-    if a_priori_flag == True:
-        from Global_DEMs import download_copernicus
-        lon_min,lon_max,lat_min,lat_max = get_lonlat_bounds_gdf(gdf_overlap)
-        tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
-        egm2008_file = config.get('GENERAL_PATHS','EGM2008_path')
-        output_copernicus_file = f'{tmp_dir}{project_name}_Copernicus_WGS84_0.tif'
-        download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,output_copernicus_file,copy_nan_flag=True)
+    # if a_priori_flag == True:
+    #     from Global_DEMs import download_copernicus
+    #     lon_min,lon_max,lat_min,lat_max = get_lonlat_bounds_gdf(gdf_overlap)
+    #     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
+    #     egm2008_file = config.get('GENERAL_PATHS','EGM2008_path')
+    #     output_copernicus_file = f'{tmp_dir}{project_name}_Copernicus_WGS84_0.tif'
+    #     download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,output_copernicus_file,copy_nan_flag=True)
 
     config_dict = {
         'output_dir':output_dir,
         'project_name':project_name,
         'config_file':cars_config_file,
         'resolution':output_resolution,
-        'interpolation_flag':interpolation_flag,
+        # 'interpolation_flag':interpolation_flag,
         # 'bulldozer_flag':bulldozer_flag,
-        'a_priori_flag':a_priori_flag,
+        # 'a_priori_flag':a_priori_flag,
         'N_overlap':len(gdf_overlap),
         'i_overlap':0,
     }
@@ -428,7 +428,7 @@ def main():
     
     #Build DSMs for each overlapping area
     for i in range(len(gdf_overlap)):
-        #Find images that correspond with particular overlap
+        # Find images that correspond with particular overlap
         # geom_overlap = gdf_overlap.geometry[i]
         config_dict['i_overlap'] = i
         extents_file_list = []
@@ -443,9 +443,9 @@ def main():
             ntf_file = df_select['ntf_file'].iloc[j]
             extents_file = create_extents_file(ntf_file,output_dir,roi_bounds)
             extents_file_list.append(extents_file)
-        if a_priori_flag == True:
-            output_copernicus_file = output_copernicus_file.replace(f'_{i-1}.tif',f'_{i}.tif')
-            download_copernicus(roi_bounds[0],roi_bounds[2],roi_bounds[1],roi_bounds[3],egm2008_file,tmp_dir,output_copernicus_file,copy_nan_flag=True)
+        # if a_priori_flag == True:
+        #     output_copernicus_file = output_copernicus_file.replace(f'_{i-1}.tif',f'_{i}.tif')
+        #     download_copernicus(roi_bounds[0],roi_bounds[2],roi_bounds[1],roi_bounds[3],egm2008_file,tmp_dir,output_copernicus_file,copy_nan_flag=True)
         cars_config_file_new = create_config_file(cars_config_file,extents_file_list,output_dir,config_dict)
         cars_run_command = f'cars {cars_config_file_new}'
         subprocess.run(cars_run_command,shell=True)
