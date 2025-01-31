@@ -272,7 +272,7 @@ def write_dsm_metadata(config_dict,df_select,dsm_name):
     Writes a metadata file for the DSM
     '''
     output_dir = config_dict['output_dir']
-    metadata_file = os.path.join(*[output_dir,'METADATA','dsm',f'{dsm_name}_metadata.json'])
+    metadata_file = os.path.join(*[output_dir,'dsm',f'{dsm_name}_metadata.json'])
     metadata_dict = {
         'project_name':config_dict['project_name'],
         'dsm_name':dsm_name,
@@ -361,7 +361,7 @@ def main():
     parser.add_argument('--input_file',help='File with full paths of image NTFs to build DSM from.')
     parser.add_argument('--extents',help='Extents (lon_min,lon_max,lat_min,lat_max) or overlapping (overlap) area to build DSM.',nargs='*',default='overlap')
     parser.add_argument('--output_dir',help='Output directory for DSM.')
-    parser.add_argument('--resolution',help='Resolution of DSM.',default=2.0)
+    parser.add_argument('--resolution',help='Resolution of DSM.',default=2.0,dtype=float)
     # Processing options
     parser.add_argument('--coast',help='Use coastline file to clip DSM.',default=None)
     parser.add_argument('--crop_coast',help='Crop DSM extents to that of coastline?',action='store_true',default=False)
@@ -376,7 +376,7 @@ def main():
     input_file = args.input_file
     extents = args.extents
     output_dir = args.output_dir
-    output_resolution = float(args.resolution)
+    output_resolution = args.resolution
     coast_file = args.coast
     crop_coast_flag = args.crop_coast #this just adds the crop_to_cutline flag to gdalwarp
     cloud_filter_flag = args.cloud_filter
@@ -454,7 +454,13 @@ def main():
         # if cloud_filter_flag is not None:
         #     dsm_file = cloud_filter(dsm_file,cloud_filter_dict)
         if coast_file is not None:
-            clip_command = f'gdalwarp -cutline {coast_file} {dsm_file} {dsm_file.replace(".tif","_clipped.tif")} {gdalwarp_compress}'
+            if coast_file == 'osm':
+                osm_coastline_file = config.get('GENERAL_PATHS','osm_shp_file')
+                coast_file = os.path.join(output_dir,f'{project_name}_OSM_Coast.shp')
+                if not os.path.exists(coast_file):
+                    osm_subset_command = f'ogr2ogr -f "ESRI Shapefile" {coast_file} {osm_coastline_file} -clipsrc {gdf_overlap.bounds.minx.min()} {gdf_overlap.bounds.miny.min()} {gdf_overlap.bounds.maxx.max()} {gdf_overlap.bounds.maxy.max()}'
+                    subprocess.run(osm_subset_command,shell=True)
+            clip_command = f'gdalwarp -q -cutline {coast_file} {dsm_file} {dsm_file.replace(".tif","_clipped.tif")} {gdalwarp_compress}'
             if crop_coast_flag == True:
                 clip_command = clip_command.replace('gdalwarp','gdalwarp -crop_to_cutline')
             subprocess.run(clip_command,shell=True)
