@@ -204,6 +204,9 @@ def expand_input_list(df_input):
     return df_input
 
 def arr_float_to_int(arr):
+    '''
+    Converts array of floats to [0,255] integers
+    '''
     arr_int = arr.copy()
     arr_int -= np.nanmin(arr_int)
     arr_int /= np.nanmax(arr_int)
@@ -214,7 +217,10 @@ def arr_float_to_int(arr):
 
 def entropy_filter(arr,entropy_threshold,size_threshold):
     '''
-    
+    Uses scikit-image to compute the entropy of the DSM (normalized to [0,255])
+    Only entropy above a certain threshold is considered
+    Patches larger than a certain size (user-defined) are considered clouds
+    These patches are filled with scipy.ndimage.binary_fill_holes
     '''
     arr_int = arr_float_to_int(arr)
     entropy = skimage.filters.rank.entropy(arr_int,skimage.morphology.disk(10))
@@ -235,7 +241,8 @@ def entropy_filter(arr,entropy_threshold,size_threshold):
 
 def cloud_filter(dsm_file,cloud_filter_dict):
     '''
-    
+    ENTROPY FILTER N_PIXEL_THRESHOLD IS NOT N_PIXELS BUT PCT_PIXELS
+        CHANGE NEEDS TO BE MADE
     '''
     entropy_threshold = cloud_filter_dict['entropy_threshold']
     n_pixel_threshold = cloud_filter_dict['n_pixel_threshold']
@@ -421,7 +428,7 @@ def main():
     if cloud_filter_flag == True:
         cloud_filter_dict = {
             'entropy_threshold':config.getfloat('CARS_CONSTANTS','entropy_threshold'),
-            'n_pixel_threshold':config.getfloat('CARS_CONSTANTS','n_pixel_threshold')*output_resolution**2,
+            'n_pixel_threshold':config.getint('CARS_CONSTANTS','n_pixel_threshold'),
         }
     
     gdalwarp_compress = '-co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" -co "TILED=YES"'
@@ -450,9 +457,8 @@ def main():
         cars_run_command = f'cars {cars_config_file_new}'
         subprocess.run(cars_run_command,shell=True)
         dsm_file = move_rename_dsm(config_dict,df_select)
-        #do some stuff to move dsm.tif to a real filename
-        # if cloud_filter_flag is not None:
-        #     dsm_file = cloud_filter(dsm_file,cloud_filter_dict)
+        if cloud_filter_flag is not None:
+            dsm_file = cloud_filter(dsm_file,cloud_filter_dict)
         if coast_file is not None:
             if coast_file == 'osm':
                 osm_coastline_file = config.get('GENERAL_PATHS','osm_shp_file')
