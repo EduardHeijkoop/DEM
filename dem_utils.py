@@ -376,6 +376,24 @@ def raster_to_geotiff(x,y,arr,epsg_code,output_file):
     dataset = None
     return None
 
+def raster_to_geotiff_w_src(src,new_arr,output_file,flip=False,dtype=gdal.GDT_Float32):
+    '''
+    Uses the geotransform and projection from the source raster to create a new geotiff
+    Useful when array is derived from the src raster
+    '''
+    if flip:
+        new_arr = np.flipud(new_arr)
+    geotransform = src.GetGeoTransform()
+    projection = src.GetProjection()
+    driver = gdal.GetDriverByName('GTiff')
+    dataset = driver.Create(output_file,new_arr.shape[1],new_arr.shape[0],1,dtype)
+    dataset.SetGeoTransform(geotransform)
+    dataset.SetProjection(projection)
+    dataset.GetRasterBand(1).WriteArray(new_arr)
+    dataset.FlushCache()
+    dataset = None
+    return None
+
 def df_to_gdf(df,dt_threshold=0.01):
     '''
     dt_threshold given in seconds, then converted to ns
@@ -402,7 +420,7 @@ def df_to_gdf(df,dt_threshold=0.01):
     return gdf
 
 
-def get_lonlat_geometry(geom):
+def get_lonlat_geometry(geom,append_nan=True):
     '''
     Returns lon/lat of all exteriors and interiors of a Shapely geomery:
         -Polygon
@@ -427,9 +445,12 @@ def get_lonlat_geometry(geom):
             lon_geom,lat_geom = get_lonlat_polygon(polygon)
             lon = np.append(lon,lon_geom)
             lat = np.append(lat,lat_geom)
+    if append_nan == False:
+        lon = lon[~np.isnan(lon)]
+        lat = lat[~np.isnan(lat)]
     return lon,lat
 
-def get_lonlat_polygon(polygon):
+def get_lonlat_polygon(polygon,append_nan=True):
     lon = np.empty([0,1],dtype=float)
     lat = np.empty([0,1],dtype=float)
     exterior_xy = np.asarray(polygon.exterior.xy)
@@ -443,9 +464,12 @@ def get_lonlat_polygon(polygon):
         lon = np.append(lon,np.nan)
         lat = np.append(lat,interior_xy[1,:])
         lat = np.append(lat,np.nan)
+    if append_nan == False:
+        lon = lon[~np.isnan(lon)]
+        lat = lat[~np.isnan(lat)]
     return lon,lat
 
-def get_lonlat_gdf(gdf):
+def get_lonlat_gdf(gdf,append_nan=True):
     '''
     Returns lon/lat of all exteriors and interiors of a GeoDataFrame.
     '''
@@ -455,6 +479,9 @@ def get_lonlat_gdf(gdf):
         lon_geom,lat_geom = get_lonlat_geometry(geom)
         lon = np.append(lon,lon_geom)
         lat = np.append(lat,lat_geom)
+    if append_nan == False:
+        lon = lon[~np.isnan(lon)]
+        lat = lat[~np.isnan(lat)]
     return lon,lat
 
 def get_lonlat_gdf_center(gdf):
@@ -462,6 +489,16 @@ def get_lonlat_gdf_center(gdf):
     lon_center = (lon_min + lon_max) / 2
     lat_center = (lat_min + lat_max) / 2
     return lon_center,lat_center
+
+def get_lonlat_bounds_gdf(gdf):
+    '''
+    
+    '''
+    lon_min = np.min(gdf.bounds.minx)
+    lon_max = np.max(gdf.bounds.maxx)
+    lat_min = np.min(gdf.bounds.miny)
+    lat_max = np.max(gdf.bounds.maxy)
+    return lon_min,lon_max,lat_min,lat_max
 
 def find_corner_points_gdf(lon,lat,gdf):
     lon_min,lat_min,lon_max,lat_max = gdf.total_bounds

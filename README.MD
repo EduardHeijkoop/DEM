@@ -97,11 +97,12 @@ Make sure you have an active [NASA EarthData](https://urs.earthdata.nasa.gov/) a
 ### Config File
 The scripts in this repository depend on a number of other files & variables that need to be defined in the configuration file. Edit the `dem_config.ini` file in this repository or create your own and point to that when you run the script. The structure (e.g. `MOSAIC_CONSTANTS`) must be the same as the original. The common entries will be listed here and the entries specific to a particular script will be listed in the respective section.
 
-General Paths & Constants
-- `tmp_dir` : Path to a directory where temporary files will be written to. All temporary files will be deleted upon completion, but in case of errors it may be useful to see which files were or weren't created.
-- `earthdata_username` : Enter your NASA EarthData username here.
-- `osm_shp_file` : OpenStreetMap's land polygons are used to define the boundary between land and water. Click [here](https://osmdata.openstreetmap.de/download/land-polygons-complete-4326.zip) to download the zip file. Extract this and point to the `land_polygons.shp` file.
-- `landmask_c_file` : Point to the `pnpoly_function.c` file that is used to run the landmask algorithm. This repository comes with a file in the `C_Code` directory, so easiest is to point to that. A corresponding `.so` file will be made, ***do not*** point to that.
+- `GENERAL_PATHS/tmp_dir` : Path to a directory where temporary files will be written to. All temporary files will be deleted upon completion, but in case of errors it may be useful to see which files were or weren't created.
+- `GENERAL_PATHS/gsw_dir` : 
+- `GENERAL_PATHS/landmask_c_file` : Point to the `pnpoly_function.c` file that is used to run the landmask algorithm. This repository comes with a file in the `C_Code` directory, so easiest is to point to that. A corresponding `.so` file will be made, ***do not*** point to that.
+- `GENERAL_PATHS/osm_shp_file` : OpenStreetMap's land polygons are used to define the boundary between land and water. Click [here](https://osmdata.openstreetmap.de/download/land-polygons-complete-4326.zip) to download the zip file. Extract this and point to the `land_polygons.shp` file.
+
+- `GENERAL_CONSTANTS/earthdata_username` : Enter your NASA EarthData username here.
 
 ## Scripts
 
@@ -109,7 +110,7 @@ General Paths & Constants
 
 Given a set of overlapping DEM tiles (often called strips), this script will stitch them all together into a (vertically) coherent product.
 
-### Running
+#### Running
 
     python Mosaic_Strips.py [optional flags]
 
@@ -119,21 +120,21 @@ Given a set of overlapping DEM tiles (often called strips), this script will sti
     </a>
 </p>
 
-#### Optional Flags
+##### Optional Flags
 
-- --config <configuration_file> : Path to configuration file. Default is dem_config.ini in the script's directory.
-- --list <list_file> : Specify a list of files to be turned into a mosaic. This can be useful for testing or using a subset of a directory's files. This can be used with an empty input file, as it effectively appends the list as an extra row to the input file.
-- --output_dir <output_dir> : To be used in conjunction with a list_file. Specifies the output directory of the mosaic to be created from the list file.
-- --loc_name <loc_name> : To be used in conjunction with a list file. Specifies the name of the mosaic to be created from the list file.
-- --dir_structure <dir_structure> : Specifies the directory structure that should be expected. The input directory can either all be in the input directory (use "simple"), in the "sealevel" structure (explained below), or when "scenes" is used all files named "*dem.tif" in the subdirectories are used.
-- --gsw <gsw_path> : Point to a specific (global) surface water product to use. Note, this product will be selected for all entries in the input file, so best to use with either a single entry or with the manual input.
-- --N_cpus <N_cpus> : How many CPU cores to use. Each generation of alignment may include independent steps, which can be run in parallel.
-- --horizontal : This flag will turn on horizontal shifting. There may be geolocation errors in each individual strip, and incorporating relative shift in x and y directions may improve the fit of the alignment, at the cost of (significantly) increased run time.
-- --cloud_water_filter : This will include results from Find_Cloudy_DEMs.py. This allows for exclusion of strips that are too cloudy or too much over open water.
-- --corrected : This flag is used to select corrected strips only. If Correct_DEM_Strip_ICESat2.py was run on the strips, this flag will use the corrected strips rather than the original ones.
-- --all_strips : This flag will use all strips to create a mosaic and not perform any geometric filtering.
-- --no_gsw : Skip the (global) surface water filtering. Applicable when a mosaic is built (almost) entirely over land, rather than a coastal region.
-- --simplify : Simplify the geometry used to populate points for strip-to-strip alignment. If the POLYGON_SIMPLIFY_VALUE in the configuration file is smaller than X_SPACING/Y_SPACING, this should not lead to accuracy loss. 
+- `--config` `<configuration_file>` : Path to configuration file. Default is dem_config.ini in the script's directory.
+- `--list` `<list_file>` : Specify a list of files to be turned into a mosaic. This can be useful for testing or using a subset of a directory's files. This can be used with an empty input file, as it effectively appends the list as an extra row to the input file.
+- `--output_dir` `<output_dir>` : To be used in conjunction with a list_file. Specifies the output directory of the mosaic to be created from the list file.
+- `--loc_name` `<loc_name>` : To be used in conjunction with a list file. Specifies the name of the mosaic to be created from the list file.
+- `--dir_structure` `<dir_structure>` : Specifies the directory structure that should be expected. The input directory can either all be in the input directory (use "simple"), in the "sealevel" structure (explained below), or when "scenes" is used all files named "*dem.tif" in the subdirectories are used.
+- `--gsw` `<gsw_path>` : Point to a specific (global) surface water product to use. Note, this product will be selected for all entries in the input file, so best to use with either a single entry or with the manual input.
+- `--N_cpus` `<N_cpus>` : How many CPU cores to use. Each generation of alignment may include independent steps, which can be run in parallel.
+- `--horizontal` : This flag will turn on horizontal shifting. There may be geolocation errors in each individual strip, and incorporating relative shift in x and y directions may improve the fit of the alignment, at the cost of (significantly) increased run time.
+- `--cloud_water_filter` : This will include results from [Find_Cloudy_DEMs.py](#correct-dems-with-icesat-2py). This allows for exclusion of strips that are too cloudy or too much over open water.
+- `--corrected` : This flag is used to select corrected strips only. If [Correct_DEM_Strip_ICESat2.py](#correct-dems-with-icesat-2py) was run on the strips, this flag will use the corrected strips rather than the original ones.
+- `--all_strips` : This flag will use all strips to create a mosaic and not perform any geometric filtering.
+- `--no_gsw` : Skip the (global) surface water filtering. Applicable when a mosaic is built (almost) entirely over land, rather than a coastal region.
+- `--simplify` : Simplify the geometry used to populate points for strip-to-strip alignment. If the POLYGON_SIMPLIFY_VALUE in the configuration file is smaller than X_SPACING/Y_SPACING, this should not lead to accuracy loss. 
 
 #### Configuration
 
@@ -147,9 +148,28 @@ The first step is to create an input file (with its path listed in the configura
 
 The following list briefly explains the functionality of each relevant parameter in the configuration file.
 
-- GENERAL_PATHS/gsw_dir : Directory where extent tiles of the Global Surface Water [Pekel et al., 2016] are located. [This link](https://global-surface-water.appspot.com/download) has a number of ways to download the dataset.
-- MOSAIC_PATHS/input_file : 
-- POLYGON_AREA_THRESHOLD : 
+- `GENERAL_PATHS/gsw_dir` : Directory where extent tiles of the Global Surface Water [Pekel et al., 2016](https://www.nature.com/articles/nature20584) are located. [This link](https://global-surface-water.appspot.com/download) has a number of ways to download the dataset.
+- `MOSAIC_PATHS/input_file` : 
+- `MOSAIC_CONSTANTS/POLYGON_AREA_THRESHOLD` :  250.0
+- `MOSAIC_CONSTANTS/POLYGON_SIMPLIFY_VALUE` :  10.0
+- `MOSAIC_CONSTANTS/STRIP_AREA_THRESHOLD` :  4e6
+- `MOSAIC_CONSTANTS/GSW_POCKET_THRESHOLD` :  0.01
+- `MOSAIC_CONSTANTS/GSW_CRS_TRANSFORM_THRESHOLD` :  0.05
+- `MOSAIC_CONSTANTS/GSW_OVERLAP_THRESHOLD` :  0.95
+- `MOSAIC_CONSTANTS/STRIP_TOTAL_AREA_PERCENTAGE_THRESHOLD` :  0.01
+- `MOSAIC_CONSTANTS/STRIP_CONTAINMENT_THRESHOLD` :  0.75
+- `MOSAIC_CONSTANTS/STRIP_DELTA_TIME_THRESHOLD` :  0
+- `MOSAIC_CONSTANTS/STRIP_CLOUD_THRESHOLD` :  0.15
+- `MOSAIC_CONSTANTS/STRIP_WATER_THRESHOLD` :  0.75
+- `MOSAIC_CONSTANTS/N_STRIPS_CONTAINMENT` :  2
+- `MOSAIC_CONSTANTS/AREA_OVERLAP_THRESHOLD` :  2.5e5
+- `MOSAIC_CONSTANTS/GSW_INTERSECTION_THRESHOLD` :  0.667
+- `MOSAIC_CONSTANTS/X_SPACING` :  20.0
+- `MOSAIC_CONSTANTS/Y_SPACING` :  20.0
+- `MOSAIC_CONSTANTS/X_MAX_SEARCH` :  12.0
+- `MOSAIC_CONSTANTS/Y_MAX_SEARCH` :  12.0
+- `MOSAIC_CONSTANTS/MOSAIC_TILE_SIZE` :  25000.0
+
 
 When the `sealevel` option is used for the `--dir_structure` flag, the following directory structure is required:
 
@@ -173,7 +193,7 @@ This script iteratively co-registers a raster to a csv. The most relevant use he
 
     python Simple_Coregistration.py --raster </path/to/raster> --csv </path/to/csv> [optional flags]
 
-Mandatory flags:
+##### Mandatory flags:
 
 - --raster <raster path> : Path to raster that is to be co-registered to the csv. 
 - --csv <csv path> : Path to csv with ground truth. Currently, the csv lon, lat and height values must be relative to the WGS 84 ellipsoid. First to columns of the csv must be longitude and latitude, in that order.
@@ -186,7 +206,7 @@ The output file will be a co-registered product in the same directory as the inp
     </a>
 </p>
 
-#### Optional Flags
+##### Optional Flags
 
 - `--median` : Flag to select zero median rather than zero mean as target for the co-registration.
 - `--sigma` `<value>` : How many standard deviations to use to detect outliers. Value must be an integer. Default is 2. 
@@ -204,11 +224,64 @@ The output file will be a co-registered product in the same directory as the inp
 
 Once a DSM has been aligned in the vertical, it can be used to compute inundation projections.
 
-Usage
+#### Running
 
-    python Compute_Inundation.py --input_file <> --grid_extents <> --coastline <> [optional flags]
+    python Compute_Inundation.py --input_file <input_dem> --grid_extents <lon_min lon_max lat_min lat_max> --coastline <coastline_file> [mandatory flags] [optional flags]
+
+##### Mandatory Flags
+
+- `--input_file` <`input_dem`> : Input digital elevation model to compute inundation with. Must reference the same datum as the sea level grid used to calculate mean sea level.
+- `--grid_extents` `<lon_min lon_max lat_min lat_max>`: Technically not mandatory, but used to subset a global or larger sea level grid that is used as input. If omitted, the full grid (which may be global!) is used.
+- `--coastline` <`coastline_file`> : Path to file defining the coastline, onto which sea level (extremes) are interpolated. 
+
+##### Optional Flags
+
+- `--loc_name` <`loc_name`> : Name of location being considered. This name will be the base for all output files. If nothing is defined, the name will be determined from the input DEM file.
+- `--config` <`config_file`> : Path to configuration file to read constants, paths, ancillary files, etc. If not defined, the default `dem_config.ini` in the same directory as the script will be used.
+- `--N_cpus` <`N_cpus`> : Number of CPU threads to use to parallelize the inundation computation.
+- `--downsample_res` <`downsample_res`> : Final output resolution of the inundation. Must be coarser than the input file. If not defined it will default to the native resolution of the input file.
+- `--geoid` <`geoid_file`> : Path to geoid file to perform all calculations will orthometric heights, rather than the default ellipsoidal heights.
+- `--vlm` <`vlm_file`/`vlm_value`> : Either (a) path to vlm file (GeoTiff) that defines a spatially varying vertical land motion (e.g. from InSAR), or (b) a single value (in m/yr) that is applied to the entire grid. This flag (both grid and value) can only be used in conjunction with the temporally varying AR6 projections, and is incompatible with single values for sea level change.
+- `--clip_vlm` : Toggle to clip the input DEM file to the extents of the given VLM file.
+- `--t0` <`t0`> : Select a t0, relative to which the DEM will be augmented in time with VLM to match the timestamps of AR6. Default is 2020.
+- `--clip_coast` : Toggle to clip the input DEM file to the input coastline file.
+- `--ssp` <`ssp`> : Select which AR6 SSP (Shared Socioeconomic Pathway) to use for projected sea level rise. Must be used in conjunction with the `--years` flag.
+- `--years` <`year`> : Select which year(s) to calculate sea level rise at, using the selected SSP. Multiple years may be given, but they must all be decades between 2020 and 2150, e.g. 2080 and not 2078.
+- `--confidence` <`confidence_level`> : Select a confidence level (medium or low) for AR6 projections to be used.
+- `--slr` <`sealevel_rise`> : Set amount(s) of sea level rise to compute inundation at. Incompatible with `--ssp`.
+- `--return_period` <`return_period`> : Select return period (in years) of sea level extreme from [Muis et al. (2020)](https://www.frontiersin.org/journals/marine-science/articles/10.3389/fmars.2020.00263/full). Values must be 2, 5, 10, 25, 50, 100, 250, 500 or 1000 years. Incompatible with FES-derived high tide values.
+- `--fes2014` : Use FES2014 model-derived highest astronomical tides (HAT). 
+- `--fes2022` : Use FES2022 model-derived highest astronomical tides (HAT). 
+- `--mhhw` : Use mean higher high water (MHHW) instead of HAT, must use a `--fes2014/22` flag. 
+- `--high_tide` <`high_tide`> : Use a set value for high tide, e.g. derived from a tide gauge.
+- `--connectivity` : Create separate inundation files that are connected to the ocean.
+- `--separate` : Create additional files of inundation pockets that are disconnected.
+- `--surface_water` <`surface_water_file`> : Select user-defined surface water file to do the connectivity analysis with. If not given, dataset from [Pekel et al. (2016)](https://www.nature.com/articles/nature20584) will be used.
+- `--uncertainty` : Toggle to compute uncertainty +/- N sigma around the median projection, defined by the `--sigma` flag below.
+- `--sigma` <`sigma`> : Define how many standard deviations away from the mean to calculate uncertainty. Must be used in conjunction with `--uncertainty`.
+- `--of` <`output_format`> : Define the output file format. Default will be shapefile, but GeoJSON is an option too.
 
 
+#### Configuration
+
+- `INUNDATION_PATHS/sealevel_grid` : Path to sea level grid for mean sea level. Must be a GeoTiff with the same datum as the input DEM.
+- `INUNDATION_PATHS/AR6_dir` : Path to directory containing AR6 sea level projections. Directory must contain a "Regional" subdirectory, which itself contains "low_confidence" and "medium_confidence" directories with the SSP projections.
+- `INUNDATION_PATHS/CODEC_file` : Path to CoDEC file from which to compute different sea level extremes, based on desired return period (as defined with the `--return_period` flag). Available [here](https://zenodo)
+- `INUNDATION_PATHS/fes2014_file` : Path to FES2014 file with at least the columns lon, lat, tide_max and MHHW. Can be computed with the [Compute_Global_FES_Grid.py script](https://www.github.com/EduardHeijkoop/Utilities/Create_Global_FES_Grid.py) 
+- `INUNDATION_PATHS/fes2022_file` : Same as above, but for FES2022.
+- `VLM_CONSTANTS/VLM_NODATA` : Nodata value embedded in VLM file.
+- `INUNDATION_CONSTANTS/INTERPOLATE_METHOD` : Method to interpolate points (e.g. from FES). Options are "Smooth" or "LSQ", with "Smooth" recommended.
+- `INUNDATION_CONSTANTS/GRID_NUM_THREADS` : Number of threads to use when running `gdal_grid`.
+- `INUNDATION_CONSTANTS/GRID_INTERMEDIATE_RES` : Intermediate spatial resolution (in meters) of grids, which are then upsampled to the native resolution of the input DEM.
+- `INUNDATION_CONSTANTS/GRID_ALGORITHM` : Algorithm used to run `gdal_grid`. Recommended to use "invdistnn".
+- `INUNDATION_CONSTANTS/GRID_SMOOTHING` : Smoothing value when running `gdal_grid`. Recommended to use 0.0.
+- `INUNDATION_CONSTANTS/GRID_POWER` : Power value when running `gdal_grid`. Recommended to use 2.0.
+- `INUNDATION_CONSTANTS/GRID_NODATA` : Nodata vlaue for both input DEM grid and intermediate grids obtained throught `gdal_grid`.
+- `INUNDATION_CONSTANTS/GRID_MAX_PTS` : Max points value when running `gdal_grid`. Recommended to use at least 100.
+- `INUNDATION_CONSTANTS/INUNDATION_NODATA` : Nodata value when running `gdal_calc` to compute inundation. Recommended to use 0.0 for ease of `gdal_polygonize` that follows.
+- `INUNDATION_CONSTANTS/GSW_BUFFER` : Buffer distance (inland) of the surface water product to compute connectivity.
+- `INUNDATION_CONSTANTS/REGGRID_INTERPOLATE_METHOD` : Method to interpolate regular grids (with SciPy RegularGridInterpolator), either sea level or geoid, onto irregular points, like a coastline. Recommended to use "linear".
+<!-- - `INUNDATION_CONSTANTS/INUNDATION_GRIDDING_RESOLUTION` : 10.0 -->
 
 
 ### Correct DEMs with ICESat-2.py
@@ -270,6 +343,7 @@ I'd like to acknowledge the following organizations for their open source and/or
 
 ## To Do
 - [ ] Update readme for other scripts.
+- [ ] Remove AR5 option from inundation.
 - [ ] Add option to get GSW tiles as needed. 
 - [ ] Add option to ingest csv in same projection as raster for co-registration.
 - [ ] Update functionality to compute final DSM uncertainty in co-registration process when csv doesn't include sigma column. 

@@ -21,8 +21,8 @@ Requirements:
 '''
 
 def copy_nan(old_raster,new_raster,old_nan_value,new_nan_value):
-    copy_nan_command = f'gdal_calc.py -A {old_raster} -B {new_raster} --outfile=tmp.tif --calc="numpy.where(numpy.equal(A,{old_nan_value}),{new_nan_value},B)" --NoDataValue={old_nan_value} --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
-    mv_command = f'mv tmp.tif {new_raster}'
+    copy_nan_command = f'gdal_calc.py -A {old_raster} -B {new_raster} --outfile=tmp_nan.tif --calc="numpy.where(numpy.equal(A,{old_nan_value}),{new_nan_value},B)" --NoDataValue={old_nan_value} --format=GTiff --co=\"COMPRESS=LZW\" --co=\"BIGTIFF=IF_SAFER\" --quiet'
+    mv_command = f'mv tmp_nan.tif {new_raster}'
     set_nodata_command = f'gdal_edit.py -a_nodata {new_nan_value} {new_raster}'
     subprocess.run(copy_nan_command,shell=True)
     subprocess.run(mv_command,shell=True)
@@ -238,10 +238,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config',default='dem_config.ini',help='Path to configuration file.')
     parser.add_argument('--product',choices=['srtm','aster','copernicus'])
-    parser.add_argument('--extents',nargs=4,help='Extents in format: lon_min,lon_max,lat_min,lat_max')
-    parser.add_argument('--copy_nan',default=False,help='Copy NaN from original product when resampling to WGS 84')
+    parser.add_argument('--extents',nargs=4,help='Extents in format: lon_min,lon_max,lat_min,lat_max',type=float)
+    parser.add_argument('--copy_nan',action='store_true',default=False,help='Copy NaN from original product when resampling to WGS 84')
     parser.add_argument('--datum',choices=['geoid','wgs84'],default='wgs84')
-    parser.add_argument('--output_file',default='tmp.tif',help='Full path of output file.')
+    parser.add_argument('--output_file',default=f'{os.getcwd()}/tmp.tif',help='Full path of output file.')
     args = parser.parse_args()
     config_file = args.config
     dem_product = args.product
@@ -253,6 +253,8 @@ def main():
     config = configparser.ConfigParser()
     config.read(config_file)
 
+    output_file = os.path.abspath(output_file)
+
     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
     if datum == 'wgs84':
         egm96_file = config.get('GENERAL_PATHS','EGM96_path')
@@ -260,11 +262,12 @@ def main():
     else:
         egm96_file = None
         egm2008_file = None
+    
 
-    username = config.get('GENERAL_CONSTANTS','earthdata_username')
-    pw = getpass.getpass('Enter your NASA EarthData password:')
-
-    pw_check = check_password_nasa_earthdata(username,pw)
+    if dem_product != 'copernicus':
+        username = config.get('GENERAL_CONSTANTS','earthdata_username')
+        pw = getpass.getpass('Enter your NASA EarthData password:')
+        pw_check = check_password_nasa_earthdata(username,pw)
 
     if dem_product == 'srtm':
         download_srtm(lon_min,lon_max,lat_min,lat_max,username,pw,egm96_file,tmp_dir,output_file,copy_nan_flag)

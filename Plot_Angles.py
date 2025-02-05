@@ -39,8 +39,8 @@ def az_el_to_xyz(az,el,r=1):
     Azimuth is defined here starting from x axis in xy plane,
     but from the s/c azimuth starts at y axis in xy plane and goes opposite.
     '''
-    inc = 0.5*np.math.pi - np.radians(el)
-    az_conv = np.mod(-1*np.radians(az)+0.5*np.math.pi,2*np.math.pi)
+    inc = 0.5*np.pi - np.radians(el)
+    az_conv = np.mod(-1*np.radians(az)+0.5*np.pi,2*np.pi)
     x = r*np.sin(inc)*np.cos(az_conv)
     y = r*np.sin(inc)*np.sin(az_conv)
     z = r*np.cos(inc)
@@ -75,6 +75,11 @@ def main():
 
     colors = ['tab:blue','tab:orange','tab:green','tab:red','tab:purple','tab:brown','tab:pink','tab:gray','tab:olive','tab:cyan']
     linestyles = ['-','--','-.',':']
+
+    if len(file_list) > len(colors) * len(linestyles):
+        print(f'Too many files ({len(file_list)}) to plot. Maximum number of files is {len(colors) * len(linestyles)}.')
+        print(f'Only doing first {len(colors) * len(linestyles)} files.')
+        file_list = file_list[:len(colors) * len(linestyles)]
 
     fig = plt.figure(figsize=(10,10))
     ax = fig.add_subplot(projection='3d')

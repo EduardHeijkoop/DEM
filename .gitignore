@@ -1,0 +1,4 @@
+#ignore *.so files that are created from the *.c files
+*.so
+#ignore *.ini files so that they can be edited locally
+*.ini
