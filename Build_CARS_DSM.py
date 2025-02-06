@@ -20,7 +20,7 @@ import skimage
 from scipy import ndimage
 
 from max_rect import get_maximal_rectangle
-from dem_utils import get_lonlat_bounds_gdf,raster_to_geotiff_w_src
+from dem_utils import raster_to_geotiff_w_src,resample_raster
 
 
 def get_window_from_roi(src, roi):
@@ -203,6 +203,27 @@ def expand_input_list(df_input):
     df_input['short_name'] = get_short_name_list(df_input)
     return df_input
 
+def find_clumps(binary_arr,max_size,invert=False,remove_largest=False,fill_holes=False):
+    '''
+    Takes an array of 1s and 0s, finds the clumps and returns the array with clumps smaller/larger than threshold removed
+    max_size is a percentage of the total array size
+    Optionally fills holes in the clumps
+    '''
+    label,num_label = ndimage.label(binary_arr == 1)
+    size = np.bincount(label.ravel())
+    label_IDs = np.arange(len(size))
+    if invert == True:
+        label_IDs_select = label_IDs[size <= max_size]
+    else:
+        label_IDs_select = label_IDs[size >= max_size]
+    if remove_largest == True:
+        idx_largest = np.atleast_1d(np.argwhere(size==np.max(size)).squeeze())
+        label_IDs_select = np.delete(label_IDs_select,idx_largest)
+    clump_arr = np.isin(label,label_IDs_select)
+    if fill_holes == True:
+        clump_arr = ndimage.binary_fill_holes(clump_arr)
+    return clump_arr.astype(int)
+
 def arr_float_to_int(arr):
     '''
     Converts array of floats to [0,255] integers
@@ -225,16 +246,7 @@ def entropy_filter(arr,entropy_threshold,size_threshold):
     arr_int = arr_float_to_int(arr)
     entropy = skimage.filters.rank.entropy(arr_int,skimage.morphology.disk(10))
     entropy_binary = entropy >= entropy_threshold
-    label,num_label = ndimage.label(entropy_binary == 1)
-    size = np.bincount(label.ravel())
-    label_IDs_sorted = np.argsort(size)[::-1] #sort the labels by size (descending, so biggest first), then remove label=0, because that one is land
-    label_IDs_sorted = label_IDs_sorted[label_IDs_sorted != 0]
-    entr_clump = np.zeros(entropy_binary.shape,dtype=int)
-    for label_id in label_IDs_sorted:
-        if size[label_id]/entropy_binary.size < size_threshold:
-            break
-        entr_clump = entr_clump + np.asarray(label==label_id,dtype=int)
-    entr_clump_filled = ndimage.binary_fill_holes(entr_clump)
+    entr_clump_filled = find_clumps(entropy_binary,size_threshold,remove_largest=True,fill_holes=True)
     arr_filtered = arr.copy()
     arr_filtered[entr_clump_filled == 1] = np.nan
     return arr_filtered
@@ -244,16 +256,86 @@ def cloud_filter(dsm_file,cloud_filter_dict):
     ENTROPY FILTER N_PIXEL_THRESHOLD IS NOT N_PIXELS BUT PCT_PIXELS
         CHANGE NEEDS TO BE MADE
     '''
-    entropy_threshold = cloud_filter_dict['entropy_threshold']
-    n_pixel_threshold = cloud_filter_dict['n_pixel_threshold']
+    cloud_filter_entropy_threshold = cloud_filter_dict['cloud_filter_entropy_threshold']
+    cloud_filter_size_threshold = cloud_filter_dict['cloud_filter_size_threshold']
     src = gdal.Open(dsm_file, gdalconst.GA_ReadOnly)
     dsm_nodata = src.GetRasterBand(1).GetNoDataValue()
     dsm_arr = np.array(src.GetRasterBand(1).ReadAsArray())
     dsm_arr[dsm_arr == dsm_nodata] = np.nan
-    dsm_arr_filtered = entropy_filter(dsm_arr,entropy_threshold,n_pixel_threshold)
+    dsm_arr_filtered = entropy_filter(dsm_arr,cloud_filter_entropy_threshold,cloud_filter_size_threshold)
     dsm_filtered_file = dsm_file.replace('.tif','_filtered.tif')
     raster_to_geotiff_w_src(src,dsm_arr_filtered,dsm_filtered_file)
     return dsm_filtered_file
+
+def get_diff_a_priori(input_file,a_priori_file,return_arr=True,remove_file=False,centering=True,nodata=-9999):
+    '''
+    Computes difference between input and a priori files, by resampling a priori to input
+    If return_arr is True, returns array of difference, optionally centered to the mean diff
+    else returns the filename of the difference file
+    '''
+    a_priori_resampled_file = a_priori_file.replace('.tif','_resampled.tif')
+    diff_file = os.path.join(os.path.dirname(a_priori_file),f'{os.path.basename(input_file).replace(".tif","_diff_a_priori.tif")}')
+    resample_raster(a_priori_file,input_file,a_priori_resampled_file,resample_method='bilinear',compress=True,nodata=nodata,quiet_flag=True)
+    diff_command = f'gdal_calc.py --quiet --overwrite -A {input_file} -B {a_priori_resampled_file} --outfile={diff_file} --calc="A-B" --creation-option "COMPRESS=LZW" --creation-option "BIGTIFF=IF_SAFER" --NoDataValue={nodata}'
+    subprocess.run(diff_command,shell=True)
+    if return_arr == True:
+        src_diff = gdal.Open(diff_file, gdalconst.GA_ReadOnly)
+        arr_diff = np.array(src_diff.GetRasterBand(1).ReadAsArray())
+        if centering == True:
+            arr_diff[arr_diff==nodata] = np.nan
+            mean_offset = np.nanmean(arr_diff)
+            arr_diff -= mean_offset
+            offset_calc_command = f'gdal_calc.py --quiet --overwrite -A {diff_file} --outfile={diff_file.replace(".tif","_offset.tif")} --calc="A-{mean_offset:.3f}" --creation-option "COMPRESS=LZW" --creation-option "BIGTIFF=IF_SAFER" --NoDataValue={nodata}'
+            subprocess.run(offset_calc_command,shell=True)
+            shutil.move(diff_file.replace('.tif','_offset.tif'),diff_file)
+        if remove_file == True:
+            os.remove(a_priori_resampled_file)
+            os.remove(diff_file)
+        return arr_diff
+    else:
+        return diff_file
+
+def interpolate_holes(dsm_file,config_dict,interpolation_dict):
+    '''
+    CARS tends to create a DSM with some "holes" (pockets of strongly relatively negative values)
+    This function identifies these holes using the Copernicus DEM as a priori data
+    and removes them by interpolating across them
+    '''
+    src_dsm = gdal.Open(dsm_file, gdalconst.GA_ReadOnly)
+    arr_dsm = np.array(src_dsm.GetRasterBand(1).ReadAsArray())
+    dsm_file_filtered = dsm_file.replace('.tif','_filtered.tif')
+    dsm_file_interpolated = dsm_file.replace('.tif','_interpolated.tif')
+    cars_nodata_value = config_dict['cars_nodata_value']
+    copernicus_file = interpolation_dict['copernicus_file']
+    interpolation_vertical_threshold = interpolation_dict['interpolation_vertical_threshold']
+    interpolation_size_threshold = interpolation_dict['interpolation_size_threshold']
+    interpolation_n_dilations = interpolation_dict['interpolation_n_dilations']
+    interpolation_max_distance = interpolation_dict['interpolation_max_distance']
+    copernicus_diff_arr = get_diff_a_priori(input_file=dsm_file,a_priori_file=copernicus_file,return_arr=True,centering=True,nodata=cars_nodata_value)
+    copernicus_diff_arr_binary = (copernicus_diff_arr < -interpolation_vertical_threshold).astype(int)
+    copernicus_diff_arr_clumps = find_clumps(copernicus_diff_arr_binary,interpolation_size_threshold,invert=True,remove_largest=False,fill_holes=False)
+    copernicus_diff_arr_clumps_file = copernicus_file.replace('.tif','_resampled_diff_clumps.tif')
+    raster_to_geotiff_w_src(src_dsm,copernicus_diff_arr_clumps,copernicus_diff_arr_clumps_file,dtype=gdal.GDT_Byte)
+    arr_dsm_filtered = arr_dsm.copy()
+    arr_dsm_filtered[copernicus_diff_arr_clumps == 1] = cars_nodata_value
+    raster_to_geotiff_w_src(src_dsm,arr_dsm_filtered,dsm_file_filtered)
+    set_nodata_command = f'gdal_edit.py -a_nodata {cars_nodata_value} {dsm_file_filtered}'
+    subprocess.run(set_nodata_command,shell=True)
+    arr_dsm_mask = (arr_dsm_filtered != cars_nodata_value).astype(int)
+    interpolation_command = f'gdal_fillnodata.py -q -md {interpolation_max_distance} {dsm_file_filtered} {dsm_file_interpolated}'
+    arr_binary_dilated = ndimage.binary_dilation(arr_dsm_mask,structure=ndimage.generate_binary_structure(2,2),iterations=interpolation_n_dilations)
+    arr_binary_dilated_filled = ndimage.binary_fill_holes(arr_binary_dilated).astype(int)
+    arr_mask_file = dsm_file.replace('.tif','_valid_mask.tif')
+    raster_to_geotiff_w_src(src_dsm,arr_binary_dilated_filled,arr_mask_file,dtype=gdal.GDT_Byte)
+    tmp_file = os.path.join(os.path.dirname(dsm_file),'tmp.tif')
+    mask_command = f'gdal_calc.py --quiet -A {dsm_file_interpolated} -B {arr_mask_file} --calc="A*B" --outfile={tmp_file} --NoDataValue=0 --co="COMPRESS=LZW"'
+    subprocess.run(interpolation_command,shell=True)
+    subprocess.run(mask_command,shell=True)
+    shutil.move(tmp_file,dsm_file_interpolated)
+    os.remove(arr_mask_file)
+    os.remove(copernicus_diff_arr_clumps_file)
+    os.remove(dsm_file_filtered)
+    return dsm_file_interpolated
 
 def build_dirs(output_dir,project_name):
     '''
@@ -373,9 +455,10 @@ def main():
     parser.add_argument('--coast',help='Use coastline file to clip DSM.',default=None)
     parser.add_argument('--crop_coast',help='Crop DSM extents to that of coastline?',action='store_true',default=False)
     parser.add_argument('--cloud_filter',help='Use entropy-based cloud filter to remove cloudy patches.',action='store_true',default=False)
+    parser.add_argument('--interpolation',help='Apply interpolation to holes?',action='store_true',default=False)
     # To implement next:
-    # parser.add_argument('--interpolation',help='Apply interpolation to holes?',action='store_true',default=False)
-    # parser.add_argument('--a_priori',help='Use Copernicus DEM as a priori.',action='store_true',default=False)
+    parser.add_argument('--a_priori',help='Use Copernicus DEM as a priori.',action='store_true',default=False)
+    # parser.add_argument('--optimal_pairs',help='Find optimal pairs from input file to create DSMs with.',action='store_true',default=False)
     # parser.add_argument('--bulldozer',help='Use bulldozer method for DSM to DTM conversion.',action='store_true',default=False)
 
     args = parser.parse_args()
@@ -387,9 +470,10 @@ def main():
     coast_file = args.coast
     crop_coast_flag = args.crop_coast #this just adds the crop_to_cutline flag to gdalwarp
     cloud_filter_flag = args.cloud_filter
-    # interpolation_flag = args.interpolation
+    interpolation_flag = args.interpolation
+    a_priori_flag = args.a_priori
+    # optimal_pairs_flag = args.optimal_pairs
     # bulldozer_flag = args.bulldozer
-    # a_priori_flag = args.a_priori
 
     output_dir = build_dirs(output_dir,project_name)
 
@@ -405,43 +489,47 @@ def main():
     gdf_geometry = get_outline_geom(df_input)
     gdf_overlap = get_overlap(gdf_geometry,extents)
 
-    # if a_priori_flag == True:
-    #     from Global_DEMs import download_copernicus
-    #     lon_min,lon_max,lat_min,lat_max = get_lonlat_bounds_gdf(gdf_overlap)
-    #     tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
-    #     egm2008_file = config.get('GENERAL_PATHS','EGM2008_path')
-    #     output_copernicus_file = f'{tmp_dir}{project_name}_Copernicus_WGS84_0.tif'
-    #     download_copernicus(lon_min,lon_max,lat_min,lat_max,egm2008_file,tmp_dir,output_copernicus_file,copy_nan_flag=True)
+    if a_priori_flag == True or interpolation_flag == True:
+        from Global_DEMs import download_copernicus
+        tmp_dir = config.get('GENERAL_PATHS','tmp_dir')
+        egm2008_file = config.get('GENERAL_PATHS','EGM2008_path')
+        output_copernicus_file = os.path.join(tmp_dir,f'{project_name}_Copernicus_WGS84_0.tif')
 
     config_dict = {
         'output_dir':output_dir,
         'project_name':project_name,
         'config_file':cars_config_file,
         'resolution':output_resolution,
-        # 'interpolation_flag':interpolation_flag,
+        'interpolation_flag':interpolation_flag,
+        'a_priori_flag':a_priori_flag,
         # 'bulldozer_flag':bulldozer_flag,
-        # 'a_priori_flag':a_priori_flag,
         'N_overlap':len(gdf_overlap),
         'i_overlap':0,
+        'cars_nodata_value':config.getint('CARS_CONSTANTS','CARS_NODATA'),
     }
 
     if cloud_filter_flag == True:
         cloud_filter_dict = {
-            'entropy_threshold':config.getfloat('CARS_CONSTANTS','entropy_threshold'),
-            'n_pixel_threshold':config.getint('CARS_CONSTANTS','n_pixel_threshold'),
+            'cloud_filter_entropy_threshold':config.getfloat('CARS_CONSTANTS','cloud_filter_entropy_threshold'),
+            'cloud_filter_size_threshold':config.getfloat('CARS_CONSTANTS','cloud_filter_size_threshold')/output_resolution**2,
         }
     
+    if interpolation_flag == True:
+        interpolation_dict = {
+            'interpolation_vertical_threshold':config.getfloat('CARS_CONSTANTS','interpolation_vertical_threshold'),
+            'interpolation_size_threshold':config.getfloat('CARS_CONSTANTS','interpolation_size_threshold')/output_resolution**2,
+            'interpolation_n_dilations':config.getint('CARS_CONSTANTS','interpolation_n_dilations'),
+            'interpolation_max_distance':config.getint('CARS_CONSTANTS','interpolation_max_distance'),
+        }
+
     gdalwarp_compress = '-co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" -co "TILED=YES"'
     
     #Build DSMs for each overlapping area
     for i in range(len(gdf_overlap)):
-        # Find images that correspond with particular overlap
-        # geom_overlap = gdf_overlap.geometry[i]
         config_dict['i_overlap'] = i
         extents_file_list = []
         idx_select = [geom.contains(gdf_overlap.geometry[i].buffer(-1e-10)) for geom in gdf_geometry.geometry]
         df_select = df_input.loc[idx_select]
-        # gdf_geometry_select = gdf_geometry.loc[idx_select]
         if extents == 'overlap':
             roi_bounds = get_maximal_rectangle(gdf_overlap.geometry[i])
         else:
@@ -450,15 +538,18 @@ def main():
             ntf_file = df_select['ntf_file'].iloc[j]
             extents_file = create_extents_file(ntf_file,output_dir,roi_bounds)
             extents_file_list.append(extents_file)
-        # if a_priori_flag == True:
-        #     output_copernicus_file = output_copernicus_file.replace(f'_{i-1}.tif',f'_{i}.tif')
-        #     download_copernicus(roi_bounds[0],roi_bounds[2],roi_bounds[1],roi_bounds[3],egm2008_file,tmp_dir,output_copernicus_file,copy_nan_flag=True)
+        if a_priori_flag == True or interpolation_flag == True:
+            output_copernicus_file = output_copernicus_file.replace(f'_{i-1}.tif',f'_{i}.tif')
+            download_copernicus(roi_bounds[0],roi_bounds[2],roi_bounds[1],roi_bounds[3],egm2008_file,tmp_dir,output_copernicus_file,copy_nan_flag=False)
+            interpolation_dict['copernicus_file'] = output_copernicus_file
         cars_config_file_new = create_config_file(cars_config_file,extents_file_list,output_dir,config_dict)
         cars_run_command = f'cars {cars_config_file_new}'
         subprocess.run(cars_run_command,shell=True)
         dsm_file = move_rename_dsm(config_dict,df_select)
         if cloud_filter_flag is not None:
             dsm_file = cloud_filter(dsm_file,cloud_filter_dict)
+        if interpolation_flag == True:
+            dsm_file = interpolate_holes(dsm_file,config_dict,interpolation_dict)
         if coast_file is not None:
             if coast_file == 'osm':
                 osm_coastline_file = config.get('GENERAL_PATHS','osm_shp_file')
@@ -471,8 +562,6 @@ def main():
                 clip_command = clip_command.replace('gdalwarp','gdalwarp -crop_to_cutline')
             subprocess.run(clip_command,shell=True)
             dsm_file = dsm_file.replace('.tif','_clipped.tif')
-        # if interpolation_flag == True:
-        #     dsm_file = interpolate_holes(dsm_file,config_dict)
         if len(gdf_overlap) > 1:
             shutil.move(output_dir,output_dir.replace(project_name,f'{project_name}_{i}'))
 
