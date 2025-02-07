@@ -477,14 +477,15 @@ def main():
 
     output_dir = build_dirs(output_dir,project_name)
 
-    if len(extents) == 0:
-        extents = extents[0]
-        
-    if extents != 'overlap':
-        extents = [float(e) for e in extents.replace(',',' ').split()]
-        if len(extents) != 4:
-            raise Exception('Extents must be in format lon_min,lon_max,lat_min,lat_max')
-
+    if len(extents) == 4:
+        extents = [float(e) for e in extents]
+    elif len(extents) == 1 and len(extents[0].split(',')) == 4:
+        extents = [float(e) for e in extents[0].split(',')]
+    elif len(extents) == 1 and extents[0] == 'overlap':
+        extents = 'overlap'
+    else:
+        raise Exception('Extents must be in format lon_min,lon_max,lat_min,lat_max (with or without comma)')
+    
     cars_config_file = os.path.join(output_dir,f'{project_name}_cars_config_{datetime.datetime.now().strftime("%Y%m%dT%H%M%S")}.json')
 
     df_input = pd.read_csv(input_file,header=None,names=['ntf_file'])
