@@ -477,6 +477,9 @@ def main():
 
     output_dir = build_dirs(output_dir,project_name)
 
+    if len(extents) == 0:
+        extents = extents[0]
+        
     if extents != 'overlap':
         extents = [float(e) for e in extents.replace(',',' ').split()]
         if len(extents) != 4:
