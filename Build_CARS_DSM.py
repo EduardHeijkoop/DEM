@@ -450,7 +450,7 @@ def main():
     parser.add_argument('--input_file',help='File with full paths of image NTFs to build DSM from.')
     parser.add_argument('--extents',help='Extents (lon_min,lon_max,lat_min,lat_max) or overlapping (overlap) area to build DSM.',nargs='*',default='overlap')
     parser.add_argument('--output_dir',help='Output directory for DSM.')
-    parser.add_argument('--resolution',help='Resolution of DSM.',default=2.0,dtype=float)
+    parser.add_argument('--resolution',help='Resolution of DSM.',default=2.0,type=float)
     # Processing options
     parser.add_argument('--coast',help='Use coastline file to clip DSM.',default=None)
     parser.add_argument('--crop_coast',help='Crop DSM extents to that of coastline?',action='store_true',default=False)
