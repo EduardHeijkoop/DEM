@@ -550,7 +550,7 @@ def main():
         cars_run_command = f'cars {cars_config_file_new}'
         subprocess.run(cars_run_command,shell=True)
         dsm_file = move_rename_dsm(config_dict,df_select)
-        if cloud_filter_flag is not None:
+        if cloud_filter_flag == True:
             dsm_file = cloud_filter(dsm_file,cloud_filter_dict)
         if interpolation_flag == True:
             dsm_file = interpolate_holes(dsm_file,config_dict,interpolation_dict)
