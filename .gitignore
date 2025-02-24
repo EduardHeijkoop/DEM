@@ -2,3 +2,5 @@
 *.so
 #ignore *.ini files so that they can be edited locally
 *.ini
+#ignore *.sh files so you can build local batch scripts
+*.sh
