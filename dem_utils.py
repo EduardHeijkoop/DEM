@@ -153,11 +153,11 @@ def get_raster_extents(raster,global_local_flag='global'):
         return None
 
 def deg2rad(deg):
-    rad = deg*np.math.pi/180
+    rad = deg*np.pi/180
     return rad
 
 def deg2utm(lon,lat):
-    pi = np.math.pi
+    pi = np.pi
     n1 = np.asarray(lon).size
     n2 = np.asarray(lat).size
     if n1 != n2:
