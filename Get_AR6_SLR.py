@@ -85,8 +85,9 @@ def main():
     config.read(config_file)
     ar6_dir = config.get('INUNDATION_PATHS','AR6_dir')
 
-    if coords[0] > 180:
-        coords[0] -= 360
+    if coords[0] is not None:
+        if coords[0] > 180:
+            coords[0] -= 360
 
     get_ar6_data(ar6_dir,confidence,scenario,years,quantiles,tg_id,coords,print_info=print_info,baseline=baseline,surge=surge)
 
