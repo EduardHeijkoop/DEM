@@ -39,7 +39,7 @@ def get_ar6_data(ar6_dir,confidence,scenario,years,quantiles,tg_id=None,coords=[
         for q in quantiles:
             idx_quantile = np.atleast_1d(np.argwhere(np.isclose(AR6_quantiles,q)).squeeze())[0]
             AR6_sea_level_change_select = AR6_sea_level_change[idx_quantile,idx_year]
-            sea_level_change_list.append(float(AR6_sea_level_change_select))
+            sea_level_change_list.append(float(AR6_sea_level_change_select+surge))
             if print_info:
                 if q == 0.5:
                     q_str = 'median'
