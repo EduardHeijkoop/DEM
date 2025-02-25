@@ -39,17 +39,24 @@ def get_ar6_data(ar6_dir,confidence,scenario,years,quantiles,tg_id=None,coords=[
         for q in quantiles:
             idx_quantile = np.atleast_1d(np.argwhere(np.isclose(AR6_quantiles,q)).squeeze())[0]
             AR6_sea_level_change_select = AR6_sea_level_change[idx_quantile,idx_year]
-            sea_level_change_list.append(float(AR6_sea_level_change_select+surge))
+            if np.isclose(y,2020):
+                sea_level_change_list.append(float(0.0)+surge)
+            else:
+                sea_level_change_list.append(float(AR6_sea_level_change_select+surge))
             if print_info:
-                if q == 0.5:
+                if np.isclose(q,0.5):
                     q_str = 'median'
                 else:
                     q_str = f'{int(np.round(q*100))}%ile'
                 scenario_str = f'{scenario.upper()[:4]}-{scenario.upper()[4]}.{scenario.upper()[5]}'
-                if surge > 0:
-                    print(f'Inundation Risk in {y} ({q_str}) with {scenario_str} (= {AR6_sea_level_change_select:.2f} m)\\nwith {surge:.2f} m surge above {baseline}')
+                if np.isclose(y,2020):
+                    y_q_scenario = 'Inundation Risk baseline (= 0.00 m)'
                 else:
-                    print(f'Inundation Risk in {y} ({q_str}) with {scenario_str} (= {AR6_sea_level_change_select:.2f} m)\\nabove {baseline}')
+                    y_q_scenario = f'Inundation Risk in {y} ({q_str}) with {scenario_str} (= {AR6_sea_level_change_select:.2f} m)'
+                if surge > 0:
+                    print(f'{y_q_scenario}\\nwith {surge:.2f} m surge above {baseline}')
+                else:
+                    print(f'{y_q_scenario}\\nabove {baseline}')
     print(sea_level_change_list)
     return None
 
