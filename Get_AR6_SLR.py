@@ -35,9 +35,9 @@ def get_ar6_data(ar6_dir,confidence,scenario,years,quantiles,tg_id=None,coords=[
     AR6_sea_level_change = AR6_sea_level_change/1000
     sea_level_change_list = []
     for y in years:
-        idx_year = np.atleast_1d(np.argwhere(AR6_years == y).squeeze())[0]
+        idx_year = np.atleast_1d(np.argwhere(np.isclose(AR6_years,y)).squeeze())[0]
         for q in quantiles:
-            idx_quantile = np.atleast_1d(np.argwhere(AR6_quantiles == q).squeeze())[0]
+            idx_quantile = np.atleast_1d(np.argwhere(np.isclose(AR6_quantiles,q)).squeeze())[0]
             AR6_sea_level_change_select = AR6_sea_level_change[idx_quantile,idx_year]
             sea_level_change_list.append(AR6_sea_level_change_select)
             if print_info:
