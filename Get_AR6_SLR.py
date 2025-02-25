@@ -55,11 +55,10 @@ def get_ar6_data(ar6_dir,confidence,scenario,years,quantiles,tg_id=None,coords=[
 
 def main():
     warnings.simplefilter(action='ignore')
-    input_config_file = 'dem_config.ini'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_file',help='Config file for DEM',default='dem_config.ini')
-    parser.add_argument('--tg_id',help='Tide gauge ID?',default=None)
+    parser.add_argument('--tg_id',help='Tide gauge ID?',default=None,type=int)
     parser.add_argument('--coords',help='Lon/lat coordinates?',default=[None,None],nargs=2,type=float)
     parser.add_argument('--scenario',help='SSP to use?',default='ssp585',choices=['ssp119','ssp126','ssp245','ssp370','ssp585'])
     parser.add_argument('--quantiles',help='Quantiles to use?',default=[0.5],type=float,nargs='*')
@@ -84,7 +83,7 @@ def main():
 
     config = configparser.ConfigParser()
     config.read(config_file)
-    ar6_dir = config.get['INUNDATION_PATHS','AR6_dir']
+    ar6_dir = config.get('INUNDATION_PATHS','AR6_dir')
 
     if coords[0] > 180:
         coords[0] -= 360
