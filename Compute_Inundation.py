@@ -200,7 +200,7 @@ def main():
     constants_dict = {
         'landmask_c_file':landmask_c_file,
         'osm_shp_file':osm_shp_file,
-        'codec_file':CODEC_file,
+        'CODEC_file':CODEC_file,
         'fes_file':fes_file,
         'interpolate_method':INTERPOLATE_METHOD,
         'grid_intermediate_res':GRID_INTERMEDIATE_RES,
