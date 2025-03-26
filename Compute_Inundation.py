@@ -16,9 +16,7 @@ from inundation_utils import inundate_loc,sigma_to_quantiles
 
 def main():
     warnings.simplefilter(action='ignore')
-    config_file = 'dem_config.ini'
-    config = configparser.ConfigParser()
-    config.read(config_file)
+    # config_file = 'dem_config.ini'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_file',help='Path to input DEM to run inundation on.')
@@ -57,6 +55,7 @@ def main():
     dem_file = args.input_file
     loc_name = args.loc_name
     # machine_name = args.machine
+    config_file = args.config
     N_cpus = args.N_cpus
     downsample_res = args.downsample_res
     geoid_file = args.geoid
@@ -92,6 +91,8 @@ def main():
     uncertainty_flag = args.uncertainty
     output_format = args.of
 
+    config = configparser.ConfigParser()
+    config.read(config_file)
     # if icesat2_file is not None and sl_grid_file is not None:
     #     print('ICESat-2 file and sea level grid given, cannot handle both!')
     #     sys.exit()
