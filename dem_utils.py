@@ -49,7 +49,7 @@ def reproject_coords(coords,src_srs,tgt_srs):
     trans_coords=[]
     transform = osr.CoordinateTransformation( src_srs, tgt_srs)
     for x,y in coords:
-        y,x,z = transform.TransformPoint(x,y)
+        x,y,z = transform.TransformPoint(x,y)
         trans_coords.append([x,y])
     return trans_coords
 
@@ -127,8 +127,11 @@ def get_raster_extents(raster,global_local_flag='global'):
     local_ext = get_extent(gt,cols,rows)
     src_srs = osr.SpatialReference()
     src_srs.ImportFromWkt(src.GetProjection())
+    src_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
     tgt_srs = osr.SpatialReference()
     tgt_srs.ImportFromEPSG(4326)
+    tgt_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    # Apparently tgt_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER) might help
     if src_srs.GetAttrValue('AUTHORITY',1) == '4326':
         global_ext = local_ext
     else:
