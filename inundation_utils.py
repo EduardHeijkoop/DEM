@@ -540,6 +540,7 @@ def get_coastal_sealevel(loc_name,x_coast,y_coast,lon_coast,lat_coast,sl_grid_ex
 def get_sealevel_high(raster,flag_dict,loc_name,epsg_code,
                       x_coast,y_coast,lon_coast,lat_coast,
                       dir_dict,constants_dict,dem_dict,algorithm_dict,resampled_dict):
+
     high_tide = flag_dict['high_tide']
     return_period = flag_dict['return_period']
     fes2014_flag = flag_dict['fes2014_flag']
@@ -551,7 +552,7 @@ def get_sealevel_high(raster,flag_dict,loc_name,epsg_code,
     src_resampled_geotransform = src_resampled.GetGeoTransform()
     src_resampled_proj = src_resampled.GetProjection()
     tmp_dir = dir_dict['tmp_dir']
-    CODEC_file = constants_dict['CODEC_file']
+    CODEC_file = constants_dict['codec_file']
     fes_file = constants_dict['fes_file']
     grid_intermediate_res = constants_dict['grid_intermediate_res']
     interpolate_method = constants_dict['interpolate_method']
